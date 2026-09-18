@@ -1,7 +1,9 @@
 import { relations } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
-export type ImportanceLevel = "중요" | "중간" | "비중요" | "연관";
+export type ImportanceLevel = "중요" | "중간" | "비중요";
+export type OriginPlant = { nameKo: string | null; scientificName: string | null };
+export type FieldInputMode = "hierarchy4" | "hierarchy3" | "text";
 export type StudyItem = { id: string; text: string; bold?: boolean; italic?: boolean; highlight?: boolean; linkedConstituentId?: string; children?: StudyItem[] };
 export type StudySection = { id: string; title: string; fieldDefinitionId?: string; items: StudyItem[] };
 
@@ -15,8 +17,12 @@ export const categories = pgTable("categories", {
 
 export const families = pgTable("families", {
   id: uuid("id").defaultRandom().primaryKey(),
-  koreanName: text("korean_name"),
+  koreanName: text("korean_name").notNull(),
   scientificName: text("scientific_name").notNull(),
+  acceptedScientificName: text("accepted_scientific_name"),
+  summary: jsonb("summary").$type<StudyItem[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [uniqueIndex("families_scientific_name_idx").on(t.scientificName)]);
 
 export const crudeDrugs = pgTable("crude_drugs", {
@@ -25,6 +31,7 @@ export const crudeDrugs = pgTable("crude_drugs", {
   koreanName: text("korean_name").notNull(),
   latinName: text("latin_name"),
   origin: text("origin"),
+  origins: jsonb("origins").$type<OriginPlant[]>().notNull().default([]),
   scientificName: text("scientific_name"),
   medicinalPart: text("medicinal_part"),
   categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
@@ -39,6 +46,7 @@ export const fieldDefinitions = pgTable("field_definitions", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull().unique(),
   kind: text("kind").$type<"default" | "custom">().notNull().default("custom"),
+  inputMode: text("input_mode").$type<FieldInputMode>().notNull().default("hierarchy4"),
   position: integer("position").notNull().default(0),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -69,6 +77,7 @@ export const constituentTaxa = pgTable("constituent_taxa", {
   name: text("name").notNull(),
   kind: text("kind").notNull().default("class"),
   description: text("description"),
+  hidden: boolean("hidden").notNull().default(false),
   position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -134,6 +143,7 @@ export const appSettings = pgTable("app_settings", {
 });
 
 export const categoryRelations = relations(categories, ({ many }) => ({ crudeDrugs: many(crudeDrugs) }));
+export const familyRelations = relations(families, ({ many }) => ({ crudeDrugs: many(crudeDrugs) }));
 export const crudeDrugRelations = relations(crudeDrugs, ({ one, many }) => ({
   category: one(categories, { fields: [crudeDrugs.categoryId], references: [categories.id] }),
   family: one(families, { fields: [crudeDrugs.familyId], references: [families.id] }),

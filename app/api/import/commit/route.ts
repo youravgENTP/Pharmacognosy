@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       let familyId: string | null = null;
       if (drug.family) {
         let [family] = await tx.select().from(families).where(eq(families.scientificName, drug.family.scientificName)).limit(1);
-        if (!family) [family] = await tx.insert(families).values(drug.family).returning();
+        if (!family) [family] = await tx.insert(families).values({ ...drug.family, koreanName: drug.family.koreanName ?? drug.family.scientificName }).returning();
         familyId = family.id;
       }
       const [existing] = await tx.select().from(crudeDrugs).where(eq(crudeDrugs.koreanName, drug.koreanName)).limit(1);

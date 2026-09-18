@@ -1,13 +1,14 @@
 "use client";
 
-import { BookOpen, ChevronsLeft, ChevronsRight, Database, FolderHeart, Hexagon, Import, Settings } from "lucide-react";
+import { BookOpen, ChevronsLeft, ChevronsRight, Database, Flower2, FolderHeart, Hexagon, Import, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const links = [
-  { href: "/", label: "생약 DB", icon: Database },
-  { href: "/constituents", label: "성분 체계", icon: Hexagon },
+  { href: "/", label: "Herb Garden", icon: Database },
+  { href: "/constituents", label: "Compount Tree", icon: Hexagon },
+  { href: "/families", label: "Families", icon: Flower2 },
   { href: "/collections", label: "Collections", icon: FolderHeart },
   { href: "/cards", label: "Word Cards", icon: BookOpen },
   { href: "/import", label: "Import", icon: Import },

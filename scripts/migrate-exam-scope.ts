@@ -3,6 +3,7 @@ config({ path: ".env.local" });
 
 import { and, eq, inArray, notInArray, or } from "drizzle-orm";
 import type { ImportanceLevel, StudySection } from "../lib/db/schema";
+import originSeed from "../data/origin-plants.json";
 
 const records = [
   {
@@ -81,13 +82,13 @@ const records = [
     "catalogIndex": 13,
     "koreanName": "보골지",
     "category": "종자류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 14,
     "koreanName": "비자",
     "category": "종자류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 15,
@@ -99,7 +100,7 @@ const records = [
     "catalogIndex": 16,
     "koreanName": "여지핵",
     "category": "종자류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 17,
@@ -279,25 +280,25 @@ const records = [
     "catalogIndex": 46,
     "koreanName": "소두구",
     "category": "과실류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 47,
     "koreanName": "백두구",
     "category": "과실류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 48,
     "koreanName": "초과",
     "category": "과실류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 49,
     "koreanName": "초두구",
     "category": "과실류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 50,
@@ -501,25 +502,25 @@ const records = [
     "catalogIndex": 83,
     "koreanName": "사향초",
     "category": "전초류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 84,
     "koreanName": "삼백초",
     "category": "전초류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 85,
     "koreanName": "어성초",
     "category": "전초류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 86,
     "koreanName": "용아초",
     "category": "전초류",
-    "importance": "연관"
+    "importance": "비중요"
   },
   {
     "catalogIndex": 87,
@@ -679,16 +680,19 @@ const relationPairs = [
   ]
 ] as const;
 const defaultFields = [
-  { name: "성분", position: 10 },
-  { name: "확인시험", position: 20 },
-  { name: "규격시험·정량·기준", position: 30 },
-  { name: "약리", position: 40 },
-  { name: "응용", position: 50 },
-  { name: "처방·생약유래 의약품", position: 60 },
-  { name: "주의·부작용·독성", position: 70 },
-  { name: "기타", position: 80 },
-  { name: "암기법", position: 90 },
+  { name: "성분", position: 10, inputMode: "hierarchy4" as const },
+  { name: "확인시험", position: 20, inputMode: "hierarchy3" as const },
+  { name: "규격시험·정량·기준", position: 30, inputMode: "hierarchy3" as const },
+  { name: "약리", position: 40, inputMode: "hierarchy4" as const },
+  { name: "응용", position: 50, inputMode: "hierarchy4" as const },
+  { name: "처방·생약유래 의약품", position: 60, inputMode: "hierarchy4" as const },
+  { name: "주의·부작용·독성", position: 70, inputMode: "hierarchy4" as const },
+  { name: "기타", position: 80, inputMode: "hierarchy4" as const },
+  { name: "암기법", position: 90, inputMode: "hierarchy4" as const },
 ] as const;
+
+const normalizedOriginName = (name: string) => ({ "개자 (겨자)": "개자", "홉, 호프": "홉,호프", "육종용": "육종용(열당)" }[name] ?? name);
+const originByDrug = new Map(originSeed.categories.flatMap((category) => category.drugs.map((drug) => [normalizedOriginName(drug.name_ko), drug] as const)));
 
 async function main() {
   const { db, databaseClient } = await import("../lib/db");
@@ -700,7 +704,7 @@ async function main() {
   }
   for (const field of defaultFields) {
     await db.insert(fieldDefinitions).values({ ...field, kind: "default", active: true })
-      .onConflictDoUpdate({ target: fieldDefinitions.name, set: { kind: "default", position: field.position, active: true, updatedAt: new Date() } });
+      .onConflictDoUpdate({ target: fieldDefinitions.name, set: { kind: "default", inputMode: field.inputMode, position: field.position, active: true, updatedAt: new Date() } });
   }
 
   const existingBefore = await db.select().from(crudeDrugs);
@@ -745,6 +749,8 @@ async function main() {
   const current = new Map(existingBefore.map((drug) => [drug.koreanName, drug]));
   for (const record of records) {
     const existing = current.get(record.koreanName);
+    const originRecord = originByDrug.get(record.koreanName);
+    const structuredOrigins = originRecord?.origins.map((origin) => ({ nameKo: origin.name_ko, scientificName: origin.scientific_name })) ?? existing?.origins ?? [];
     if (existing) {
       const origin = existing.scientificName && !(existing.origin ?? "").includes(existing.scientificName)
         ? [existing.origin, existing.scientificName].filter(Boolean).join(" · ")
@@ -753,6 +759,7 @@ async function main() {
         catalogIndex: record.catalogIndex,
         categoryId: categoryId.get(record.category)!,
         importance: record.importance as ImportanceLevel,
+        ...(originRecord ? { latinName: originRecord.name_latin, origins: structuredOrigins } : {}),
         origin,
         sections: normalizeSections(existing.sections),
         updatedAt: new Date(),
@@ -763,6 +770,7 @@ async function main() {
         koreanName: record.koreanName,
         categoryId: categoryId.get(record.category)!,
         importance: record.importance as ImportanceLevel,
+        ...(originRecord ? { latinName: originRecord.name_latin, origins: structuredOrigins } : {}),
         sections: normalizeSections([]),
       });
     }

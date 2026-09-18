@@ -1,0 +1,224 @@
+{
+  "families": [
+    {
+      "korean_name": "십자화과",
+      "scientific_name": "Cruciferae",
+      "herbal_drugs": ["개자", "내복자"]
+    },
+    {
+      "korean_name": "메꽃과",
+      "scientific_name": "Convolvulaceae",
+      "herbal_drugs": ["견우자"]
+    },
+    {
+      "korean_name": "콩과",
+      "scientific_name": "Leguminosae",
+      "herbal_drugs": ["결명자", "백편두", "보골지", "카라발두"]
+    },
+    {
+      "korean_name": "박과",
+      "scientific_name": "Cucurbitaceae",
+      "herbal_drugs": ["괄루인"]
+    },
+    {
+      "korean_name": "측백나무과",
+      "scientific_name": "Cupressaceae",
+      "herbal_drugs": ["백자인"]
+    },
+    {
+      "korean_name": "주목과",
+      "scientific_name": "Taxaceae",
+      "herbal_drugs": ["비자"]
+    },
+    {
+      "korean_name": "야자과",
+      "scientific_name": "Palmae",
+      "herbal_drugs": ["빈랑자"]
+    },
+    {
+      "korean_name": "갈매나무과",
+      "scientific_name": "Rhamnaceae",
+      "herbal_drugs": ["산조인", "대추", "지구자"]
+    },
+    {
+      "korean_name": "협죽도과",
+      "scientific_name": "Apocynaceae",
+      "herbal_drugs": ["스트로판투스", "빈카"]
+    },
+    {
+      "korean_name": "아마과",
+      "scientific_name": "Linaceae",
+      "herbal_drugs": ["아마인"]
+    },
+    {
+      "korean_name": "수련과",
+      "scientific_name": "Nymphaeaceae",
+      "herbal_drugs": ["연자육"]
+    },
+    {
+      "korean_name": "육두구과",
+      "scientific_name": "Myristicaceae",
+      "herbal_drugs": ["육두구"]
+    },
+    {
+      "korean_name": "벼과",
+      "scientific_name": "Gramineae",
+      "herbal_drugs": ["의이인"]
+    },
+    {
+      "korean_name": "질경이과",
+      "scientific_name": "Plantaginaceae",
+      "herbal_drugs": ["차전자"]
+    },
+    {
+      "korean_name": "꼭두서니과",
+      "scientific_name": "Rubiaceae",
+      "herbal_drugs": ["커피두", "치자"]
+    },
+    {
+      "korean_name": "백합과",
+      "scientific_name": "Liliaceae",
+      "herbal_drugs": ["콜히쿰자"]
+    },
+    {
+      "korean_name": "대극과",
+      "scientific_name": "Euphorbiaceae",
+      "herbal_drugs": ["파두"]
+    },
+    {
+      "korean_name": "장미과",
+      "scientific_name": "Rosaceae",
+      "herbal_drugs": ["행인", "도인", "복분자", "산사", "영실", "오매"]
+    },
+    {
+      "korean_name": "마전과",
+      "scientific_name": "Loganiaceae",
+      "herbal_drugs": ["호미카"]
+    },
+    {
+      "korean_name": "가지과",
+      "scientific_name": "Solanaceae",
+      "herbal_drugs": ["고추", "구기자", "용규"]
+    },
+    {
+      "korean_name": "국화과",
+      "scientific_name": "Compositae",
+      "herbal_drugs": ["마리아엉겅퀴", "우방자", "구절초", "대계", "인진호", "애엽", "청호", "포공영"]
+    },
+    {
+      "korean_name": "층층나무과",
+      "scientific_name": "Cornaceae",
+      "herbal_drugs": ["산수유"]
+    },
+    {
+      "korean_name": "운향과",
+      "scientific_name": "Rutaceae",
+      "herbal_drugs": ["산초", "오수유", "지실", "진피", "청피", "귤핵", "등피"]
+    },
+    {
+      "korean_name": "생강과",
+      "scientific_name": "Zingiberaceae",
+      "herbal_drugs": ["소두구", "익지"]
+    },
+    {
+      "korean_name": "물푸레나무과",
+      "scientific_name": "Oleaceae",
+      "herbal_drugs": ["연교"]
+    },
+    {
+      "korean_name": "으름덩굴과",
+      "scientific_name": "Lardizabalaceae",
+      "herbal_drugs": ["예지자"]
+    },
+    {
+      "korean_name": "오미자과",
+      "scientific_name": "Schisandraceae",
+      "herbal_drugs": ["오미자"]
+    },
+    {
+      "korean_name": "무환자나무과",
+      "scientific_name": "Sapindaceae",
+      "herbal_drugs": ["용안육"]
+    },
+    {
+      "korean_name": "능소화과",
+      "scientific_name": "Bignoniaceae",
+      "herbal_drugs": ["자실"]
+    },
+    {
+      "korean_name": "삼과",
+      "scientific_name": "Cannabaceae",
+      "herbal_drugs": ["홉(호프)", "대마"]
+    },
+    {
+      "korean_name": "미나리과",
+      "scientific_name": "Umbelliferae",
+      "herbal_drugs": ["회향"]
+    },
+    {
+      "korean_name": "후추과",
+      "scientific_name": "Piperaceae",
+      "herbal_drugs": ["후추"]
+    },
+    {
+      "korean_name": "꿀풀과",
+      "scientific_name": "Labiatae",
+      "herbal_drugs": ["광곽향", "박하", "사향초", "익모초", "자소엽", "향유"]
+    },
+    {
+      "korean_name": "용담과",
+      "scientific_name": "Gentianaceae",
+      "herbal_drugs": ["당약"]
+    },
+    {
+      "korean_name": "초롱꽃과",
+      "scientific_name": "Campanulaceae",
+      "herbal_drugs": ["로베리아초"]
+    },
+    {
+      "korean_name": "마황과",
+      "scientific_name": "Ephedraceae",
+      "herbal_drugs": ["마황"]
+    },
+    {
+      "korean_name": "양귀비과",
+      "scientific_name": "Papaveraceae",
+      "herbal_drugs": ["백굴채"]
+    },
+    {
+      "korean_name": "삼백초과",
+      "scientific_name": "Saururaceae",
+      "herbal_drugs": ["삼백초", "어성초"]
+    },
+    {
+      "korean_name": "겨우살이과",
+      "scientific_name": "Loranthaceae",
+      "herbal_drugs": ["상기생"]
+    },
+    {
+      "korean_name": "난초과",
+      "scientific_name": "Orchidaceae",
+      "herbal_drugs": ["석곡"]
+    },
+    {
+      "korean_name": "열당과",
+      "scientific_name": "Orobanchaceae",
+      "herbal_drugs": ["육종용"]
+    },
+    {
+      "korean_name": "매자나무과",
+      "scientific_name": "Berberidaceae",
+      "herbal_drugs": ["음양곽"]
+    },
+    {
+      "korean_name": "쥐손이풀과",
+      "scientific_name": "Geraniaceae",
+      "herbal_drugs": ["현초"]
+    },
+    {
+      "korean_name": "물레나물과",
+      "scientific_name": "Hypericaceae",
+      "herbal_drugs": ["히페리시초"]
+    }
+  ]
+}

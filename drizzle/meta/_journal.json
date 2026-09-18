@@ -22,6 +22,27 @@
       "when": 1789738163520,
       "tag": "0002_nebulous_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789741224909,
+      "tag": "0003_kind_dust",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789742481275,
+      "tag": "0004_absent_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789744242610,
+      "tag": "0005_fuzzy_starbolt",
+      "breakpoints": true
     }
   ]
 }

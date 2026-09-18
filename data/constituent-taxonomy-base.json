@@ -1,0 +1,800 @@
+{
+  "version": "base-v1",
+  "description": "Pharmacognosy constituent taxonomy base version",
+  "taxonomy": [
+    {
+      "name": "MVA / MEP-DXP 경로",
+      "kind": "pathway",
+      "children": [
+        {
+          "name": "Monoterpenoid",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Acyclic monoterpene",
+              "kind": "subclass"
+            },
+            {
+              "name": "Monocyclic monoterpene",
+              "kind": "subclass"
+            },
+            {
+              "name": "Bicyclic monoterpene",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Iridoid",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Secoiridoid",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "비정형 Monoterpenoid",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "DMAPP 2분자 축합형",
+                  "kind": "subclass"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Sesquiterpenoid",
+          "kind": "class"
+        },
+        {
+          "name": "Diterpenoid",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Resin acid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Diterpenoid alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Sesterterpenoid",
+          "kind": "class"
+        },
+        {
+          "name": "Triterpenoid",
+          "kind": "class",
+          "children": [
+            {
+              "name": "4환형 Triterpenoid",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Dammarane",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Cucurbitane",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "5환형 Triterpenoid",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Oleanane",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "변형 Triterpenoid",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Limonoid",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Quassinoid",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "Triterpenoidal saponin",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Dammarane-type saponin",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Cucurbitane-type saponin",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Oleanane-type saponin",
+                  "kind": "subclass"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Steroid",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Steroidal saponin",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Spirostane",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Furostane",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "강심배당체",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Cardenolide",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Bufadienolide",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "Phytosterol",
+              "kind": "subclass"
+            },
+            {
+              "name": "Ecdysteroid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Steroidal alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Tetraterpenoid / Carotenoid",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Carotene류",
+              "kind": "subclass"
+            },
+            {
+              "name": "Xanthophyll류",
+              "kind": "subclass"
+            },
+            {
+              "name": "배당체형 Carotenoid",
+              "kind": "subclass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Shikimate 경로",
+      "kind": "pathway",
+      "children": [
+        {
+          "name": "Phenylpropanoid",
+          "kind": "class"
+        },
+        {
+          "name": "C6-C1 화합물",
+          "kind": "class"
+        },
+        {
+          "name": "Coumarin",
+          "kind": "class",
+          "children": [
+            {
+              "name": "기본 Coumarin",
+              "kind": "subclass"
+            },
+            {
+              "name": "Prenylated / Isoprenyl coumarin",
+              "kind": "subclass"
+            },
+            {
+              "name": "Coumarin dimer",
+              "kind": "subclass"
+            },
+            {
+              "name": "추가 고리형 / 장쇄 치환형 Coumarin",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Lignan",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Lignan",
+              "kind": "subclass"
+            },
+            {
+              "name": "Neolignan",
+              "kind": "subclass"
+            },
+            {
+              "name": "Norlignan",
+              "kind": "subclass"
+            },
+            {
+              "name": "Sesquilignan",
+              "kind": "subclass"
+            },
+            {
+              "name": "Dilignan",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Flavolignan",
+          "kind": "class"
+        },
+        {
+          "name": "Lignin",
+          "kind": "class"
+        }
+      ]
+    },
+    {
+      "name": "Polyketide 경로",
+      "kind": "pathway",
+      "children": [
+        {
+          "name": "Polyketide 골격",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Resorcinol형",
+              "kind": "subclass"
+            },
+            {
+              "name": "Phloroglucinol형",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Quinone",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Benzoquinone",
+              "kind": "subclass"
+            },
+            {
+              "name": "Naphthoquinone",
+              "kind": "subclass"
+            },
+            {
+              "name": "Anthraquinone",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Emodin type",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Alizarin type",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Anthrone",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Dianthrone",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Anthranol",
+                  "kind": "subclass"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "지방족 Polyketide",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Resin glycoside",
+              "kind": "subclass"
+            },
+            {
+              "name": "Polyacetylene",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Quinone 제외 방향족 화합물",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Phthalide",
+              "kind": "subclass"
+            },
+            {
+              "name": "Phloroglucinol derivative",
+              "kind": "subclass"
+            },
+            {
+              "name": "Chromone",
+              "kind": "subclass"
+            },
+            {
+              "name": "Isocoumarin",
+              "kind": "subclass"
+            },
+            {
+              "name": "Cannabinoid",
+              "kind": "subclass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Amino acid 유래 성분",
+      "kind": "pathway",
+      "children": [
+        {
+          "name": "아미노산 유래 비-Alkaloid",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Capsaicinoid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Cyanogenic glycoside",
+              "kind": "subclass"
+            },
+            {
+              "name": "Glucosinolate",
+              "kind": "subclass"
+            },
+            {
+              "name": "Cys 유래 성분",
+              "kind": "subclass"
+            },
+            {
+              "name": "Glu 유래 성분",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Ornithine 유래 알칼로이드",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Tropane alkaloid",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Ecgonine type",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Tropine type",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "Pyrrolidine alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Lysine 유래 알칼로이드",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Piperidine alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Quinolizidine alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Nicotinic acid 유래 알칼로이드",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Pyridine alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Histidine 유래 알칼로이드",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Imidazole alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Anthranilic acid 유래 알칼로이드",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Quinazoline alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Quinoline alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Acridine alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Phe 유래 알칼로이드",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Phenylethylamine / Protoalkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Tyr 유래 Isoquinoline",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Tetrahydroisoquinoline",
+              "kind": "subclass"
+            },
+            {
+              "name": "BenzylTetrahydroisoquinoline",
+              "kind": "subclass"
+            },
+            {
+              "name": "BisbenzylTetrahydroisoquinoline",
+              "kind": "subclass"
+            },
+            {
+              "name": "Protoberberine alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Aporphine alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Morphinan alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Phenylethylisoquinoline alkaloid",
+          "kind": "class"
+        },
+        {
+          "name": "Amaryllidaceous alkaloid",
+          "kind": "class"
+        },
+        {
+          "name": "Monoterpenoid isoquinoline alkaloid",
+          "kind": "class"
+        },
+        {
+          "name": "Trp 유래 알칼로이드",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Simple indole alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "β-Carboline alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Monoterpenoid indole alkaloid",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Corynanthe type",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Iboga type",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Aspidosperma type",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Vinca alkaloid",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "Quinoline alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Pyrroloquinoline alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Pyrroloindole alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Ergot alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "기타 Indole alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "비-aa 유래 Pseudoalkaloid",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Acetate 유래 alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Terpenoid 유래 alkaloid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Purine alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "복합경로",
+      "kind": "pathway",
+      "children": [
+        {
+          "name": "Shikimate + Polyketide",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Flavonoid",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Flavone",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Flavonol",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Flavanone",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Flavanonol",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Anthocyanidin / Anthocyanin",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Biflavonoid",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "Chalcone 계열",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Chalcone",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Dihydrochalcone",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Aurone",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "B-ring 위치변경형",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Isoflavonoid",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Neoflavonoid",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Homoisoflavonoid",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "Stilbene",
+              "kind": "subclass"
+            },
+            {
+              "name": "Xanthone",
+              "kind": "subclass"
+            },
+            {
+              "name": "Flavolignan",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Shikimate + Polyketide + MVA",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Prenylated flavonoid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Shikimate + MVA",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Prenylated coumarin",
+              "kind": "subclass"
+            },
+            {
+              "name": "Naphthoquinone 일부",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Polyketide + MVA",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Cannabinoid",
+              "kind": "subclass"
+            },
+            {
+              "name": "Prenylated Phloroglucinol 계열",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "aa + Polyketide",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Tropane alkaloid 계열",
+              "kind": "subclass"
+            },
+            {
+              "name": "Acid-amide 계열",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "aa + MVA",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Monoterpenoid indole alkaloid",
+              "kind": "subclass"
+            }
+          ]
+        },
+        {
+          "name": "Tannin",
+          "kind": "class",
+          "children": [
+            {
+              "name": "Pyrogallol tannin / 가수분해형 tannin",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Gallotannin",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Ellagitannin",
+                  "kind": "subclass"
+                }
+              ]
+            },
+            {
+              "name": "Catechol tannin / 축합형 tannin",
+              "kind": "subclass",
+              "children": [
+                {
+                  "name": "Flavan-3-ol 계열",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Leucoanthocyanidin 계열",
+                  "kind": "subclass"
+                },
+                {
+                  "name": "Procyanidin",
+                  "kind": "subclass"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "DiarylHeptanoid",
+          "kind": "class"
+        },
+        {
+          "name": "γ-Pyrone 계열",
+          "kind": "class"
+        }
+      ]
+    }
+  ]
+}

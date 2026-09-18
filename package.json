@@ -11,6 +11,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:exam": "tsx scripts/migrate-exam-scope.ts",
+    "db:migrate:taxonomy": "tsx scripts/migrate-constituent-taxonomy.ts",
+    "db:migrate:families": "tsx scripts/migrate-botanical-families.ts",
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

@@ -1,0 +1,829 @@
+{
+  "seed_version": 1,
+  "source_note": "Initial Pharmacognosy seed data extracted from the existing 종자류, 과실류, 전초류 Excel study files. Preserve these values as source data; do not silently correct spellings or scientific names during import.",
+  "categories": [
+    {
+      "name_ko": "종자류",
+      "drugs": [
+        {
+          "name_ko": "개자 (겨자)",
+          "name_latin": "Brassicae Semen",
+          "origins": [
+            {
+              "name_ko": "갓",
+              "scientific_name": "Brassica juncea"
+            }
+          ]
+        },
+        {
+          "name_ko": "견우자",
+          "name_latin": "Pharbitidis Semen",
+          "origins": [
+            {
+              "name_ko": "나팔꽃",
+              "scientific_name": "Pharbitis nil"
+            }
+          ]
+        },
+        {
+          "name_ko": "결명자",
+          "name_latin": "Cassiae Semen",
+          "origins": [
+            {
+              "name_ko": "결명차",
+              "scientific_name": "cassia tora"
+            }
+          ]
+        },
+        {
+          "name_ko": "괄루인",
+          "name_latin": "Trichosanthis Semen",
+          "origins": [
+            {
+              "name_ko": "하늘타리",
+              "scientific_name": "Trichosanthes"
+            }
+          ]
+        },
+        {
+          "name_ko": "내복자",
+          "name_latin": "Raphani Semen",
+          "origins": [
+            {
+              "name_ko": "무",
+              "scientific_name": "Raphanus sativus"
+            }
+          ]
+        },
+        {
+          "name_ko": "백자인",
+          "name_latin": "Thujae Semen",
+          "origins": [
+            {
+              "name_ko": "측백나무",
+              "scientific_name": "Thuja orientalis"
+            }
+          ]
+        },
+        {
+          "name_ko": "백편두",
+          "name_latin": "Dolichos Semen",
+          "origins": [
+            {
+              "name_ko": "편두",
+              "scientific_name": "Dolichos lablab"
+            }
+          ]
+        },
+        {
+          "name_ko": "보골지",
+          "name_latin": "Psoraleae Semen",
+          "origins": [
+            {
+              "name_ko": "보골지",
+              "scientific_name": "Psoralea corylifolia"
+            }
+          ]
+        },
+        {
+          "name_ko": "비자",
+          "name_latin": "Torreyae Semen",
+          "origins": [
+            {
+              "name_ko": "비자나무",
+              "scientific_name": "Torreya nucifera"
+            }
+          ]
+        },
+        {
+          "name_ko": "빈랑자",
+          "name_latin": "Arecae Semen",
+          "origins": [
+            {
+              "name_ko": "빈랑나무",
+              "scientific_name": "Areca catechu"
+            }
+          ]
+        },
+        {
+          "name_ko": "산조인",
+          "name_latin": "Zizyphi Semen",
+          "origins": [
+            {
+              "name_ko": "산조",
+              "scientific_name": "Zizyphus jujuba"
+            }
+          ]
+        },
+        {
+          "name_ko": "스트로판투스",
+          "name_latin": "Strophanthi Semen",
+          "origins": [
+            {
+              "name_ko": null,
+              "scientific_name": "Strophanthus kombe"
+            }
+          ]
+        },
+        {
+          "name_ko": "아마인",
+          "name_latin": "Lini Semen",
+          "origins": [
+            {
+              "name_ko": "아마",
+              "scientific_name": "Linum usitatissimum"
+            }
+          ]
+        },
+        {
+          "name_ko": "연자육",
+          "name_latin": "Nelumbinis Semen",
+          "origins": [
+            {
+              "name_ko": "연꽃",
+              "scientific_name": "Nelumbo nucifera"
+            }
+          ]
+        },
+        {
+          "name_ko": "육두구",
+          "name_latin": "Myristicae Semen",
+          "origins": [
+            {
+              "name_ko": "육두구",
+              "scientific_name": "Myristica fragrans"
+            }
+          ]
+        },
+        {
+          "name_ko": "의이인",
+          "name_latin": "Coicis Semen",
+          "origins": [
+            {
+              "name_ko": "율무",
+              "scientific_name": "Coix lacryma-jobi"
+            }
+          ]
+        },
+        {
+          "name_ko": "차전자",
+          "name_latin": "Plantaginis Semen",
+          "origins": [
+            {
+              "name_ko": "질경이",
+              "scientific_name": "Plantago asiatica"
+            }
+          ]
+        },
+        {
+          "name_ko": "카라발두",
+          "name_latin": "Physostigmatis Semen",
+          "origins": [
+            {
+              "name_ko": "카라발콩",
+              "scientific_name": "Physostigma venenosum"
+            }
+          ]
+        },
+        {
+          "name_ko": "커피두",
+          "name_latin": "Coffee Semen",
+          "origins": [
+            {
+              "name_ko": "커피나무",
+              "scientific_name": "coffea arabica"
+            }
+          ]
+        },
+        {
+          "name_ko": "콜히쿰자",
+          "name_latin": "Colchici Semen",
+          "origins": [
+            {
+              "name_ko": "콜히쿰",
+              "scientific_name": "Colchicum autumnale"
+            }
+          ]
+        },
+        {
+          "name_ko": "파두",
+          "name_latin": "Crotonis Semen",
+          "origins": [
+            {
+              "name_ko": "파두",
+              "scientific_name": "Croton tiglium"
+            }
+          ]
+        },
+        {
+          "name_ko": "행인",
+          "name_latin": "Armeniacae Semen",
+          "origins": [
+            {
+              "name_ko": "살구나무",
+              "scientific_name": "Prunus armeniaca"
+            }
+          ]
+        },
+        {
+          "name_ko": "도인",
+          "name_latin": "Persicae Semen",
+          "origins": [
+            {
+              "name_ko": "복숭아나무",
+              "scientific_name": "Prunus persica"
+            }
+          ]
+        },
+        {
+          "name_ko": "호미카",
+          "name_latin": "Strychni Semen",
+          "origins": [
+            {
+              "name_ko": "마전",
+              "scientific_name": "Strychnos nux-vomica"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name_ko": "과실류",
+      "drugs": [
+        {
+          "name_ko": "고추",
+          "name_latin": "Capsici Fructus",
+          "origins": [
+            {
+              "name_ko": "고추",
+              "scientific_name": "Capsicum annuum"
+            }
+          ]
+        },
+        {
+          "name_ko": "구기자",
+          "name_latin": "Lycii Fructus",
+          "origins": [
+            {
+              "name_ko": "구기자 나무",
+              "scientific_name": "Lycium chinense"
+            }
+          ]
+        },
+        {
+          "name_ko": "대추",
+          "name_latin": "Zizyphi Fructus",
+          "origins": [
+            {
+              "name_ko": "대추나무",
+              "scientific_name": "Zizyphus jujuba"
+            }
+          ]
+        },
+        {
+          "name_ko": "마리아엉겅퀴",
+          "name_latin": "Silybi Mariani Fructus",
+          "origins": [
+            {
+              "name_ko": "마리아엉겅퀴",
+              "scientific_name": "Silybum marianum"
+            }
+          ]
+        },
+        {
+          "name_ko": "복분자",
+          "name_latin": "Rubi Fructus",
+          "origins": [
+            {
+              "name_ko": "복분자딸기",
+              "scientific_name": "Robus coreanus"
+            }
+          ]
+        },
+        {
+          "name_ko": "산사",
+          "name_latin": "Crataegi Frustus",
+          "origins": [
+            {
+              "name_ko": "산사나무",
+              "scientific_name": "Crataegus pinnatifida"
+            }
+          ]
+        },
+        {
+          "name_ko": "산수유",
+          "name_latin": "Corni Fructus",
+          "origins": [
+            {
+              "name_ko": "산수유나무",
+              "scientific_name": "Cornus officinalis"
+            }
+          ]
+        },
+        {
+          "name_ko": "산초",
+          "name_latin": "Zanthocyli Pericarplum",
+          "origins": [
+            {
+              "name_ko": "초피나무",
+              "scientific_name": "Zanthoxylum piperitum"
+            }
+          ]
+        },
+        {
+          "name_ko": "소두구",
+          "name_latin": "Cardamomi Fructus",
+          "origins": [
+            {
+              "name_ko": "소두구",
+              "scientific_name": "Elettaria cardamomum"
+            }
+          ]
+        },
+        {
+          "name_ko": "연교",
+          "name_latin": "Forsythiae Fructus",
+          "origins": [
+            {
+              "name_ko": "의성개나리",
+              "scientific_name": "Forsythia viridissima"
+            },
+            {
+              "name_ko": "연교",
+              "scientific_name": "Forsythia suspensa"
+            }
+          ]
+        },
+        {
+          "name_ko": "영실",
+          "name_latin": "Rosae Multiflorae Fructus",
+          "origins": [
+            {
+              "name_ko": "찔레꽃",
+              "scientific_name": "Rosa multiflora"
+            }
+          ]
+        },
+        {
+          "name_ko": "예지자",
+          "name_latin": "Akebiae Fructus",
+          "origins": [
+            {
+              "name_ko": "으름덩굴",
+              "scientific_name": "Akebia quinata"
+            }
+          ]
+        },
+        {
+          "name_ko": "오매",
+          "name_latin": "Mume Fructus",
+          "origins": [
+            {
+              "name_ko": "매실나무",
+              "scientific_name": "Prunus mume"
+            }
+          ]
+        },
+        {
+          "name_ko": "오미자",
+          "name_latin": "Schisandrae Fructus",
+          "origins": [
+            {
+              "name_ko": "오미자",
+              "scientific_name": "Schisandra chinensis"
+            }
+          ]
+        },
+        {
+          "name_ko": "오수유",
+          "name_latin": "Evodiae Fructus",
+          "origins": [
+            {
+              "name_ko": "오수유",
+              "scientific_name": "Evodia rutaecarpa"
+            }
+          ]
+        },
+        {
+          "name_ko": "용안육",
+          "name_latin": "Longan Arillus",
+          "origins": [
+            {
+              "name_ko": "용안",
+              "scientific_name": "Dimocarpus longan"
+            }
+          ]
+        },
+        {
+          "name_ko": "우방자",
+          "name_latin": "Arctii Fructus",
+          "origins": [
+            {
+              "name_ko": "우엉",
+              "scientific_name": "Arctium lappa"
+            }
+          ]
+        },
+        {
+          "name_ko": "익지",
+          "name_latin": "Alpiniae Oxyphyllae Fructus",
+          "origins": [
+            {
+              "name_ko": "익지",
+              "scientific_name": "Alpina oxyphylla"
+            }
+          ]
+        },
+        {
+          "name_ko": "자실",
+          "name_latin": "Catalpae Fructus",
+          "origins": [
+            {
+              "name_ko": "개오동나무",
+              "scientific_name": "Catalpa ovata"
+            }
+          ]
+        },
+        {
+          "name_ko": "지구자",
+          "name_latin": "Hoveniae Semen seu Fructus",
+          "origins": [
+            {
+              "name_ko": "헛개나무",
+              "scientific_name": "Hovenia dulcis"
+            }
+          ]
+        },
+        {
+          "name_ko": "지실",
+          "name_latin": "Ponciri Fructus Immaturus",
+          "origins": [
+            {
+              "name_ko": "탱자나무",
+              "scientific_name": "Poncirus trifoliata"
+            }
+          ]
+        },
+        {
+          "name_ko": "진피",
+          "name_latin": "Citri Unshiu Pericarpium",
+          "origins": [
+            {
+              "name_ko": "귤나무",
+              "scientific_name": "Citrus unshiu"
+            }
+          ]
+        },
+        {
+          "name_ko": "청피",
+          "name_latin": "Citri Unshiu Pericarpium Immaturus",
+          "origins": [
+            {
+              "name_ko": "귤나무",
+              "scientific_name": "Citrus unshiu"
+            }
+          ]
+        },
+        {
+          "name_ko": "귤핵",
+          "name_latin": "Citri Unshiu Semen",
+          "origins": [
+            {
+              "name_ko": "귤나무",
+              "scientific_name": "Citrus unshiu"
+            }
+          ]
+        },
+        {
+          "name_ko": "등피",
+          "name_latin": "Aurantii Pericarpium",
+          "origins": [
+            {
+              "name_ko": "광귤나무",
+              "scientific_name": "Citrus aurantium"
+            }
+          ]
+        },
+        {
+          "name_ko": "치자",
+          "name_latin": "Gardeniae Fructus",
+          "origins": [
+            {
+              "name_ko": "치자나무",
+              "scientific_name": "Gardenia jasmonoides"
+            }
+          ]
+        },
+        {
+          "name_ko": "홉, 호프",
+          "name_latin": "Humuli Strobilus",
+          "origins": [
+            {
+              "name_ko": "홉",
+              "scientific_name": "Humulus lupulus"
+            }
+          ]
+        },
+        {
+          "name_ko": "회향",
+          "name_latin": "Foeniculi Fructus",
+          "origins": [
+            {
+              "name_ko": "회향",
+              "scientific_name": "Foeniculum vulgare"
+            }
+          ]
+        },
+        {
+          "name_ko": "후추",
+          "name_latin": "Piperis Nigri Fructus",
+          "origins": [
+            {
+              "name_ko": "후추",
+              "scientific_name": "Piper nigrum"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name_ko": "전초류",
+      "drugs": [
+        {
+          "name_ko": "광곽향",
+          "name_latin": "Pogostemonis Herba",
+          "origins": [
+            {
+              "name_ko": "광곽향",
+              "scientific_name": "Pogostemon cablin"
+            },
+            {
+              "name_ko": "배초향",
+              "scientific_name": "Agastache rugosa"
+            }
+          ]
+        },
+        {
+          "name_ko": "구절초",
+          "name_latin": "Chrysanthemi Zawadskii Herba",
+          "origins": [
+            {
+              "name_ko": "구절초",
+              "scientific_name": "Chrysanthemum zawadskii"
+            }
+          ]
+        },
+        {
+          "name_ko": "당약",
+          "name_latin": "Sertiae Herba",
+          "origins": [
+            {
+              "name_ko": "쓴풀",
+              "scientific_name": "Swetia japonica"
+            }
+          ]
+        },
+        {
+          "name_ko": "대계",
+          "name_latin": "Cirsii Herba",
+          "origins": [
+            {
+              "name_ko": "엉겅퀴",
+              "scientific_name": "Cirsium japonicum"
+            }
+          ]
+        },
+        {
+          "name_ko": "대마",
+          "name_latin": "Cannabis Herba",
+          "origins": [
+            {
+              "name_ko": "대마",
+              "scientific_name": "Cannabis sativa"
+            }
+          ]
+        },
+        {
+          "name_ko": "로베리아초",
+          "name_latin": "Lobeliae Herba",
+          "origins": [
+            {
+              "name_ko": null,
+              "scientific_name": "Lobelia inflata"
+            }
+          ]
+        },
+        {
+          "name_ko": "마황",
+          "name_latin": "Ephedrae Herba",
+          "origins": [
+            {
+              "name_ko": "초마황",
+              "scientific_name": "Ephedra sinica"
+            }
+          ]
+        },
+        {
+          "name_ko": "박하",
+          "name_latin": "Menthae Herba",
+          "origins": [
+            {
+              "name_ko": "박하",
+              "scientific_name": "Mentha arvensis"
+            }
+          ]
+        },
+        {
+          "name_ko": "백굴채",
+          "name_latin": "Chelidonii Herba",
+          "origins": [
+            {
+              "name_ko": "애기똥풀",
+              "scientific_name": "Chelidonium majus"
+            }
+          ]
+        },
+        {
+          "name_ko": "빈카",
+          "name_latin": "Vincae Herba",
+          "origins": [
+            {
+              "name_ko": "일일초",
+              "scientific_name": "Catharanthus roseus (=Vinca rosea)"
+            }
+          ]
+        },
+        {
+          "name_ko": "사향초",
+          "name_latin": "Thymi Quinquecostati Herba",
+          "origins": [
+            {
+              "name_ko": "백리향",
+              "scientific_name": "Thymus quinquecostatus"
+            }
+          ]
+        },
+        {
+          "name_ko": "삼백초",
+          "name_latin": "Saururi Herba",
+          "origins": [
+            {
+              "name_ko": "삼백초",
+              "scientific_name": "Saururus chinensis"
+            }
+          ]
+        },
+        {
+          "name_ko": "상기생",
+          "name_latin": "Loranthi Ramulus",
+          "origins": [
+            {
+              "name_ko": "뽕나무 겨우살이",
+              "scientific_name": null
+            }
+          ]
+        },
+        {
+          "name_ko": "석곡",
+          "name_latin": "Dendrobii Herba",
+          "origins": [
+            {
+              "name_ko": "금채석곡 등 여러 기원의 식물",
+              "scientific_name": null
+            }
+          ]
+        },
+        {
+          "name_ko": "용규",
+          "name_latin": "Solani Nigri Herba",
+          "origins": [
+            {
+              "name_ko": "까마중",
+              "scientific_name": "Solanum nigrum L."
+            }
+          ]
+        },
+        {
+          "name_ko": "육종용",
+          "name_latin": "Cistanchis Herba",
+          "origins": [
+            {
+              "name_ko": "육종용",
+              "scientific_name": "Cistanche deserticola"
+            }
+          ]
+        },
+        {
+          "name_ko": "음양곽",
+          "name_latin": "Epimedii Herba",
+          "origins": [
+            {
+              "name_ko": "삼지구엽초",
+              "scientific_name": "Epimedium koreanum"
+            }
+          ]
+        },
+        {
+          "name_ko": "익모초",
+          "name_latin": "Leonuri Herba",
+          "origins": [
+            {
+              "name_ko": "익모초",
+              "scientific_name": "Leonurus japonicus"
+            }
+          ]
+        },
+        {
+          "name_ko": "인진호",
+          "name_latin": "Artemisiae Capillaris Herba",
+          "origins": [
+            {
+              "name_ko": "사철쑥",
+              "scientific_name": "Artemisia capillaris"
+            }
+          ]
+        },
+        {
+          "name_ko": "애엽",
+          "name_latin": "Artemisiae Argyi Herba",
+          "origins": [
+            {
+              "name_ko": "황해쑥",
+              "scientific_name": "Atemisia argyi"
+            }
+          ]
+        },
+        {
+          "name_ko": "청호",
+          "name_latin": "Artemisiae Annuae Herba",
+          "origins": [
+            {
+              "name_ko": "개똥쑥",
+              "scientific_name": "Artemisia annua"
+            }
+          ]
+        },
+        {
+          "name_ko": "자소엽",
+          "name_latin": "Perillae Herba",
+          "origins": [
+            {
+              "name_ko": "차즈기",
+              "scientific_name": "Perilla frutescens"
+            }
+          ]
+        },
+        {
+          "name_ko": "어성초",
+          "name_latin": "Houttuyniae Herba",
+          "origins": [
+            {
+              "name_ko": "약모밀",
+              "scientific_name": "Houttuynia cordata"
+            }
+          ]
+        },
+        {
+          "name_ko": "포공영",
+          "name_latin": "Taraxaci Herba",
+          "origins": [
+            {
+              "name_ko": "민들레",
+              "scientific_name": "Taraxacum platycarpum"
+            }
+          ]
+        },
+        {
+          "name_ko": "향유",
+          "name_latin": "Elsholtziae Herba",
+          "origins": [
+            {
+              "name_ko": "향유",
+              "scientific_name": "Elsholtzia ciliata"
+            }
+          ]
+        },
+        {
+          "name_ko": "현초",
+          "name_latin": "Geranii Herba",
+          "origins": [
+            {
+              "name_ko": "이질풀",
+              "scientific_name": "Geranium thunbergii"
+            }
+          ]
+        },
+        {
+          "name_ko": "히페리시초",
+          "name_latin": "Hyperici Herba",
+          "origins": [
+            {
+              "name_ko": null,
+              "scientific_name": "Hypericum perforatum"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

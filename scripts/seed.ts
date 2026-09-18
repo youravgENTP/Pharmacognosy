@@ -3,10 +3,11 @@ config({ path: ".env.local" });
 
 import type { StudyItem, StudySection } from "../lib/db/schema";
 import { eq } from "drizzle-orm";
+import taxonomyBase from "../data/constituent-taxonomy-base.json";
 
 async function main() {
 const { db, databaseClient } = await import("../lib/db");
-const { categories, constituentTaxa, constituentTaxonEdges, crudeDrugs, decks, families, relationshipTypes } = await import("../lib/db/schema");
+const { categories, constituents, constituentMemberships, constituentTaxa, constituentTaxonEdges, crudeDrugs, decks, families, relationshipTypes } = await import("../lib/db/schema");
 
 const categoryData = [
   { name: "과실류", slug: "fructus", position: 1 },
@@ -48,19 +49,35 @@ for (const name of ["유사생약", "가공/연관"]) await db.insert(relationsh
 const [deck] = await db.select().from(decks).where(eq(decks.name, "핵심 생약")).limit(1);
 if (!deck) await db.insert(decks).values({ name: "핵심 생약", description: "직접 카드를 추가해 보세요." });
 
-const taxonomy: { name: string; kind: "pathway" | "class" | "subclass" | "compound"; parent?: string }[] = [
-  { name: "MVA / MEP-DXP", kind: "pathway" }, { name: "Monoterpenoid", kind: "class", parent: "MVA / MEP-DXP" }, { name: "Iridoid", kind: "subclass", parent: "Monoterpenoid" }, { name: "Secoiridoid", kind: "subclass", parent: "Monoterpenoid" }, { name: "Sesquiterpenoid", kind: "class", parent: "MVA / MEP-DXP" }, { name: "Diterpenoid", kind: "class", parent: "MVA / MEP-DXP" }, { name: "Triterpenoid", kind: "class", parent: "MVA / MEP-DXP" }, { name: "Saponin", kind: "subclass", parent: "Triterpenoid" }, { name: "Steroid", kind: "subclass", parent: "Triterpenoid" },
-  { name: "Shikimate", kind: "pathway" }, { name: "Phenylpropanoid", kind: "class", parent: "Shikimate" },
-  { name: "Polyketide", kind: "pathway" }, { name: "Quinone", kind: "class", parent: "Polyketide" }, { name: "Anthraquinone", kind: "subclass", parent: "Quinone" }, { name: "Phthalide", kind: "class", parent: "Polyketide" }, { name: "Phloroglucinol 유도체", kind: "class", parent: "Polyketide" },
-  { name: "복합경로", kind: "pathway" }, { name: "Flavonoid", kind: "class", parent: "복합경로" }, { name: "Tannin", kind: "class", parent: "복합경로" }, { name: "DiarylHeptanoid", kind: "class", parent: "복합경로" },
-  { name: "Amino acid 유래", kind: "pathway" }, { name: "Alkaloid", kind: "class", parent: "Amino acid 유래" }, { name: "Isoquinoline Alkaloid", kind: "subclass", parent: "Alkaloid" }, { name: "Indole Alkaloid", kind: "subclass", parent: "Alkaloid" },
-  { name: "Zingiberene", kind: "compound", parent: "Sesquiterpenoid" }, { name: "6-Gingerol", kind: "compound", parent: "DiarylHeptanoid" }, { name: "6-Shogaol", kind: "compound", parent: "DiarylHeptanoid" }, { name: "Berberine", kind: "compound", parent: "Isoquinoline Alkaloid" },
-];
-for (const node of taxonomy) await db.insert(constituentTaxa).values({ name: node.name, kind: node.kind }).onConflictDoNothing();
+type BaseNode = { name: string; kind: "pathway" | "class" | "subclass"; children?: BaseNode[] };
+const taxonomyNodes = new Map<string, BaseNode>();
+const taxonomyEdges = new Set<string>();
+const nodeKey = (node: Pick<BaseNode, "name" | "kind">) => `${node.kind}\u0000${node.name}`;
+function collect(nodes: BaseNode[], parentKey?: string) {
+  for (const node of nodes) {
+    const key = nodeKey(node);
+    taxonomyNodes.set(key, node);
+    if (parentKey) taxonomyEdges.add(`${parentKey}\u0001${key}`);
+    collect(node.children ?? [], key);
+  }
+}
+collect(taxonomyBase.taxonomy as BaseNode[]);
+for (const node of taxonomyNodes.values()) await db.insert(constituentTaxa).values({ name: node.name, kind: node.kind }).onConflictDoNothing();
 const taxonRows = await db.select().from(constituentTaxa);
-const taxonId = (name: string) => taxonRows.find((row) => row.name === name)!.id;
-for (const node of taxonomy.filter((entry) => entry.parent)) await db.insert(constituentTaxonEdges).values({ parentId: taxonId(node.parent!), childId: taxonId(node.name) }).onConflictDoNothing();
-for (const [parent, child] of [["Shikimate", "Flavonoid"], ["Polyketide", "Flavonoid"]]) await db.insert(constituentTaxonEdges).values({ parentId: taxonId(parent), childId: taxonId(child) }).onConflictDoNothing();
+const taxonIdByKey = new Map(taxonRows.map((row) => [`${row.kind}\u0000${row.name}`, row.id]));
+for (const edge of taxonomyEdges) {
+  const [parentKey, childKey] = edge.split("\u0001");
+  const parentId = taxonIdByKey.get(parentKey), childId = taxonIdByKey.get(childKey);
+  if (parentId && childId) await db.insert(constituentTaxonEdges).values({ parentId, childId }).onConflictDoNothing();
+}
+
+// Individual compounds are leaf records, not taxonomy nodes.
+for (const [name, parentKey] of [["Zingiberene", "class\u0000Sesquiterpenoid"], ["6-Gingerol", "class\u0000DiarylHeptanoid"], ["6-Shogaol", "class\u0000DiarylHeptanoid"], ["Berberine", "subclass\u0000BenzylTetrahydroisoquinoline"]] as const) {
+  await db.insert(constituents).values({ name }).onConflictDoNothing();
+  const [constituent] = await db.select().from(constituents).where(eq(constituents.name, name)).limit(1);
+  const taxonId = taxonIdByKey.get(parentKey);
+  if (constituent && taxonId) await db.insert(constituentMemberships).values({ constituentId: constituent.id, taxonId }).onConflictDoNothing();
+}
 
 console.log(`Seed complete: ${drugData.length} example crude drugs prepared.`);
 await databaseClient.end();

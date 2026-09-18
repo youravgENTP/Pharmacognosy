@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const defaults = ["#9fc5ff", "#d9e7fb", "#edf0f4", "#e3d9f7"];
-const labels = ["중요", "중간", "비중요", "연관"];
-const keys = ["important", "medium", "low", "related"];
+const defaults = ["#9fc5ff", "#d9e7fb", "#edf0f4"];
+const labels = ["중요", "중간", "비중요"];
+const keys = ["important", "medium", "low"];
 export function SettingsPanel() {
   const [colors, setColors] = useState(defaults);
   const [saved, setSaved] = useState(false);

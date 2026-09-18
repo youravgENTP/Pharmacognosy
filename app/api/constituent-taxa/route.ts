@@ -1,21 +1,20 @@
-import { asc } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { constituentTaxa, constituentTaxonEdges } from "@/lib/db/schema";
 
 export async function GET() {
-  const [nodes, edges] = await Promise.all([
-    db.select().from(constituentTaxa).orderBy(asc(constituentTaxa.position), asc(constituentTaxa.name)),
-    db.select().from(constituentTaxonEdges).orderBy(asc(constituentTaxonEdges.position)),
-  ]);
+  const nodes = await db.select().from(constituentTaxa).where(and(ne(constituentTaxa.kind, "compound"), eq(constituentTaxa.hidden, false))).orderBy(asc(constituentTaxa.position), asc(constituentTaxa.name));
+  const visibleIds = new Set(nodes.map((node) => node.id));
+  const edges = (await db.select().from(constituentTaxonEdges).orderBy(asc(constituentTaxonEdges.position))).filter((edge) => visibleIds.has(edge.parentId) && visibleIds.has(edge.childId));
   return NextResponse.json({ nodes, edges });
 }
 
 export async function POST(request: Request) {
   const parsed = z.object({
     name: z.string().trim().min(1).max(120),
-    kind: z.enum(["pathway", "class", "subclass", "compound"]).default("class"),
+    kind: z.enum(["pathway", "class", "subclass"]).default("class"),
     description: z.string().max(1000).optional(),
     parentId: z.string().uuid().optional(),
   }).safeParse(await request.json());
@@ -28,4 +27,3 @@ export async function POST(request: Request) {
   });
   return NextResponse.json(row, { status: 201 });
 }
-

@@ -3,6 +3,14 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { crudeDrugs } from "@/lib/db/schema";
 import { drugPatchSchema, uuidSchema } from "@/lib/validators";
+import { getDrugProfile } from "@/lib/data/drug";
+
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  const drug = await getDrugProfile(id);
+  return drug ? NextResponse.json(drug) : NextResponse.json({ error: "Not found" }, { status: 404 });
+}
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

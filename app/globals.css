@@ -115,6 +115,55 @@ h2, h3, p { margin-top: 0; }
   .side-card { position: static; }
 }
 
+/* Taxonomy explorer: inline CRUD + constituent leaves */
+.explorer-layout { grid-template-columns: minmax(520px, 1fr) minmax(300px, 360px); gap: 18px; align-items: start; }
+.taxonomy-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+.taxonomy-toolbar .taxonomy-search { flex: 1; margin: 0; }
+.taxonomy-root-add { height: 42px; border: 1px solid #343b44; border-radius: 8px; padding: 0 12px; background: #20252b; color: #aeb7c2; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.taxonomy-root-add:hover { border-color: #577ba9; color: #8ebafb; }
+.taxonomy-branch { min-width: 0; }
+.taxonomy-children { position: relative; }
+.taxonomy-depth-guide { position: absolute; top: 0; bottom: 4px; width: 1px; background: #343b44; pointer-events: none; }
+.taxonomy-branch-elbow { position: absolute; top: 50%; width: 13px; height: 1px; background: #343b44; pointer-events: none; }
+.taxon-row { position: relative; }
+.taxon-more { width: 32px; height: 32px; margin-right: 4px; border: 0; border-radius: 6px; background: transparent; color: #727c87; display: grid; place-items: center; opacity: 0; }
+.taxon-row:hover .taxon-more, .taxon-row.selected .taxon-more, .taxon-more:focus { opacity: 1; }
+.taxon-more:hover { background: #303740; color: #d9dde2; }
+.taxon-inline-form { min-height: 48px; margin-top: 4px; margin-bottom: 5px; padding: 7px 8px; border-left: 2px solid #5688ca; display: grid; grid-template-columns: minmax(130px, 1fr) 130px auto auto; align-items: center; gap: 7px; background: #15191d; }
+.taxon-inline-form input, .taxon-inline-form select, .inline-parent-editor select { min-width: 0; border: 1px solid #343b44; border-radius: 6px; padding: 7px 8px; background: #111519; color: #e7eaee; }
+.taxon-inline-form button { border: 0; border-radius: 6px; padding: 7px 9px; background: #282e35; color: #aeb7c2; }
+.taxon-inline-form .inline-primary { background: #397edc; color: white; }
+.taxon-inline-manage { position: relative; margin-top: 3px; margin-bottom: 7px; border: 1px solid #303740; border-radius: 9px; padding: 9px 10px; background: #15191d; }
+.inline-manage-actions, .inline-parent-editor { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.inline-manage-actions button { border: 0; border-radius: 6px; padding: 6px 8px; background: #252b31; color: #aeb7c2; display: inline-flex; align-items: center; gap: 5px; }
+.inline-manage-actions .inline-manage-close { margin-left: auto; padding: 6px; background: transparent; }
+.inline-parent-editor { margin-top: 8px; padding-top: 8px; border-top: 1px solid #292f36; }
+.inline-parent-editor > span:first-child { color: #7f8994; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.parent-chip { border-radius: 99px; padding: 4px 5px 4px 9px; background: #213650; color: #9bc3fa; font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
+.parent-chip button { border: 0; padding: 2px; background: transparent; color: inherit; display: grid; place-items: center; }
+.inline-parent-editor select { margin-left: auto; font-size: 12px; }
+.constituent-explorer { position: sticky; top: 24px; min-height: 430px; max-height: calc(100vh - 48px); padding: 18px; display: flex; flex-direction: column; overflow: hidden; }
+.constituent-explorer > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.constituent-explorer > header span { color: #76818d; font-size: 11px; }
+.constituent-explorer > header h2 { margin: 3px 0 0; font-size: 21px; }
+.constituent-explorer > header strong { min-width: 34px; height: 34px; border-radius: 9px; background: #222a33; color: #9fc5fa; display: grid; place-items: center; font-size: 14px; }
+.constituent-scope { margin: 17px 0 11px; padding: 3px; border: 1px solid #303740; border-radius: 8px; display: grid; grid-template-columns: 1fr 1fr; background: #12161a; }
+.constituent-scope button { border: 0; border-radius: 6px; padding: 7px 5px; background: transparent; color: #7f8994; font-size: 12px; }
+.constituent-scope button.active { background: #26384f; color: #9bc3fa; }
+.constituent-search { width: 100%; margin-bottom: 10px; }
+.constituent-search .search { padding-top: 10px; padding-bottom: 10px; }
+.constituent-search svg { top: 11px; }
+.constituent-list { flex: 1; overflow: auto; border-top: 1px solid #2c3239; }
+.constituent-list > button { position: relative; width: 100%; min-height: 48px; padding: 9px 31px 9px 7px; border: 0; border-bottom: 1px solid #282e34; background: transparent; color: #e6e9ed; text-align: left; display: grid; gap: 3px; }
+.constituent-list > button:hover { background: #20262c; }
+.constituent-list > button.selected { background: #213650; color: #a8ccfb; }
+.constituent-list > button small { color: #7f8994; font-size: 11px; }
+.constituent-list > button svg { position: absolute; right: 9px; top: 16px; }
+.constituent-list > p { padding: 20px 7px; }
+.empty-explorer { color: #7f8994; align-items: center; justify-content: center; text-align: center; }
+@media (max-width: 980px) { .explorer-layout { grid-template-columns: 1fr; } .constituent-explorer { position: static; max-height: 520px; } }
+@media (max-width: 650px) { .taxonomy-toolbar { align-items: stretch; flex-direction: column; } .taxonomy-root-add { justify-content: center; } .taxon-inline-form { grid-template-columns: 1fr 110px; } .taxon-inline-form button { width: 100%; } .inline-parent-editor select { width: 100%; margin-left: 0; } }
+
 /* StudyOS visual system */
 :root {
   --ink: #171b22;
@@ -286,13 +335,13 @@ html, body { background: var(--paper); color: var(--ink); }
 .group-important .importance-group-header { color: #86b6fa; }
 .group-medium .importance-group-header { color: #b7cef0; }
 .group-low .importance-group-header { color: #abb2bc; }
-.group-related .importance-group-header { color: #c2a9ef; }
 .group-drugs { display: grid; }
-.group-drug-row { padding: 13px 15px 12px 35px; display: grid; gap: 3px; border-top: 1px solid #282e34; background: #171b1f; transition: background .15s ease; }
+.group-drug-row { padding: 13px 15px 12px 13px; display: grid; gap: 3px; border-top: 1px solid #282e34; background: #171b1f; transition: background .15s ease; }
 .group-drug-row:hover { background: #20262c; }
-.group-drug-row span { font-weight: 700; color: #f0f2f5; }
-.group-drug-row span b { display: inline-block; min-width: 30px; margin-right: 7px; color: #73808d; font-size: 11px; font-weight: 750; font-variant-numeric: tabular-nums; }
-.group-drug-row small { color: #7f8994; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-drug-row .drug-row-main { display: grid; grid-template-columns: 38px minmax(0,1fr); align-items: baseline; color: #f0f2f5; }
+.group-drug-row .drug-row-main b { color: #8b97a4; font-size: 16px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.group-drug-row .drug-row-main strong { font-size: 16px; }
+.group-drug-row small { margin-left: 38px; color: #7f8994; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Dark profile card and compact document hierarchy */
 .modal-backdrop { background: rgba(4,6,8,.76); }
@@ -312,19 +361,20 @@ html, body { background: var(--paper); color: var(--ink); }
 .profile-name-row { margin-bottom: 24px; }
 .profile-korean-name, .profile-latin-name, .identity-line input, .profile-field-title input, .hierarchy-row input { color: var(--ink); }
 .profile-latin-name { color: #b9c0ca; }
+.profile-latin-name { font-style: italic; font-weight: 500; }
 .identity-colon { color: #69727d; }
 .identity-line > span:not(.identity-colon) { color: #d8dce1; }
 .profile-chip { background: #213650; color: #9bc3fa; }
 .related-editor select { color: #8fb7ed; }
 .profile-field { border-color: #2c3239; }
 .profile-field-title input { color: #f2f4f7; }
-.hierarchy-marker { width: 26px; flex-basis: 26px; color: #aab3be; }
-.hierarchy-children { padding-left: 28px; }
+.hierarchy-marker { width: 23px; flex-basis: 23px; color: #aab3be; }
+.hierarchy-children { padding-left: 23px; }
 .hierarchy-row input { color: #e9ecf0; }
 .hierarchy-row input:focus { border-bottom-color: #608fcf; }
 .hierarchy-row input::placeholder { color: #69717b; }
 .hierarchy-actions button:hover, .hierarchy-actions button.active { background: #263950; color: #91bdf7; }
-.field-add-actions { min-height: 34px; margin: 8px 0 0 26px; }
+.field-add-actions { min-height: 34px; margin: 8px 0 0 23px; }
 .add-line, .taxonomy-picker-button { height: 32px; margin: 0; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; display: inline-flex; align-items: center; gap: 6px; color: #9099a5; font-size: 13px; }
 .add-line:hover { background: #22282e; color: #c7cdd4; }
 .taxonomy-picker-button { color: #83b2f2; }
@@ -336,7 +386,7 @@ html, body { background: var(--paper); color: var(--ink); }
 .constituent-picker { width: min(690px, 100%); height: min(720px, calc(100vh - 48px)); display: flex; flex-direction: column; border: 1px solid #343b44; border-radius: 16px; background: #171b1f; box-shadow: 0 30px 90px rgba(0,0,0,.6); overflow: hidden; }
 .constituent-picker > header { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px 15px; }
 .constituent-picker h2 { margin: 3px 0 0; font-size: 22px; }
-.picker-eyebrow { color: #74aaf2; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.eyebrow, .picker-eyebrow { display: none; }
 .constituent-picker > header > button { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid #343b44; border-radius: 8px; background: #242a30; color: #aeb6c0; }
 .picker-search { width: auto; margin: 0 24px 14px; }
 .picker-tree { flex: 1; overflow: auto; padding: 4px 14px 20px; border-top: 1px solid #2d333a; }
@@ -370,8 +420,8 @@ html, body { background: var(--paper); color: var(--ink); }
 .indicator-field .identity-line input:focus { border-bottom-color: #608fcf; }
 .inline-add { border: 0; background: transparent; color: #8db8f5; padding: 4px 5px; display: inline-flex; align-items: center; gap: 4px; }
 .profile-field-title h2 { flex: 1; margin: 0; color: #f2f4f7; font-size: 19px; font-weight: 800; }
-.field-remove { border: 0; background: transparent; color: #78818c; padding: 4px; display: grid; place-items: center; opacity: 0; }
-.profile-field:hover .field-remove, .profile-field:focus-within .field-remove { opacity: 1; }
+.profile-field-title { min-height: 34px; }
+.field-remove { align-self: center; border: 0; background: transparent; color: #78818c; padding: 5px; display: grid; place-items: center; opacity: 1; }
 .field-remove:hover { color: #e47777; }
 .add-field-row > button { border: 1px dashed #4a525c; border-radius: 9px; padding: 10px 14px; background: transparent; color: #9ca5b0; display: inline-flex; align-items: center; gap: 7px; }
 .add-field-row > button:hover { border-color: #739ed8; color: #91bdf7; background: #192536; }
@@ -395,10 +445,22 @@ html, body { background: var(--paper); color: var(--ink); }
 .new-field-card { min-height: 68px; margin-top: 12px; border: 1px dashed #4b545f; border-radius: 10px; padding: 11px 13px; display: flex; align-items: center; gap: 9px; color: #7f8994; }
 .new-field-card:focus-within { border-color: #73a7ee; }
 .new-field-card input { flex: 1; min-width: 0; border: 0; background: transparent; color: #edf0f4; box-shadow: none !important; }
+.new-field-card select { max-width: 190px; border: 1px solid #3a424c; border-radius: 7px; background: #14181c; color: #cfd4db; padding: 7px 9px; }
 .new-field-card button { border: 0; border-radius: 7px; background: #2a65b5; color: white; padding: 7px 12px; }
 .field-picker-footer { border-top: 1px solid #2d333a; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; color: #89939e; }
 .field-picker-footer button { border: 0; border-radius: 8px; background: #397edc; color: white; padding: 9px 14px; font-weight: 750; }
 .field-picker-footer button:disabled { background: #272d34; color: #666f79; cursor: default; }
+.origin-editor { display: grid; gap: 5px; }
+.origin-row { display: grid; grid-template-columns: minmax(130px,.65fr) minmax(180px,1fr) 28px; align-items: center; gap: 8px; }
+.origin-row .scientific { font-style: italic; }
+.origin-row button, .origin-add { border: 0; background: transparent; color: #77818c; display: inline-flex; align-items: center; gap: 5px; }
+.origin-row button { width: 28px; height: 28px; justify-content: center; }
+.origin-row button:hover { color: #e47777; }
+.origin-add { width: fit-content; padding: 4px 0; color: #8db8f5; font-size: 12px; }
+.plain-field-editor { width: 100%; min-height: 96px; resize: vertical; border: 1px solid #303740; border-radius: 8px; padding: 10px 11px; background: #14181c; color: #e9ecf0; line-height: 1.6; }
+.related-picker-list > button > span { display: grid; gap: 3px; }
+.related-picker-list em { color: #858f9b; font-size: 12px; }
+.related-picker-list > button > small { color: #7f8994; font-size: 12px; }
 .taxon-label { gap: 0; }
 @media (max-width: 760px) {
   .profile-name-row { padding-right: 0; }
@@ -406,3 +468,56 @@ html, body { background: var(--paper); color: var(--ink); }
   .modal-close { top: 37px; right: 22px; }
   .field-card-grid { grid-template-columns: 1fr; }
 }
+
+/* Keep the explorer layout authoritative after legacy taxonomy rules. */
+.taxonomy-layout.explorer-layout { grid-template-columns: minmax(520px, 1fr) minmax(300px, 360px); }
+@media (max-width: 980px) { .taxonomy-layout.explorer-layout { grid-template-columns: 1fr; } }
+
+/* Botanical Families explorer */
+.families-page { max-width: 1680px; }
+.families-layout { display: grid; grid-template-columns: minmax(310px, 390px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.families-tree-panel { padding: 14px 10px; min-height: 620px; }
+.families-toolbar { display: flex; gap: 8px; padding: 0 4px 12px; }
+.families-toolbar .search-wrap { flex: 1; }
+.families-toolbar .search { padding-top: 10px; padding-bottom: 10px; }
+.families-toolbar .search-wrap svg { top: 11px; }
+.families-toolbar > button { border: 1px solid #343b44; border-radius: 8px; background: #20252b; color: #aeb7c2; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; }
+.families-toolbar > button:hover { border-color: #577ba9; color: #8ebafb; }
+.new-family-form { margin: 0 4px 12px; padding: 10px; border: 1px solid #343b44; border-left: 2px solid #5688ca; background: #15191d; display: grid; gap: 7px; }
+.new-family-form input { min-width: 0; border: 1px solid #343b44; border-radius: 6px; padding: 8px; background: #111519; color: #e7eaee; }
+.new-family-form > div { display: flex; justify-content: flex-end; gap: 6px; }
+.new-family-form button { border: 0; border-radius: 6px; padding: 6px 10px; background: #282e35; color: #aeb7c2; }
+.new-family-form button.primary { background: #397edc; color: white; }
+.families-tree { display: grid; }
+.family-tree-row { position: relative; min-height: 48px; display: flex; align-items: stretch; border-radius: 7px; }
+.family-tree-row:hover { background: #20262c; }
+.family-tree-row.selected { background: #213650; }
+.family-chevron { width: 32px; flex: 0 0 32px; padding: 0; border: 0; background: transparent; color: #818c98; display: grid; place-items: center; }
+.family-entity { flex: 1; min-width: 0; border: 0; background: transparent; color: #e7eaee; padding: 7px 10px 7px 3px; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+.family-entity > span { min-width: 0; display: flex; align-items: baseline; gap: 7px; }
+.family-entity em { color: #78838f; font-size: 11px; font-weight: 450; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.family-entity small { color: #7f8994; font-size: 12px; font-variant-numeric: tabular-nums; }
+.family-tree-children, .family-drug-children { position: relative; margin-left: 16px; border-left: 1px solid #343b44; }
+.family-drug-children { margin-left: 30px; }
+.level-category .family-elbow, .level-drug .family-elbow { width: 14px; height: 1px; flex: 0 0 14px; align-self: center; background: #343b44; }
+.level-category .family-entity { font-weight: 700; }
+.family-leaf-space { width: 20px; flex: 0 0 20px; }
+.level-drug .family-entity > span { display: grid; grid-template-columns: 34px minmax(0, auto) minmax(0, 1fr); width: 100%; align-items: baseline; }
+.level-drug .family-entity b { color: #818c98; font-size: 13px; font-variant-numeric: tabular-nums; }
+.families-detail { min-width: 0; }
+.family-card { min-height: 620px; padding: 34px; }
+.family-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 30px; border-bottom: 1px solid #2d333a; }
+.family-card-names { flex: 1; display: grid; gap: 8px; }
+.family-card-names > input { width: 100%; border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 3px 2px; background: transparent; color: #edf0f4; box-shadow: none !important; }
+.family-card-names > input:focus { border-bottom-color: #608fcf; }
+.family-korean-name { font-size: 30px; font-weight: 850; }
+.family-scientific-name { color: #b9c0ca !important; font-size: 18px; font-style: italic; }
+.family-card-names label { margin-top: 7px; color: #77818c; font-size: 11px; display: grid; grid-template-columns: 105px minmax(0, 1fr); align-items: center; }
+.family-card-names label input { min-width: 0; border: 0; border-bottom: 1px solid #303740; border-radius: 0; padding: 6px 2px; background: transparent; color: #cfd4db; box-shadow: none !important; font-style: italic; }
+.family-summary { padding-top: 28px; }
+.family-summary-title { margin-bottom: 13px; display: flex; align-items: baseline; justify-content: space-between; gap: 15px; }
+.family-summary-title h2 { margin: 0; font-size: 21px; }
+.family-summary-title span { color: #69727d; font-size: 11px; }
+.family-empty { min-height: 620px; color: #7f8994; display: grid; place-items: center; }
+.families-detail .drug-profile.standalone { margin: 0; max-width: none; }
+@media (max-width: 1000px) { .families-layout { grid-template-columns: 1fr; } .families-tree-panel, .family-card, .family-empty { min-height: 0; } }

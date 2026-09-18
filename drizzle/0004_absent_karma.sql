@@ -1,0 +1,1 @@
+ALTER TABLE "constituent_taxa" ADD COLUMN "hidden" boolean DEFAULT false NOT NULL;

@@ -1,0 +1,20 @@
+import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { crudeDrugs } from "@/lib/db/schema";
+import { drugPatchSchema, uuidSchema } from "@/lib/validators";
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  const parsed = drugPatchSchema.safeParse(await request.json());
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  try {
+    const [updated] = await db.update(crudeDrugs).set({ ...parsed.data, updatedAt: new Date() }).where(eq(crudeDrugs.id, id)).returning();
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(updated);
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "23505") return NextResponse.json({ error: "이미 존재하는 생약명입니다." }, { status: 409 });
+    throw error;
+  }
+}

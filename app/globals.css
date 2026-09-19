@@ -595,6 +595,87 @@ html, body { background: var(--paper); color: var(--ink); }
 .study-image-toolbar button { min-width: 25px; height: 25px; padding: 0 5px; border: 0; border-radius: 4px; background: transparent; color: #8d97a3; font-size: 10px; display: inline-grid; place-items: center; }
 .study-image-toolbar button:hover, .study-image-toolbar button.active { background: #26384f; color: #9bc3fa; }
 .study-image-toolbar button:disabled { opacity: .3; }
+
+.image-resize-handle {
+  position: absolute;
+  z-index: 4;
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 1px solid #8ebafa;
+  border-radius: 50%;
+  background: #171b1f;
+  opacity: 0;
+  transition: opacity .12s ease, transform .12s ease;
+}
+
+.study-image-block:hover .image-resize-handle,
+.study-image-block:focus-within .image-resize-handle {
+  opacity: 1;
+}
+
+.image-resize-handle:hover {
+  transform: scale(1.18);
+  background: #8ebafa;
+}
+
+.image-resize-handle.top-left {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+
+.image-resize-handle.top-right {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+
+.image-resize-handle.bottom-left {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+
+.image-resize-handle.bottom-right {
+  right: -5px;
+  bottom: -5px;
+  cursor: nwse-resize;
+}
+
+.study-image-block {
+  cursor: grab;
+}
+
+.study-image-block:active {
+  cursor: grabbing;
+}
+
+.study-flow-block {
+  position: relative;
+}
+
+.study-flow-block.drop-before::before,
+.study-flow-block.drop-after::after {
+  content: "";
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #6ea7f5;
+  pointer-events: none;
+}
+
+.study-flow-block.drop-before::before {
+  top: -5px;
+}
+
+.study-flow-block.drop-after::after {
+  bottom: -5px;
+}
+
 .image-insert-row { min-height: 34px; margin-top: 8px; display: flex; align-items: center; gap: 10px; color: #68727d; font-size: 10px; }
 .image-insert-row > button { border: 0; border-radius: 6px; padding: 6px 8px; background: transparent; color: #8c97a3; display: inline-flex; align-items: center; gap: 6px; }
 .image-insert-row > button:hover { background: #22282e; color: #c7cdd4; }

@@ -61,7 +61,29 @@ function ImageBlock({ block, onResize, onDragStart, onDragEnd, onDelete }: { blo
   const initialWidth = block.widthPercent ?? ({ small: 25, medium: 50, large: 75, full: 100 }[block.size]); const initialX = block.xPercent ?? (block.align === "center" ? (100 - initialWidth) / 2 : block.align === "right" ? 100 - initialWidth : 0); const [preview, setPreview] = useState({ width: initialWidth, x: initialX });
   function beginResize(event: React.PointerEvent<HTMLButtonElement>, side: "left" | "right") {
     event.preventDefault(); event.stopPropagation(); const figure = event.currentTarget.closest("figure"); const containerWidth = figure?.parentElement?.clientWidth || 1; const startPointerX = event.clientX; const start = preview;
-    const calculate = (clientX: number) => { const delta = (clientX - startPointerX) / containerWidth * 100 * (side === "left" ? -1 : 1); const width = Math.max(15, Math.min(100 - start.x, start.width + delta)); const x = side === "left" ? Math.max(0, Math.min(100 - width, start.x - (width - start.width))) : Math.min(start.x, 100 - width); return { width, x }; };
+    const calculate = (clientX: number) => {
+      const pointerDelta = (clientX - startPointerX) / containerWidth * 100;
+
+      if (side === "left") {
+        const rightEdge = start.x + start.width;
+        const nextX = Math.max(0, Math.min(rightEdge - 15, start.x + pointerDelta));
+
+        return {
+          width: rightEdge - nextX,
+          x: nextX,
+        };
+      }
+
+      const nextWidth = Math.max(
+        15,
+        Math.min(100 - start.x, start.width + pointerDelta),
+      );
+
+      return {
+        width: nextWidth,
+        x: start.x,
+      };
+    };
     const move = (pointer: PointerEvent) => setPreview(calculate(pointer.clientX));
     const end = (pointer: PointerEvent) => { const value = calculate(pointer.clientX); const width = Math.round(value.width * 10) / 10; const x = Math.round(value.x * 10) / 10; setPreview({ width, x }); onResize(width, x); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true });

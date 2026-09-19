@@ -15,7 +15,18 @@ export const drugPatchSchema = z.object({
     id: z.string(), title: z.string(), fieldDefinitionId: z.string().uuid().optional(), items: z.array(z.any()),
     blocks: z.array(z.discriminatedUnion("type", [
       z.object({ id: z.string(), type: z.literal("items"), items: z.array(z.any()) }),
-      z.object({ id: z.string(), type: z.literal("image"), mediaAssetId: z.string().uuid(), size: z.enum(["small", "medium", "large", "full"]), widthPercent: z.number().min(15).max(100).optional(), xPercent: z.number().min(0).max(85).optional(), align: z.enum(["left", "center", "right"]).optional() }),
+    z.object({
+      id: z.string(),
+      type: z.literal("image"),
+      mediaAssetId: z.string().uuid(),
+      size: z.enum(["small", "medium", "large", "full"]),
+      widthPercent: z.number().min(15).max(100).optional(),
+      xPercent: z.number().min(0).max(85).optional(),
+      yPx: z.number().optional(),
+      anchorItemId: z.string().optional(),
+      anchorSide: z.enum(["before", "after"]).optional(),
+      align: z.enum(["left", "center", "right"]).optional(),
+    }),
     ])).optional(),
   })).optional(),
 });
@@ -41,6 +52,17 @@ export const familyPatchSchema = familyCreateSchema.partial().extend({
   summary: z.array(studyItemSchema).optional(),
   summaryBlocks: z.array(z.discriminatedUnion("type", [
     z.object({ id: z.string(), type: z.literal("items"), items: z.array(studyItemSchema) }),
-    z.object({ id: z.string(), type: z.literal("image"), mediaAssetId: z.string().uuid(), size: z.enum(["small", "medium", "large", "full"]), widthPercent: z.number().min(15).max(100).optional(), xPercent: z.number().min(0).max(85).optional(), align: z.enum(["left", "center", "right"]).optional() }),
+      z.object({
+        id: z.string(),
+        type: z.literal("image"),
+        mediaAssetId: z.string().uuid(),
+        size: z.enum(["small", "medium", "large", "full"]),
+        widthPercent: z.number().min(15).max(100).optional(),
+        xPercent: z.number().min(0).max(85).optional(),
+        yPx: z.number().optional(),
+        anchorItemId: z.string().optional(),
+        anchorSide: z.enum(["before", "after"]).optional(),
+        align: z.enum(["left", "center", "right"]).optional(),
+      }),
   ])).optional(),
 }).refine((value) => Object.keys(value).length > 0);

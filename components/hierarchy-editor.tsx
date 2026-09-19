@@ -126,6 +126,12 @@ function HierarchyRows({
   return <>{items.map((item, index) => {
     const activeTaxonId = item.linkedConstituentId ?? inheritedTaxonId;
 
+    function clearActiveImageSlots() {
+      document
+        .querySelectorAll<HTMLElement>(".hierarchy-image-slot.active")
+        .forEach((slot) => slot.classList.remove("active"));
+    }
+
     function imageDragEvents(side: "before" | "after") {
       return {
         onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
@@ -139,9 +145,20 @@ function HierarchyRows({
 
           event.preventDefault();
           event.stopPropagation();
+
+          clearActiveImageSlots();
           event.currentTarget.classList.add("active");
         },
         onDragLeave: (event: React.DragEvent<HTMLDivElement>) => {
+          const related = event.relatedTarget as Node | null;
+
+          if (
+            related
+            && event.currentTarget.contains(related)
+          ) {
+            return;
+          }
+
           event.currentTarget.classList.remove("active");
         },
         onDrop: (event: React.DragEvent<HTMLDivElement>) => {
@@ -153,7 +170,8 @@ function HierarchyRows({
 
           event.preventDefault();
           event.stopPropagation();
-          event.currentTarget.classList.remove("active");
+
+          clearActiveImageSlots();
 
           onImageDrop?.(
             imageId,

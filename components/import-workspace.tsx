@@ -31,7 +31,7 @@ export function ImportWorkspace() {
   }
   async function loadFile(file?: File) { if (file) { setText(await file.text()); setPreview(undefined); } }
   return <div className="editor-grid">
-    <section className="panel"><div className="collection-title"><div><h2 style={{ marginBottom: 5 }}>Pharmacognosy Import Schema v1</h2><p className="muted" style={{ marginBottom: 0 }}>JSON을 붙여넣거나 파일을 선택하세요. 검증 전에는 DB에 기록하지 않습니다.</p></div><label className="button secondary"><Upload size={15}/> 파일 선택<input type="file" accept="application/json,.json" hidden onChange={(event) => loadFile(event.target.files?.[0])}/></label></div>
+    <section className="panel"><div className="collection-title"><div><h2 style={{ marginBottom: 5 }}>Herb Overflow Import Schema v1</h2><p className="muted" style={{ marginBottom: 0 }}>JSON을 붙여넣거나 파일을 선택하세요. 검증 전에는 DB에 기록하지 않습니다.</p></div><label className="button secondary"><Upload size={15}/> 파일 선택<input type="file" accept="application/json,.json" hidden onChange={(event) => loadFile(event.target.files?.[0])}/></label></div>
       <textarea className="code-input" value={text} onChange={(event) => { setText(event.target.value); setPreview(undefined); }} spellCheck={false}/>
       {error ? <pre style={{ color: "#a13931", whiteSpace: "pre-wrap" }}>{error}</pre> : null}
       {result ? <p style={{ color: "var(--green)" }}><CheckCircle2 size={16}/> {result}</p> : null}
@@ -44,4 +44,3 @@ export function ImportWorkspace() {
     </div></aside>
   </div>;
 }
-

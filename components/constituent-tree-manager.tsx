@@ -10,7 +10,7 @@ type Constituent = { id: string; name: string; aliases: string[] };
 type InlineEditor = { type: "add"; parentId: string | null } | { type: "edit"; nodeId: string } | null;
 const labels: Record<NodeKind, string> = { pathway: "생합성 경로", class: "성분군", subclass: "하위 성분군" };
 
-export function ConstituentTreeManager() {
+export function ConstituentTreeManager({ initialSelected }: { initialSelected?: string }) {
   const [nodes, setNodes] = useState<Taxon[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selected, setSelected] = useState<string>();
@@ -24,9 +24,17 @@ export function ConstituentTreeManager() {
     const data = await response.json() as { nodes: Taxon[]; edges: Edge[] };
     setNodes(data.nodes ?? []);
     setEdges(data.edges ?? []);
-    setExpanded((current) => current.size ? current : new Set(data.nodes.filter((node) => node.kind === "pathway").map((node) => node.id)));
-    setSelected((current) => preferredSelection ?? current ?? data.nodes.find((node) => node.kind === "pathway")?.id);
+    setExpanded((current) => {
+      if (current.size) return current;
+      const next = new Set(data.nodes.filter((node) => node.kind === "pathway").map((node) => node.id));
+      const target = preferredSelection ?? initialSelected;
+      if (target) { const visit = (id: string, seen = new Set<string>()) => { if (seen.has(id)) return; seen.add(id); for (const edge of data.edges.filter((item) => item.childId === id)) { next.add(edge.parentId); visit(edge.parentId, seen); } }; visit(target); }
+      return next;
+    });
+    setSelected((current) => preferredSelection ?? current ?? (initialSelected && data.nodes.some((node) => node.id === initialSelected) ? initialSelected : undefined) ?? data.nodes.find((node) => node.kind === "pathway")?.id);
   }
+  // Initial query selection is intentionally captured once when the explorer mounts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void load(); }, []);
 
   const roots = useMemo(() => nodes.filter((node) => !edges.some((edge) => edge.childId === node.id && nodes.some((candidate) => candidate.id === edge.parentId))), [nodes, edges]);

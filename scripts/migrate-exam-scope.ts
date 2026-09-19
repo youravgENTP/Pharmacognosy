@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-import { and, eq, inArray, notInArray, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, or } from "drizzle-orm";
 import type { ImportanceLevel, StudySection } from "../lib/db/schema";
 import originSeed from "../data/origin-plants.json";
 
@@ -777,11 +777,11 @@ async function main() {
   }
 
   const names = records.map((record) => record.koreanName);
-  await db.delete(crudeDrugs).where(notInArray(crudeDrugs.koreanName, names));
-  await db.delete(categories).where(notInArray(categories.name, ["종자류", "과실류", "전초류"]));
+  await db.delete(crudeDrugs).where(and(isNull(crudeDrugs.referenceIndex), notInArray(crudeDrugs.koreanName, names)));
+  await db.delete(categories).where(notInArray(categories.name, ["종자류", "과실류", "전초류", "시험범위 외 참고류"]));
 
-  let [relationType] = await db.select().from(relationshipTypes).where(eq(relationshipTypes.name, "연관")).limit(1);
-  if (!relationType) [relationType] = await db.insert(relationshipTypes).values({ name: "연관" }).returning();
+  let [relationType] = await db.select().from(relationshipTypes).where(eq(relationshipTypes.name, "연관생약")).limit(1);
+  if (!relationType) [relationType] = await db.insert(relationshipTypes).values({ name: "연관생약" }).returning();
   const scopedDrugs = await db.select({ id: crudeDrugs.id, name: crudeDrugs.koreanName }).from(crudeDrugs).where(inArray(crudeDrugs.koreanName, names));
   const drugId = new Map(scopedDrugs.map((drug) => [drug.name, drug.id]));
   for (const [leftName, rightName] of relationPairs) {
@@ -792,7 +792,7 @@ async function main() {
     if (!existing) await db.insert(crudeDrugRelationships).values({ sourceId, targetId, typeId: relationType.id });
   }
 
-  const finalRows = await db.select({ index: crudeDrugs.catalogIndex, name: crudeDrugs.koreanName }).from(crudeDrugs);
+  const finalRows = await db.select({ index: crudeDrugs.catalogIndex, name: crudeDrugs.koreanName }).from(crudeDrugs).where(isNull(crudeDrugs.referenceIndex));
   const indexes = finalRows.map((row) => row.index).filter((value): value is number => value !== null);
   if (finalRows.length !== 97 || new Set(indexes).size !== 97 || Math.min(...indexes) !== 1 || Math.max(...indexes) !== 97) {
     throw new Error("Exam-scope migration validation failed.");

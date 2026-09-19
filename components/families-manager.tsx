@@ -2,17 +2,20 @@
 
 import { ChevronDown, ChevronRight, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DrugEditor, HierarchyEditor } from "@/components/drug-editor";
-import type { ImportanceLevel, OriginPlant, StudyItem, StudySection } from "@/lib/db/schema";
+import { DrugEditor } from "@/components/drug-editor";
+import { StudyContentEditor } from "@/components/study-content-editor";
+import type { ImportanceLevel, OriginPlant, StudyBlock, StudyItem, StudySection } from "@/lib/db/schema";
+import { formatDrugIndex } from "@/lib/drug-index";
 
-type FamilyDrug = { id: string; catalogIndex: number | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string };
-type Family = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null; summary: StudyItem[]; drugs: FamilyDrug[] };
+type FamilyDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string };
+type Family = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null; summary: StudyItem[]; summaryBlocks: StudyBlock[]; drugs: FamilyDrug[] };
 type Selection = { type: "family"; id: string } | { type: "drug"; id: string };
 type DrugProfile = {
   id: string; koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
-  medicinalPart: string | null; importance: ImportanceLevel; sections: StudySection[]; family: string | null;
-  relatedDrugs: { id: string; drugId: string; catalogIndex: number | null; name: string }[];
-  availableDrugs: { id: string; catalogIndex: number | null; name: string; latinName?: string | null }[];
+  medicinalPart: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[]; family: string | null;
+  relatedDrugs: { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; name: string }[];
+  similarDrugs: { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; name: string }[];
+  availableDrugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; name: string; latinName?: string | null }[];
 };
 
 export function FamiliesManager({ initialFamilies }: { initialFamilies: Family[] }) {
@@ -60,7 +63,7 @@ export function FamiliesManager({ initialFamilies }: { initialFamilies: Family[]
             const key = `${family.id}:${category.id}`; const categoryOpen = expandedCategories.has(key);
             return <div className="family-category-branch" key={key}>
               <div className="family-tree-row level-category"><span className="family-elbow"/><button className="family-chevron" onClick={() => toggle(setExpandedCategories, key)}>{categoryOpen ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}</button><button className="family-entity" onClick={() => toggle(setExpandedCategories, key)}><span>{category.name}</span><small>{category.drugs.length}</small></button></div>
-              {categoryOpen ? <div className="family-drug-children">{category.drugs.map((drug) => <div className={`family-tree-row level-drug ${selection?.type === "drug" && selection.id === drug.id ? "selected" : ""}`} key={drug.id}><span className="family-elbow"/><span className="family-leaf-space"/><button className="family-entity" onClick={() => setSelection({ type: "drug", id: drug.id })}><span><b>{drug.catalogIndex ?? "—"}</b>{drug.koreanName}<em>{drug.latinName}</em></span></button></div>)}</div> : null}
+              {categoryOpen ? <div className="family-drug-children">{category.drugs.map((drug) => <div className={`family-tree-row level-drug ${selection?.type === "drug" && selection.id === drug.id ? "selected" : ""}`} key={drug.id}><span className="family-elbow"/><span className="family-leaf-space"/><button className="family-entity" onClick={() => setSelection({ type: "drug", id: drug.id })}><span><b>{formatDrugIndex(drug.catalogIndex, drug.referenceIndex)}</b>{drug.koreanName}<em>{drug.latinName}</em></span></button></div>)}</div> : null}
             </div>;
           })}</div> : null}
         </div>;
@@ -95,7 +98,7 @@ function FamilyCard({ family, onUpdate }: { family: Family; onUpdate: (family: F
     revision.current += 1; const currentRevision = revision.current; setStatus("dirty"); window.clearTimeout(timer.current);
     timer.current = window.setTimeout(async () => {
       setStatus("saving");
-      const response = await fetch(`/api/families/${draft.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ koreanName: draft.koreanName, scientificName: draft.scientificName, acceptedScientificName: draft.acceptedScientificName, summary: draft.summary }) });
+      const response = await fetch(`/api/families/${draft.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ koreanName: draft.koreanName, scientificName: draft.scientificName, acceptedScientificName: draft.acceptedScientificName, summary: draft.summary, summaryBlocks: draft.summaryBlocks }) });
       if (response.ok) { if (revision.current === currentRevision) setStatus("saved"); onUpdate(draft); } else setStatus("error");
     }, 650);
     return () => window.clearTimeout(timer.current);
@@ -103,7 +106,7 @@ function FamilyCard({ family, onUpdate }: { family: Family; onUpdate: (family: F
   function change<K extends keyof Family>(key: K, value: Family[K]) { const next = { ...draft, [key]: value }; setDraft(next); onUpdate(next); }
   return <article className="family-card panel">
     <header className="family-card-header"><div className="family-card-names"><input className="family-korean-name" value={draft.koreanName} onChange={(event) => change("koreanName", event.target.value)}/><input className="family-scientific-name" value={draft.scientificName} onChange={(event) => change("scientificName", event.target.value)} aria-label="Scientific family name"/><label>Accepted name<input value={draft.acceptedScientificName ?? ""} onChange={(event) => change("acceptedScientificName", event.target.value || null)} placeholder="선택 사항"/></label></div><span className={`status ${status}`}><span className="dot"/>{status === "saved" ? "Saved" : status === "saving" ? "Saving" : status === "error" ? "Error" : "Save"}</span></header>
-    <section className="family-summary"><div className="family-summary-title"><h2>Summary</h2><span>i) → ① → a) → •</span></div><HierarchyEditor items={draft.summary} mode="hierarchy4" onChange={(summary) => change("summary", summary)}/></section>
+    <section className="family-summary"><div className="family-summary-title"><h2>Summary</h2><span>i) → ① → a) → •</span></div><StudyContentEditor items={draft.summary} blocks={draft.summaryBlocks} mode="hierarchy4" onChange={({ items, blocks }) => { const next = { ...draft, summary: items, summaryBlocks: blocks }; setDraft(next); onUpdate(next); }}/></section>
   </article>;
 }
 
@@ -112,5 +115,5 @@ function DrugDetail({ id }: { id: string }) {
   useEffect(() => { const controller = new AbortController(); setDrug(undefined); setError(false); fetch(`/api/drugs/${id}`, { signal: controller.signal }).then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setDrug).catch((reason) => { if (reason.name !== "AbortError") setError(true); }); return () => controller.abort(); }, [id]);
   if (error) return <div className="panel family-empty">생약 카드를 불러오지 못했습니다.</div>;
   if (!drug) return <div className="panel family-empty">불러오는 중…</div>;
-  return <DrugEditor key={drug.id} id={drug.id} family={drug.family} relatedDrugs={drug.relatedDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, importance: drug.importance, sections: drug.sections }}/>;
+  return <DrugEditor key={drug.id} id={drug.id} family={drug.family} relatedDrugs={drug.relatedDrugs} similarDrugs={drug.similarDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, familyId: drug.familyId, importance: drug.importance, sections: drug.sections }}/>;
 }

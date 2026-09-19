@@ -4,8 +4,10 @@ import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, u
 export type ImportanceLevel = "중요" | "중간" | "비중요";
 export type OriginPlant = { nameKo: string | null; scientificName: string | null };
 export type FieldInputMode = "hierarchy4" | "hierarchy3" | "text";
-export type StudyItem = { id: string; text: string; bold?: boolean; italic?: boolean; highlight?: boolean; linkedConstituentId?: string; children?: StudyItem[] };
-export type StudySection = { id: string; title: string; fieldDefinitionId?: string; items: StudyItem[] };
+export type StudyItem = { id: string; text: string; html?: string; bold?: boolean; italic?: boolean; highlight?: boolean; linkedConstituentId?: string; children?: StudyItem[] };
+export type ImageDisplaySize = "small" | "medium" | "large" | "full";
+export type StudyBlock = { id: string; type: "items"; items: StudyItem[] } | { id: string; type: "image"; mediaAssetId: string; size: ImageDisplaySize; widthPercent?: number; xPercent?: number; align?: "left" | "center" | "right" };
+export type StudySection = { id: string; title: string; fieldDefinitionId?: string; items: StudyItem[]; blocks?: StudyBlock[] };
 
 export const categories = pgTable("categories", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -21,6 +23,7 @@ export const families = pgTable("families", {
   scientificName: text("scientific_name").notNull(),
   acceptedScientificName: text("accepted_scientific_name"),
   summary: jsonb("summary").$type<StudyItem[]>().notNull().default([]),
+  summaryBlocks: jsonb("summary_blocks").$type<StudyBlock[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [uniqueIndex("families_scientific_name_idx").on(t.scientificName)]);
@@ -28,6 +31,7 @@ export const families = pgTable("families", {
 export const crudeDrugs = pgTable("crude_drugs", {
   id: uuid("id").defaultRandom().primaryKey(),
   catalogIndex: integer("catalog_index").unique(),
+  referenceIndex: integer("reference_index").unique(),
   koreanName: text("korean_name").notNull(),
   latinName: text("latin_name"),
   origin: text("origin"),
@@ -41,6 +45,19 @@ export const crudeDrugs = pgTable("crude_drugs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("crude_drugs_category_idx").on(t.categoryId), uniqueIndex("crude_drugs_korean_name_idx").on(t.koreanName)]);
+
+export const mediaAssets = pgTable("media_assets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  blobUrl: text("blob_url").notNull(),
+  blobPathname: text("blob_pathname").notNull().unique(),
+  originalFilename: text("original_filename"),
+  sizeBytes: integer("size_bytes").notNull(),
+  mimeType: text("mime_type").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const fieldDefinitions = pgTable("field_definitions", {
   id: uuid("id").defaultRandom().primaryKey(),

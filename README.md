@@ -1,4 +1,4 @@
-# Pharmacognosy
+# Herb Overflow
 
 생약을 분류하고, 계층형 학습 노트를 편집하며, 컬렉션과 Word Card로 공부하는 웹 애플리케이션입니다.
 

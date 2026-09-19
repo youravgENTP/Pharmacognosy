@@ -43,6 +43,13 @@
       "when": 1789744242610,
       "tag": "0005_fuzzy_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789774910456,
+      "tag": "0006_funny_mister_sinister",
+      "breakpoints": true
     }
   ]
 }

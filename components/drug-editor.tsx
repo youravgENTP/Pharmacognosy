@@ -1,29 +1,37 @@
 "use client";
 
-import { Bold, Check, ChevronDown, ChevronRight, Highlighter, Italic, Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronRight, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import type { FieldInputMode, ImportanceLevel, OriginPlant, StudyItem, StudySection } from "@/lib/db/schema";
+import { StudyContentEditor } from "@/components/study-content-editor";
+import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
 
 type DrugDraft = {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
-  medicinalPart: string | null; importance: ImportanceLevel; sections: StudySection[];
+  medicinalPart: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[];
 };
 type Taxon = { id: string; name: string; kind: string };
 type TaxonEdge = { parentId: string; childId: string };
 type FieldDefinition = { id: string; name: string; kind: "default" | "custom"; inputMode: FieldInputMode; position: number; active: boolean };
-type RelatedDrug = { id: string; drugId: string; catalogIndex: number | null; name: string };
-type AvailableDrug = { id: string; catalogIndex: number | null; name: string; latinName?: string | null };
+type RelationshipType = "연관생약" | "유사생약";
+type RelatedDrug = { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; name: string; latinName?: string | null };
+type AvailableDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; name: string; latinName?: string | null };
+type OriginSuggestion = OriginPlant & { drugs: { id: string; name: string }[] };
+type FamilySuggestion = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null };
 const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
-export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: { id: string; initial: DrugDraft; family: string | null; relatedDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean }) {
+export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: { id: string; initial: DrugDraft; family: string | null; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean }) {
   const [draft, setDraft] = useState(initial);
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
   const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinition[]>([]);
   const [constituentData, setConstituentData] = useState<{ nodes: Taxon[]; edges: TaxonEdge[] }>({ nodes: [], edges: [] });
+  const [identitySuggestions, setIdentitySuggestions] = useState<{ origins: OriginSuggestion[]; families: FamilySuggestion[] }>({ origins: [], families: [] });
   const [pickerSectionId, setPickerSectionId] = useState<string>();
   const [fieldPickerOpen, setFieldPickerOpen] = useState(false);
-  const [relatedPickerOpen, setRelatedPickerOpen] = useState(false);
+  const [relationshipPicker, setRelationshipPicker] = useState<RelationshipType>();
   const [relatedDrugs, setRelatedDrugs] = useState(initialRelatedDrugs);
+  const [similarDrugs, setSimilarDrugs] = useState(initialSimilarDrugs);
   const [availableDrugs, setAvailableDrugs] = useState(initialAvailableDrugs);
   const first = useRef(true);
   const draftRef = useRef(draft);
@@ -50,8 +58,8 @@ export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, id]);
   useEffect(() => {
-    Promise.all([fetch("/api/constituent-taxa").then((response) => response.json()), fetch("/api/field-definitions").then((response) => response.json())])
-      .then(([taxa, fields]) => { setConstituentData({ nodes: taxa.nodes ?? [], edges: taxa.edges ?? [] }); setFieldDefinitions(fields ?? []); })
+    Promise.all([fetch("/api/constituent-taxa").then((response) => response.json()), fetch("/api/field-definitions").then((response) => response.json()), fetch("/api/identity-suggestions").then((response) => response.json())])
+      .then(([taxa, fields, suggestions]) => { setConstituentData({ nodes: taxa.nodes ?? [], edges: taxa.edges ?? [] }); setFieldDefinitions(fields ?? []); setIdentitySuggestions({ origins: suggestions.origins ?? [], families: suggestions.families ?? [] }); })
       .catch(() => undefined);
   }, []);
 
@@ -69,26 +77,32 @@ export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDr
     setField("sections", sortSections([...retained, ...additions], fieldDefinitions));
     setFieldPickerOpen(false);
   }
-  async function addRelated(targetId: string) {
-    const target = availableDrugs.find((drug) => drug.id === targetId);
+  async function addRelationship(targetId: string, type: RelationshipType, supplied?: AvailableDrug) {
+    const target = supplied ?? availableDrugs.find((drug) => drug.id === targetId);
     if (!target) return;
-    const response = await fetch(`/api/drugs/${id}/relationships`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetId }) });
-    if (!response.ok) return;
+    const response = await fetch(`/api/drugs/${id}/relationships`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetId, type }) });
+    if (!response.ok) { const body = await response.json(); window.alert(body.error ?? "연결하지 못했습니다."); return; }
     const created = await response.json();
-    setRelatedDrugs((current) => [...current, { id: created.id, drugId: target.id, catalogIndex: target.catalogIndex, name: target.name }]);
+    const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs;
+    setter((current) => [...current, { id: created.id, drugId: target.id, catalogIndex: target.catalogIndex, referenceIndex: target.referenceIndex, name: target.name, latinName: target.latinName }]);
     setAvailableDrugs((current) => current.filter((drug) => drug.id !== targetId));
-    setRelatedPickerOpen(false);
+    setRelationshipPicker(undefined);
   }
-  async function removeRelated(relationshipId: string) {
-    const related = relatedDrugs.find((item) => item.id === relationshipId);
+  async function createAndRelate(name: string, type: RelationshipType) {
+    const response = await fetch("/api/reference-drugs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ koreanName: name }) });
+    const created = await response.json(); if (!response.ok) { window.alert(created.error ?? "참고 생약을 만들지 못했습니다."); return; }
+    await addRelationship(created.id, type, { id: created.id, catalogIndex: created.catalogIndex, referenceIndex: created.referenceIndex, name: created.koreanName, latinName: created.latinName });
+  }
+  async function removeRelated(relationshipId: string, type: RelationshipType) {
+    const list = type === "연관생약" ? relatedDrugs : similarDrugs; const related = list.find((item) => item.id === relationshipId);
     await fetch(`/api/drugs/${id}/relationships`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ relationshipId }) });
-    setRelatedDrugs((current) => current.filter((item) => item.id !== relationshipId));
-    if (related) setAvailableDrugs((current) => [...current, { id: related.drugId, catalogIndex: related.catalogIndex, name: related.name }].sort(sortDrug));
+    const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs; setter((current) => current.filter((item) => item.id !== relationshipId));
+    if (related) setAvailableDrugs((current) => [...current, { id: related.drugId, catalogIndex: related.catalogIndex, referenceIndex: related.referenceIndex, name: related.name, latinName: related.latinName }].sort(sortDrug));
   }
   function chooseConstituent(taxon: Taxon) {
     if (!pickerSectionId) return;
     const section = draft.sections.find((item) => item.id === pickerSectionId);
-    if (section) updateSection(section.id, { items: [...section.items, { ...newItem(), text: taxon.name, linkedConstituentId: taxon.id }] });
+    if (section) updateSection(section.id, appendItem(section, { ...newItem(), text: taxon.name, linkedConstituentId: taxon.id }));
     setPickerSectionId(undefined);
   }
   function saveNow() { window.clearTimeout(timer.current); void persist(draftRef.current, revision.current); }
@@ -100,9 +114,10 @@ export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDr
         <div className="profile-controls"><select className={`importance-select importance-${importanceClass(draft.importance)}`} value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
       </div>
       <div className="identity-lines">
-        <IndicatorLine label="기원"><OriginEditor origins={draft.origins} legacyOrigin={draft.origin} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>
-        <IndicatorLine label="과"><span>{family || "등록된 과 정보 없음"}</span></IndicatorLine>
-        <IndicatorLine label="연관생약"><div className="related-editor">{[...relatedDrugs].sort(sortDrug).map((related) => <span className="profile-chip" key={related.id}>({related.catalogIndex ?? "—"}, {related.name})<button onClick={() => removeRelated(related.id)} aria-label={`${related.name} 연결 해제`}><X size={12}/></button></span>)}<button className="inline-add" onClick={() => setRelatedPickerOpen(true)}><Plus size={14}/> 연결</button></div></IndicatorLine>
+        <IndicatorLine label="기원"><OriginEditor origins={draft.origins} legacyOrigin={draft.origin} suggestions={identitySuggestions.origins} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>
+        <IndicatorLine label="과"><FamilyEditor initialLabel={family} familyId={draft.familyId} suggestions={identitySuggestions.families} onChange={(familyId) => setField("familyId", familyId)}/></IndicatorLine>
+        <IndicatorLine label="연관생약"><RelationshipList items={relatedDrugs} type="연관생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("연관생약")}/></IndicatorLine>
+        <IndicatorLine label="유사생약"><RelationshipList items={similarDrugs} type="유사생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("유사생약")}/></IndicatorLine>
       </div>
     </section>
     <div className="profile-sections">{draft.sections.map((section) => {
@@ -110,28 +125,59 @@ export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDr
       const inputMode = fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.inputMode ?? "hierarchy4";
       return <section className="profile-field" key={section.id}>
         <div className="profile-field-title"><h2>{name}</h2><button className="field-remove" onClick={() => removeSection(section.id)} title="이 생약에서 필드 삭제" aria-label={`${name} 삭제`}><X size={21}/></button></div>
-        {inputMode === "text" ? <TextFieldEditor items={section.items} onChange={(items) => updateSection(section.id, { items })}/> : <HierarchyEditor items={section.items} mode={inputMode} onChange={(items) => updateSection(section.id, { items })}/>}
-        {name === "성분" ? <div className="field-add-actions constituent-actions"><button className="add-line" onClick={() => updateSection(section.id, { items: [...section.items, newItem()] })}><Plus size={14}/> 새 항목 추가</button><button className="taxonomy-picker-button" onClick={() => setPickerSectionId(section.id)}><Plus size={14}/> Compount Tree에서 추가</button></div> : null}
+        <StudyContentEditor items={section.items} blocks={section.blocks} mode={inputMode} taxonomy={name === "성분" ? constituentData : undefined} onChange={(value) => updateSection(section.id, value)}/>
+        {name === "성분" ? <div className="field-add-actions constituent-actions"><button className="add-line" onClick={() => updateSection(section.id, appendItem(section, newItem()))}><Plus size={14}/> 새 항목 추가</button><button className="taxonomy-picker-button" onClick={() => setPickerSectionId(section.id)}><Plus size={14}/> Compound Tree에서 추가</button></div> : null}
       </section>;
     })}</div>
-    <div className="add-field-row"><button onClick={() => setFieldPickerOpen(true)}><Plus size={15}/> Field 추가</button></div>
+    <div className="add-field-row"><button onClick={() => setFieldPickerOpen(true)}><Pencil size={15}/> Field 수정</button></div>
     {pickerSectionId ? <ConstituentPicker nodes={constituentData.nodes} edges={constituentData.edges} onChoose={chooseConstituent} onClose={() => setPickerSectionId(undefined)}/> : null}
-    {relatedPickerOpen ? <RelatedDrugPicker drugs={availableDrugs} onChoose={addRelated} onClose={() => setRelatedPickerOpen(false)}/> : null}
+    {relationshipPicker ? <RelatedDrugPicker type={relationshipPicker} drugs={availableDrugs} onChoose={(targetId) => addRelationship(targetId, relationshipPicker)} onCreate={(name) => createAndRelate(name, relationshipPicker)} onClose={() => setRelationshipPicker(undefined)}/> : null}
     {fieldPickerOpen ? <FieldPicker definitions={fieldDefinitions} sections={draft.sections} onDefinitionsChange={setFieldDefinitions} onSave={applyDefinitions} onClose={() => setFieldPickerOpen(false)}/> : null}
   </div>;
 }
 
 function IndicatorLine({ label, children }: { label: string; children: React.ReactNode }) { return <div className="identity-line indicator-line"><strong>{label}</strong><span className="identity-colon">:</span>{children}</div>; }
-function OriginEditor({ origins, legacyOrigin, onChange }: { origins: OriginPlant[]; legacyOrigin: string | null; onChange: (value: OriginPlant[]) => void }) {
+function RelationshipList({ items, type, onRemove, onAdd }: { items: RelatedDrug[]; type: RelationshipType; onRemove: (id: string, type: RelationshipType) => void; onAdd: () => void }) {
+  return <div className="related-editor relationship-list">{[...items].sort(sortDrug).map((related, index) => <span className="relationship-item" key={related.id}><b>{circledNumber(index + 1)}</b><Link href={`/drugs/${related.drugId}`} scroll={false}>({formatDrugIndex(related.catalogIndex, related.referenceIndex)}, {related.name})</Link><button onClick={() => onRemove(related.id, type)} aria-label={`${related.name} 연결 해제`}><X size={13}/></button></span>)}<button className="inline-add" onClick={onAdd}><Plus size={14}/> 연결</button></div>;
+}
+function circledNumber(value: number) { return value <= 20 ? String.fromCodePoint(0x2460 + value - 1) : `(${value})`; }
+function OriginEditor({ origins, legacyOrigin, suggestions, onChange }: { origins: OriginPlant[]; legacyOrigin: string | null; suggestions: OriginSuggestion[]; onChange: (value: OriginPlant[]) => void }) {
   const rows = origins.length ? origins : [{ nameKo: legacyOrigin ?? "", scientificName: null }];
   function update(index: number, patch: Partial<OriginPlant>) { onChange(rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row)); }
   function remove(index: number) { onChange(rows.filter((_, rowIndex) => rowIndex !== index)); }
-  return <div className="origin-editor">{rows.map((origin, index) => <div className="origin-row" key={index}><input value={origin.nameKo ?? ""} onChange={(event) => update(index, { nameKo: event.target.value || null })} placeholder="기원식물 한글명"/><input className="scientific" value={origin.scientificName ?? ""} onChange={(event) => update(index, { scientificName: event.target.value || null })} placeholder="Scientific name"/><button onClick={() => remove(index)} aria-label="기원식물 삭제"><X size={15}/></button></div>)}<button className="origin-add" onClick={() => onChange([...rows, { nameKo: null, scientificName: null }])}><Plus size={13}/> 기원식물 추가</button></div>;
+  return <div className="origin-editor">{rows.map((origin, index) => <OriginRow key={index} origin={origin} suggestions={suggestions} onChange={(patch) => update(index, patch)} onRemove={() => remove(index)}/>)}<button className="origin-add" onClick={() => onChange([...rows, { nameKo: null, scientificName: null }])}><Plus size={13}/> 기원식물 추가</button></div>;
+}
+
+function OriginRow({ origin, suggestions, onChange, onRemove }: { origin: OriginPlant; suggestions: OriginSuggestion[]; onChange: (patch: Partial<OriginPlant>) => void; onRemove: () => void }) {
+  const [focused, setFocused] = useState<"ko" | "scientific">();
+  const needle = (focused === "scientific" ? origin.scientificName : origin.nameKo)?.trim().toLocaleLowerCase() ?? "";
+  const matches = needle ? suggestions.filter((item) => [item.nameKo, item.scientificName, ...item.drugs.map((drug) => drug.name)].some((value) => value?.toLocaleLowerCase().includes(needle))).slice(0, 8) : [];
+  return <div className="origin-row autocomplete-anchor"><input value={origin.nameKo ?? ""} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => onChange({ nameKo: event.target.value || null })} placeholder="기원식물 한글명"/><input className="scientific" value={origin.scientificName ?? ""} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => onChange({ scientificName: event.target.value || null })} placeholder="Scientific name"/><button onClick={onRemove} aria-label="기원식물 삭제"><X size={15}/></button>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={`${item.nameKo}-${item.scientificName}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange({ nameKo: item.nameKo, scientificName: item.scientificName }); setFocused(undefined); }}><span><strong>{item.nameKo || "한글명 없음"}</strong><em>{item.scientificName}</em></span>{item.drugs.length ? <small>{item.drugs.map((drug) => drug.name).join(" · ")}</small> : null}</button>)}</div> : null}</div>;
+}
+
+function FamilyEditor({ initialLabel, familyId, suggestions, onChange }: { initialLabel: string | null; familyId: string | null; suggestions: FamilySuggestion[]; onChange: (id: string | null) => void }) {
+  const selected = suggestions.find((item) => item.id === familyId);
+  const initialParts = (initialLabel ?? "").split(" · ");
+  const [koreanQuery, setKoreanQuery] = useState(initialParts[0] ?? "");
+  const [scientificQuery, setScientificQuery] = useState(initialParts[1] ?? "");
+  const [focused, setFocused] = useState<"ko" | "scientific">();
+  useEffect(() => { if (selected) { setKoreanQuery(selected.koreanName); setScientificQuery(selected.scientificName); } }, [selected]);
+  const needle = (focused === "scientific" ? scientificQuery : koreanQuery).trim().toLocaleLowerCase();
+  const matches = needle ? suggestions.filter((item) => [item.koreanName, item.scientificName, item.acceptedScientificName].some((value) => value?.toLocaleLowerCase().includes(needle))).slice(0, 8) : suggestions.slice(0, 8);
+  function choose(item: FamilySuggestion) { setKoreanQuery(item.koreanName); setScientificQuery(item.scientificName); onChange(item.id); setFocused(undefined); }
+  return <div className="family-row autocomplete-anchor"><input value={koreanQuery} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => { setKoreanQuery(event.target.value); onChange(null); }} placeholder="과 한글명"/><input className="scientific" value={scientificQuery} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => { setScientificQuery(event.target.value); onChange(null); }} placeholder="Scientific family name"/>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(item)}><span><strong>{item.koreanName}</strong><em>{item.scientificName}</em></span>{item.acceptedScientificName ? <small>{item.acceptedScientificName}</small> : null}</button>)}</div> : null}</div>;
 }
 function newItem(): StudyItem { return { id: crypto.randomUUID(), text: "" }; }
 function importanceClass(value: ImportanceLevel) { return { 중요: "important", 중간: "medium", 비중요: "low" }[value]; }
 function hasContent(items: StudyItem[]): boolean { return items.some((item) => item.text.trim() || hasContent(item.children ?? [])); }
-function sortDrug(a: { catalogIndex: number | null; name: string }, b: { catalogIndex: number | null; name: string }) { return (a.catalogIndex ?? 9999) - (b.catalogIndex ?? 9999) || a.name.localeCompare(b.name, "ko"); }
+function sortDrug(a: { catalogIndex: number | null; referenceIndex?: number | null; name: string }, b: { catalogIndex: number | null; referenceIndex?: number | null; name: string }) { return compareDrugIndexes(a, b); }
+function appendItem(section: StudySection, item: StudyItem): Partial<StudySection> {
+  if (!section.blocks?.length) return { items: hasContent(section.items) ? [...section.items, item] : [item] };
+  const blocks = structuredClone(section.blocks); let target = [...blocks].reverse().find((block) => block.type === "items");
+  if (!target || target.type !== "items") { target = { id: crypto.randomUUID(), type: "items", items: [] }; blocks.push(target); }
+  if (hasContent(target.items)) target.items.push(item); else target.items = [item];
+  return { blocks, items: blocks.flatMap((block) => block.type === "items" ? block.items : []) };
+}
 function sortSections(sections: StudySection[], definitions: FieldDefinition[]) {
   const byId = new Map(definitions.map((field) => [field.id, field]));
   return [...sections].sort((a, b) => {
@@ -143,39 +189,6 @@ function sortSections(sections: StudySection[], definitions: FieldDefinition[]) 
   });
 }
 
-function TextFieldEditor({ items, onChange }: { items: StudyItem[]; onChange: (items: StudyItem[]) => void }) {
-  const emptyId = useId();
-  const item = items[0] ?? { id: `empty-${emptyId}`, text: "" };
-  return <textarea className="plain-field-editor" value={item.text} onChange={(event) => onChange([{ ...item, text: event.target.value }])} placeholder="내용을 입력하세요"/>;
-}
-export function HierarchyEditor({ items, mode, onChange }: { items: StudyItem[]; mode: Exclude<FieldInputMode, "text">; onChange: (items: StudyItem[]) => void }) {
-  const focusNext = useRef<string | undefined>(undefined);
-  const emptyId = useId();
-  const emptyItem = useRef<StudyItem>({ id: `empty-${emptyId}`, text: "" });
-  const renderedItems = items.length ? items : [emptyItem.current];
-  useEffect(() => { if (!focusNext.current) return; const input = document.querySelector<HTMLInputElement>(`[data-study-item="${focusNext.current}"]`); input?.focus(); focusNext.current = undefined; }, [items]);
-  function change(id: string, patch: Partial<StudyItem>) { onChange(updateItem(renderedItems, id, patch)); }
-  function keyAction(event: React.KeyboardEvent<HTMLInputElement>, id: string) {
-    if (event.key === "Tab") { event.preventDefault(); onChange(event.shiftKey ? outdentItem(renderedItems, id) : indentItem(renderedItems, id)); }
-    if (event.key === "Enter") { event.preventDefault(); const item = newItem(); focusNext.current = item.id; onChange(addAfter(renderedItems, id, item)); }
-    if (event.key === "Backspace" && !event.currentTarget.value && items.length) { event.preventDefault(); onChange(removeItem(renderedItems, id)); }
-  }
-  return <div className="hierarchy-editor"><HierarchyRows items={renderedItems} depth={0} mode={mode} onChange={change} onKeyAction={keyAction} onRemove={(itemId) => onChange(removeItem(renderedItems, itemId))}/></div>;
-}
-function HierarchyRows({ items, depth, mode, onChange, onKeyAction, onRemove }: { items: StudyItem[]; depth: number; mode: Exclude<FieldInputMode, "text">; onChange: (id: string, patch: Partial<StudyItem>) => void; onKeyAction: (event: React.KeyboardEvent<HTMLInputElement>, id: string) => void; onRemove: (id: string) => void }) {
-  return <>{items.map((item, index) => <div className="hierarchy-node" key={item.id}><div className={`hierarchy-row depth-${Math.min(depth, 3)}`}><span className="hierarchy-marker">{marker(depth, index, mode)}</span><input data-study-item={item.id} style={{ fontWeight: item.bold ? 750 : 400, fontStyle: item.italic ? "italic" : "normal", background: item.highlight ? "#594f24" : "transparent" }} value={item.text} placeholder="내용을 입력하세요" onChange={(event) => onChange(item.id, { text: event.target.value })} onKeyDown={(event) => onKeyAction(event, item.id)}/><div className="hierarchy-actions"><button className={item.bold ? "active" : ""} onClick={() => onChange(item.id, { bold: !item.bold })} title="굵게"><Bold size={13}/></button><button className={item.italic ? "active" : ""} onClick={() => onChange(item.id, { italic: !item.italic })} title="기울임"><Italic size={13}/></button><button className={item.highlight ? "active" : ""} onClick={() => onChange(item.id, { highlight: !item.highlight })} title="강조"><Highlighter size={13}/></button><button onClick={() => onRemove(item.id)} title="삭제"><Trash2 size={13}/></button></div></div>{item.children?.length ? <div className="hierarchy-children"><HierarchyRows items={item.children} depth={depth + 1} mode={mode} onChange={onChange} onKeyAction={onKeyAction} onRemove={onRemove}/></div> : null}</div>)}</>;
-}
-function marker(depth: number, index: number, mode: Exclude<FieldInputMode, "text">) { const adjusted = mode === "hierarchy3" ? depth + 1 : depth; if (adjusted === 0) return `${toRoman(index + 1).toLowerCase()})`; if (adjusted === 1) return index < 20 ? String.fromCodePoint(0x2460 + index) : `(${index + 1})`; if (adjusted === 2) return `${String.fromCharCode(97 + (index % 26))})`; return "•"; }
-function toRoman(value: number) { const pairs: [number, string][] = [[10,"X"],[9,"IX"],[5,"V"],[4,"IV"],[1,"I"]]; let number = value, result = ""; for (const [amount, symbol] of pairs) while (number >= amount) { result += symbol; number -= amount; } return result; }
-function updateItem(items: StudyItem[], id: string, patch: Partial<StudyItem>): StudyItem[] { return items.map((item) => item.id === id ? { ...item, ...patch } : { ...item, ...(item.children ? { children: updateItem(item.children, id, patch) } : {}) }); }
-function removeItem(items: StudyItem[], id: string): StudyItem[] { return items.filter((item) => item.id !== id).map((item) => ({ ...item, ...(item.children ? { children: removeItem(item.children, id) } : {}) })); }
-function findPath(items: StudyItem[], id: string, prefix: number[] = []): number[] | null { for (let index = 0; index < items.length; index++) { if (items[index].id === id) return [...prefix, index]; const nested = items[index].children ? findPath(items[index].children!, id, [...prefix, index]) : null; if (nested) return nested; } return null; }
-function listAt(root: StudyItem[], parentPath: number[]): StudyItem[] { let list = root; for (const index of parentPath) { list[index].children ??= []; list = list[index].children!; } return list; }
-function mutateTree(items: StudyItem[], mutate: (root: StudyItem[]) => void) { const next = structuredClone(items); mutate(next); return next; }
-function indentItem(items: StudyItem[], id: string) { return mutateTree(items, (root) => { const path = findPath(root, id); if (!path) return; const index = path.at(-1)!; if (index === 0) return; const list = listAt(root, path.slice(0, -1)); const [item] = list.splice(index, 1); const previous = list[index - 1]; previous.children ??= []; previous.children.push(item); }); }
-function outdentItem(items: StudyItem[], id: string) { return mutateTree(items, (root) => { const path = findPath(root, id); if (!path || path.length < 2) return; const index = path.at(-1)!; const parentPath = path.slice(0, -1); const parentIndex = parentPath.at(-1)!; const list = listAt(root, parentPath); const [item] = list.splice(index, 1); const parentList = listAt(root, parentPath.slice(0, -1)); parentList.splice(parentIndex + 1, 0, item); }); }
-function addAfter(items: StudyItem[], id: string, newValue: StudyItem) { return mutateTree(items, (root) => { const path = findPath(root, id); if (!path) return; const list = listAt(root, path.slice(0, -1)); list.splice(path.at(-1)! + 1, 0, newValue); }); }
-
 function PickerShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return <div className="constituent-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div className="constituent-picker"><header><h2>{title}</h2><button onClick={onClose} aria-label="닫기"><X size={19}/></button></header>{children}</div></div>;
 }
@@ -184,7 +197,7 @@ function ConstituentPicker({ nodes, edges, onChoose, onClose }: { nodes: Taxon[]
   const [expanded, setExpanded] = useState<Set<string>>(new Set(nodes.filter((node) => node.kind === "pathway").map((node) => node.id)));
   const roots = nodes.filter((node) => !edges.some((edge) => edge.childId === node.id));
   const matches = query.trim() ? nodes.filter((node) => node.name.toLowerCase().includes(query.trim().toLowerCase())) : [];
-  return <PickerShell title="Compount Tree에서 추가" onClose={onClose}><div className="search-wrap picker-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="경로, 성분군 검색" autoFocus/></div><div className="picker-tree">{query.trim() ? matches.map((node) => <PickerRow node={node} key={node.id} onChoose={onChoose}/>) : roots.map((node) => <PickerBranch key={node.id} node={node} nodes={nodes} edges={edges} depth={0} path={new Set()} expanded={expanded} setExpanded={setExpanded} onChoose={onChoose}/>)}</div></PickerShell>;
+  return <PickerShell title="Compound Tree에서 추가" onClose={onClose}><div className="search-wrap picker-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="경로, 성분군 검색" autoFocus/></div><div className="picker-tree">{query.trim() ? matches.map((node) => <PickerRow node={node} key={node.id} onChoose={onChoose}/>) : roots.map((node) => <PickerBranch key={node.id} node={node} nodes={nodes} edges={edges} depth={0} path={new Set()} expanded={expanded} setExpanded={setExpanded} onChoose={onChoose}/>)}</div></PickerShell>;
 }
 function PickerBranch({ node, nodes, edges, depth, path, expanded, setExpanded, onChoose }: { node: Taxon; nodes: Taxon[]; edges: TaxonEdge[]; depth: number; path: Set<string>; expanded: Set<string>; setExpanded: (value: Set<string>) => void; onChoose: (node: Taxon) => void }) {
   if (path.has(node.id)) return null;
@@ -195,10 +208,11 @@ function PickerBranch({ node, nodes, edges, depth, path, expanded, setExpanded, 
 function PickerRow({ node, onChoose }: { node: Taxon; onChoose: (node: Taxon) => void }) { return <button className="picker-label" onClick={() => onChoose(node)}><span>{node.name}</span><small>{kindLabel(node.kind)}</small></button>; }
 function kindLabel(kind: string) { return { pathway: "생합성 경로", class: "성분군", subclass: "하위 성분군", compound: "개별 성분" }[kind] ?? kind; }
 
-function RelatedDrugPicker({ drugs, onChoose, onClose }: { drugs: AvailableDrug[]; onChoose: (id: string) => void; onClose: () => void }) {
+function RelatedDrugPicker({ type, drugs, onChoose, onCreate, onClose }: { type: RelationshipType; drugs: AvailableDrug[]; onChoose: (id: string) => void; onCreate: (name: string) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
-  const visible = drugs.filter((drug) => !query.trim() || drug.name.includes(query.trim()) || String(drug.catalogIndex ?? "").includes(query.trim())).sort(sortDrug);
-  return <PickerShell title="연관생약 추가" onClose={onClose}><div className="search-wrap picker-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="인덱스 또는 생약명 검색" autoFocus/></div><div className="related-picker-list">{visible.map((drug) => <button key={drug.id} onClick={() => onChoose(drug.id)}><span><strong>({drug.catalogIndex ?? "—"}, {drug.name})</strong>{drug.latinName ? <em>{drug.latinName}</em> : null}</span><small>연관생약으로 추가</small></button>)}</div></PickerShell>;
+  const needle = query.trim().toLocaleLowerCase();
+  const visible = drugs.filter((drug) => !needle || drug.name.toLocaleLowerCase().includes(needle) || drug.latinName?.toLocaleLowerCase().includes(needle) || formatDrugIndex(drug.catalogIndex, drug.referenceIndex).toLocaleLowerCase().includes(needle)).sort(sortDrug);
+  return <PickerShell title={`${type} 추가`} onClose={onClose}><div className="search-wrap picker-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="인덱스, 생약명 또는 Latin name 검색" autoFocus/></div><div className="related-picker-list">{visible.map((drug) => <button key={drug.id} onClick={() => onChoose(drug.id)}><span><strong>({formatDrugIndex(drug.catalogIndex, drug.referenceIndex)}, {drug.name})</strong>{drug.latinName ? <em>{drug.latinName}</em> : null}</span><small>{type}으로 추가</small></button>)}{needle && !visible.length ? <button className="create-reference-result" onClick={() => onCreate(query.trim())}><span><strong>+ “{query.trim()}”를 새로운 생약으로 추가</strong><em>시험범위 외 참고류 · 새 R 인덱스</em></span></button> : null}</div></PickerShell>;
 }
 
 function FieldPicker({ definitions, sections, onDefinitionsChange, onSave, onClose }: { definitions: FieldDefinition[]; sections: StudySection[]; onDefinitionsChange: (value: FieldDefinition[]) => void; onSave: (ids: string[]) => void; onClose: () => void }) {
@@ -229,7 +243,7 @@ function FieldPicker({ definitions, sections, onDefinitionsChange, onSave, onClo
     const response = await fetch(`/api/field-definitions/${field.id}`, { method: "DELETE" }); if (!response.ok) return;
     onDefinitionsChange(definitions.filter((item) => item.id !== field.id)); setSelected((current) => { const next = new Set(current); next.delete(field.id); return next; });
   }
-  return <PickerShell title="Field 추가" onClose={onClose}><div className="field-picker-body"><FieldGroup title="기본 항목" fields={defaults} present={present} selected={selected} onToggle={toggle}/><FieldGroup title="사용자 정의 항목" fields={custom} present={present} selected={selected} onToggle={toggle} onRename={rename} onArchive={archive}/><div className="new-field-card"><Plus size={18}/><input value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void create(); }} placeholder="새로운 항목 이름"/><select value={newInputMode} onChange={(event) => setNewInputMode(event.target.value as FieldInputMode)} aria-label="입력 형식"><option value="hierarchy4">i) → ① → a) → •</option><option value="hierarchy3">① → a) → •</option><option value="text">일반 텍스트</option></select><button onClick={() => void create()}>추가</button></div></div><footer className="field-picker-footer"><span>{selected.size}개 표시</span><button onClick={() => onSave([...selected])}>변경사항 저장</button></footer></PickerShell>;
+  return <PickerShell title="Field 수정" onClose={onClose}><div className="field-picker-body"><FieldGroup title="기본 항목" fields={defaults} present={present} selected={selected} onToggle={toggle}/><FieldGroup title="사용자 정의 항목" fields={custom} present={present} selected={selected} onToggle={toggle} onRename={rename} onArchive={archive}/><div className="new-field-card"><Plus size={18}/><input value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void create(); }} placeholder="새로운 항목 이름"/><select value={newInputMode} onChange={(event) => setNewInputMode(event.target.value as FieldInputMode)} aria-label="입력 형식"><option value="hierarchy4">i) → ① → a) → •</option><option value="hierarchy3">① → a) → •</option><option value="text">일반 텍스트</option></select><button onClick={() => void create()}>추가</button></div></div><footer className="field-picker-footer"><span>{selected.size}개 표시</span><button onClick={() => onSave([...selected])}>변경사항 저장</button></footer></PickerShell>;
 }
 function FieldGroup({ title, fields, present, selected, onToggle, onRename, onArchive }: { title: string; fields: FieldDefinition[]; present: Set<string | undefined>; selected: Set<string>; onToggle: (id: string) => void; onRename?: (field: FieldDefinition) => void; onArchive?: (field: FieldDefinition) => void }) {
   return <section className="field-picker-group"><h3>{title}</h3><div className="field-card-grid">{fields.map((field) => { const added = present.has(field.id); return <div className={`field-choice-card ${selected.has(field.id) ? "selected" : ""}`} key={field.id} role="button" tabIndex={0} onClick={() => onToggle(field.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onToggle(field.id); }}><span>{field.name}</span>{selected.has(field.id) ? <Check className="field-check" size={16}/> : null}<small>{selected.has(field.id) ? (added ? "현재 표시됨" : "추가 예정") : (added ? "삭제 예정" : inputModeLabel(field.inputMode))}</small>{field.kind === "custom" ? <span className="field-card-actions"><button onClick={(event) => { event.stopPropagation(); onRename?.(field); }} title="수정"><Pencil size={13}/></button><button onClick={(event) => { event.stopPropagation(); onArchive?.(field); }} title="삭제"><Trash2 size={13}/></button></span> : null}</div>; })}</div></section>;

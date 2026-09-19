@@ -14,6 +14,7 @@ const categoryData = [
   { name: "전초류", slug: "herba", position: 2 },
   { name: "종자류", slug: "semen", position: 3 },
   { name: "근경류", slug: "rhizoma", position: 4 },
+  { name: "시험범위 외 참고류", slug: "reference", position: 99 },
 ];
 
 for (const category of categoryData) {
@@ -45,7 +46,7 @@ const drugData = [
 ];
 
 for (const drug of drugData) await db.insert(crudeDrugs).values(drug).onConflictDoNothing({ target: crudeDrugs.koreanName });
-for (const name of ["유사생약", "가공/연관"]) await db.insert(relationshipTypes).values({ name }).onConflictDoNothing();
+for (const name of ["연관생약", "유사생약"]) await db.insert(relationshipTypes).values({ name }).onConflictDoNothing();
 const [deck] = await db.select().from(decks).where(eq(decks.name, "핵심 생약")).limit(1);
 if (!deck) await db.insert(decks).values({ name: "핵심 생약", description: "직접 카드를 추가해 보세요." });
 

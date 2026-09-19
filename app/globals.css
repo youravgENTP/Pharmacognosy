@@ -918,6 +918,9 @@ html, body { background: var(--paper); color: var(--ink); }
 .block-drop-line.active { background: #609ce9; }
 .collection-empty-document { width: 100%; min-height: 170px; border: 1px dashed #3a424b; border-radius: 10px; background: transparent; color: #78838e; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .collection-rich-block { position: relative; }
+.collection-text-block { position: relative; }
+.collection-text-block > select { position: absolute; z-index: 8; right: 2px; bottom: calc(100% - 4px); padding: 3px 5px; border: 1px solid #343c45; border-radius: 5px; background: #171c21; color: #84909b; font-size: 10px; opacity: 0; }
+.collection-block:hover .collection-text-block > select, .collection-text-block:focus-within > select { opacity: 1; }
 .collection-rich-block > [contenteditable] { min-height: 30px; padding: 5px 2px; outline: none; color: #e6e9ed; line-height: 1.65; white-space: pre-wrap; }
 .collection-rich-block > [contenteditable]:empty::before { content: attr(data-placeholder); color: #59636d; }
 .collection-rich-block.heading-1 > [contenteditable] { font-size: 32px; font-weight: 800; line-height: 1.25; }
@@ -969,4 +972,8 @@ html, body { background: var(--paper); color: var(--ink); }
 .sheet-cell.copied { animation: sheet-dashes .55s linear infinite; background-image: linear-gradient(90deg,#8bbcff 50%,transparent 50%),linear-gradient(90deg,#8bbcff 50%,transparent 50%),linear-gradient(0deg,#8bbcff 50%,transparent 50%),linear-gradient(0deg,#8bbcff 50%,transparent 50%); background-size: 8px 1px,8px 1px,1px 8px,1px 8px; background-position: 0 0,0 100%,0 0,100% 0; background-repeat: repeat-x,repeat-x,repeat-y,repeat-y; }
 @keyframes sheet-dashes { to { background-position: 8px 0,-8px 100%,0 -8px,100% 8px; } }
 .sheet-cell-editor { width: 100%; min-height: 100%; outline: none; user-select: text; cursor: text; white-space: pre-wrap; }
+.sheet-cell-edit-wrap { position: relative; width: 100%; }
+.sheet-cell-format { position: absolute; z-index: 10; left: 0; bottom: calc(100% + 4px); padding: 3px; border: 1px solid #3b444e; border-radius: 5px; background: #151a1f; display: flex; }
+.sheet-cell-format button { width: 23px; height: 22px; padding: 0; border: 0; background: transparent; color: #a4afba; display: grid; place-items: center; }
+.sheet-cell-format input { width: 23px; height: 22px; padding: 2px; border: 0; background: transparent; }
 @media (max-width: 900px) { .collection-workspace-header label { display: none; } .source-pane { position: fixed; z-index: 35; inset: 60px auto 0 76px; width: min(520px,calc(100vw - 76px)) !important; max-width: none; box-shadow: 15px 0 45px rgba(0,0,0,.45); } .pane-divider { display: none; } .collection-document-pane { padding-right: 18px; padding-left: 18px; } }

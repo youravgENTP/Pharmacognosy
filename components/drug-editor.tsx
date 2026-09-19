@@ -25,6 +25,7 @@ const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean };
 export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
 function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: DrugEditorProps) {
+  const concepts = useConceptEngine();
   const [draft, setDraft] = useState(initial);
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
   const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinition[]>([]);
@@ -69,11 +70,12 @@ function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDr
   const setField = <K extends keyof DrugDraft>(key: K, value: DrugDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   function fieldName(section: StudySection) { return fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.name ?? section.title; }
   function updateSection(sectionId: string, patch: Partial<StudySection>) { setField("sections", draft.sections.map((section) => section.id === sectionId ? { ...section, ...patch } : section)); }
-  function removeSection(sectionId: string) { if (window.confirm("이 생약에서 이 필드와 내용을 삭제할까요?")) setField("sections", draft.sections.filter((section) => section.id !== sectionId)); }
-  function applyDefinitions(selectedIds: string[]) {
+  async function removeSection(sectionId: string) { if (!window.confirm("이 생약에서 이 필드와 내용을 삭제할까요?")) return; if (await concepts?.breakAnchors({ ownerId: id, sectionIds: [sectionId] }) === false) return; setField("sections", draft.sections.filter((section) => section.id !== sectionId)); }
+  async function applyDefinitions(selectedIds: string[]) {
     const selected = new Set(selectedIds);
     const removed = draft.sections.filter((section) => section.fieldDefinitionId && !selected.has(section.fieldDefinitionId));
     if (removed.some((section) => hasContent(section.items)) && !window.confirm("내용이 입력된 Field가 포함되어 있습니다. 이 생약에서 해당 Field와 내용을 삭제할까요?")) return;
+    if (removed.length && await concepts?.breakAnchors({ ownerId: id, sectionIds: removed.map((section) => section.id) }) === false) return;
     const retained = draft.sections.filter((section) => !section.fieldDefinitionId || selected.has(section.fieldDefinitionId));
     const existing = new Set(retained.map((section) => section.fieldDefinitionId).filter(Boolean));
     const additions = fieldDefinitions.filter((field) => selected.has(field.id) && !existing.has(field.id)).map((field) => ({ id: crypto.randomUUID(), fieldDefinitionId: field.id, title: field.name, items: [] }));
@@ -98,6 +100,7 @@ function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDr
   }
   async function removeRelated(relationshipId: string, type: RelationshipType) {
     const list = type === "연관생약" ? relatedDrugs : similarDrugs; const related = list.find((item) => item.id === relationshipId);
+    if (await concepts?.breakTarget({ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: type, relationId: relationshipId } }) === false) return;
     await fetch(`/api/drugs/${id}/relationships`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ relationshipId }) });
     const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs; setter((current) => current.filter((item) => item.id !== relationshipId));
     if (related) setAvailableDrugs((current) => [...current, { id: related.drugId, catalogIndex: related.catalogIndex, referenceIndex: related.referenceIndex, name: related.name, latinName: related.latinName }].sort(sortDrug));
@@ -127,7 +130,7 @@ function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDr
       const name = fieldName(section);
       const inputMode = fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.inputMode ?? "hierarchy4";
       return <section className="profile-field" key={section.id}>
-        <div className="profile-field-title"><h2>{name}</h2><button className="field-remove" onClick={() => removeSection(section.id)} title="이 생약에서 필드 삭제" aria-label={`${name} 삭제`}><X size={21}/></button></div>
+        <div className="profile-field-title"><h2>{name}</h2><button className="field-remove" onClick={() => void removeSection(section.id)} title="이 생약에서 필드 삭제" aria-label={`${name} 삭제`}><X size={21}/></button></div>
         <StudyContentEditor items={section.items} blocks={section.blocks} mode={inputMode} taxonomy={name === "성분" ? constituentData : undefined} concept={{ ownerType: "drug", ownerId: id, sectionId: section.id }} onChange={(value) => updateSection(section.id, value)}/>
         {name === "성분" ? <div className="field-add-actions constituent-actions"><button className="add-line" onClick={() => updateSection(section.id, appendItem(section, newItem()))}><Plus size={14}/> 새 항목 추가</button><button className="taxonomy-picker-button" onClick={() => setPickerSectionId(section.id)}><Plus size={14}/> Compound Tree에서 추가</button></div> : null}
       </section>;
@@ -156,7 +159,9 @@ function OriginRow({ drugId, index, origin, suggestions, onChange, onRemove }: {
   const [focused, setFocused] = useState<"ko" | "scientific">();
   const needle = (focused === "scientific" ? origin.scientificName : origin.nameKo)?.trim().toLocaleLowerCase() ?? "";
   const matches = needle ? suggestions.filter((item) => [item.nameKo, item.scientificName, ...item.drugs.map((drug) => drug.name)].some((value) => value?.toLocaleLowerCase().includes(needle))).slice(0, 8) : [];
-  return <div className="origin-row autocomplete-anchor"><AnchorableInput value={origin.nameKo ?? ""} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => onChange({ nameKo: value || null })} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originName", originIndex: index } }} placeholder="기원식물 한글명"/><AnchorableInput className="scientific" value={origin.scientificName ?? ""} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => onChange({ scientificName: value || null })} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originScientific", originIndex: index } }} placeholder="Scientific name"/><button onClick={onRemove} aria-label="기원식물 삭제"><X size={15}/></button>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={`${item.nameKo}-${item.scientificName}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange({ nameKo: item.nameKo, scientificName: item.scientificName }); setFocused(undefined); }}><span><strong>{item.nameKo || "한글명 없음"}</strong><em>{item.scientificName}</em></span>{item.drugs.length ? <small>{item.drugs.map((drug) => drug.name).join(" · ")}</small> : null}</button>)}</div> : null}</div>;
+  const concepts = useConceptEngine();
+  async function removeRow() { const targets: ConceptTarget[] = [{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originName", originIndex: index } }, { ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originScientific", originIndex: index } }]; for (const target of targets) if (await concepts?.breakTarget(target) === false) return; onRemove(); }
+  return <div className="origin-row autocomplete-anchor"><AnchorableInput value={origin.nameKo ?? ""} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => onChange({ nameKo: value || null })} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originName", originIndex: index } }} placeholder="기원식물 한글명"/><AnchorableInput className="scientific" value={origin.scientificName ?? ""} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => onChange({ scientificName: value || null })} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originScientific", originIndex: index } }} placeholder="Scientific name"/><button onClick={() => void removeRow()} aria-label="기원식물 삭제"><X size={15}/></button>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={`${item.nameKo}-${item.scientificName}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange({ nameKo: item.nameKo, scientificName: item.scientificName }); setFocused(undefined); }}><span><strong>{item.nameKo || "한글명 없음"}</strong><em>{item.scientificName}</em></span>{item.drugs.length ? <small>{item.drugs.map((drug) => drug.name).join(" · ")}</small> : null}</button>)}</div> : null}</div>;
 }
 
 function FamilyEditor({ drugId, initialLabel, familyId, suggestions, onChange }: { drugId: string; initialLabel: string | null; familyId: string | null; suggestions: FamilySuggestion[]; onChange: (id: string | null) => void }) {

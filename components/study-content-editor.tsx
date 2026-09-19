@@ -433,7 +433,7 @@ function ImageBlock({
           type="button"
           draggable={false}
           onMouseDown={(event) => event.stopPropagation()}
-          onClick={onDelete}
+          onClick={() => { if (!conceptTarget) onDelete(); else void concepts?.breakTarget(conceptTarget).then((allowed) => { if (allowed) onDelete(); }); }}
           title="삭제"
         >
           <Trash2 size={14}/>

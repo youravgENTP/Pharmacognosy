@@ -30,7 +30,29 @@ export function Sidebar() {
     window.dispatchEvent(new CustomEvent("sidebar-toggle", { detail: next }));
   }
   return <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-    <div className="brand"><span className="brand-text"><span>Herb</span><span>Overflow</span></span><button className="collapse-button" onClick={toggle} title={collapsed ? "사이드바 펼치기" : "사이드바 접기"}>{collapsed ? <ChevronsRight size={20}/> : <ChevronsLeft size={20}/>}</button></div>
+    <div className="brand">
+  <Link href="/" className="brand-home" aria-label="Herb Overflow 홈">
+    <img
+      src="/HerbOverflow.png"
+      alt=""
+      className="brand-logo"
+    />
+    <span className="brand-text">
+      <span>Herb</span>
+      <span>Overflow</span>
+    </span>
+  </Link>
+
+  <button
+    className="collapse-button"
+    onClick={toggle}
+    title={collapsed ? "사이드바 펼치기" : "사이드바 접기"}
+  >
+    {collapsed
+      ? <ChevronsRight size={20}/>
+      : <ChevronsLeft size={20}/>}
+  </button>
+</div>
     <nav className="nav">{links.map(({ href, label, icon: Icon }) => {
       const active = href === "/" ? pathname === "/" || pathname.startsWith("/drugs/") : pathname.startsWith(href);
       return <Link key={href} href={href} className={`nav-link ${active ? "active" : ""}`} title={collapsed ? label : undefined}><Icon size={19}/><span>{label}</span></Link>;

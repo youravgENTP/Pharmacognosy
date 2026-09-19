@@ -183,13 +183,73 @@ h1, .category-header h2, .drug-card strong, .brand-text { font-family: inherit; 
 h1 { font-weight: 750; letter-spacing: -.035em; }
 .sidebar { width: 244px; background: var(--sidebar); padding: 24px 16px; }
 .sidebar.collapsed { width: 76px; }
-.brand { min-height: 62px; padding: 5px 0 25px; gap: 12px; overflow: visible; justify-content: space-between; }
-.brand-mark { display: none; }
-.brand-text { color: #f7f8fa; font-size: 20px; line-height: 1.02; font-weight: 850; letter-spacing: -.03em; overflow: hidden; display: grid; justify-items: start; }
-.brand .collapse-button { width: 36px; height: 36px; margin: 0; padding: 0; border: 1px solid #363d46; border-radius: 8px; background: #22272d; color: #aab3bd; flex: 0 0 auto; display: grid; place-items: center; }
-.collapsed .brand { justify-content: center; }
-.collapsed .brand-text { display: none; }
-.collapsed .brand .collapse-button { position: static; width: 40px; height: 40px; border-radius: 9px; background: #252a31; }
+.brand {
+  min-height: 62px;
+  padding: 5px 0 25px;
+  gap: 10px;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+}
+
+.brand-home {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+}
+
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  object-fit: contain;
+}
+
+.brand-text {
+  min-width: 0;
+  color: #f7f8fa;
+  font-size: 20px;
+  line-height: 1.02;
+  font-weight: 850;
+  letter-spacing: -.03em;
+  overflow: hidden;
+  display: grid;
+  justify-items: start;
+}
+
+.brand .collapse-button {
+  width: 36px;
+  height: 36px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 1px solid #363d46;
+  border-radius: 8px;
+  background: #22272d;
+  color: #aab3bd;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+.collapsed .brand {
+  justify-content: center;
+}
+
+.collapsed .brand-home,
+.collapsed .brand-text {
+  display: none;
+}
+
+.collapsed .brand .collapse-button {
+  position: static;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  border-radius: 9px;
+  background: #252a31;
+}
 .nav { gap: 8px; }
 .nav-link { min-height: 48px; padding: 0 14px; gap: 14px; border-radius: 12px; color: #a3aab4; font-weight: 650; }
 .nav-link:hover { color: #eaf2ff; background: #20262d; }

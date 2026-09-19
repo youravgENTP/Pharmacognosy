@@ -258,7 +258,9 @@ function HierarchyRows({
 }
 
 function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, onKeyAction, onRemove }: { item: StudyItem; shortcuts: LatexShortcut[]; taxonomy?: TaxonomyData; contextTaxonId?: string; onChange: (patch: Partial<StudyItem>) => void; onKeyAction: (event: React.KeyboardEvent<HTMLElement>, content: Pick<StudyItem, "text" | "html">) => void; onRemove: () => void }) {
-  const editor = useRef<HTMLDivElement>(null); const savedRange = useRef<Range | undefined>(undefined);
+  const editor = useRef<HTMLDivElement>(null);
+  const savedRange = useRef<Range | undefined>(undefined);
+  const composing = useRef(false);
   const [highlightColor, setHighlightColor] = useState("#f3df73"); const [highlightArmed, setHighlightArmed] = useState(false); const [paletteOpen, setPaletteOpen] = useState(false); const [context, setContext] = useState<{ x: number; y: number; text: string }>();
   const [presets, setPresets] = useState(["#f3df73", "#9ed9a5", "#91c7f3", "#e9a6c5"]);
   useEffect(() => { const stored = localStorage.getItem("highlight-presets"); if (stored) try { setPresets(JSON.parse(stored)); } catch { /* ignore invalid local preference */ } }, []);
@@ -299,8 +301,43 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
     setContext(undefined); if (!response.ok) window.alert(body.error ?? "Constituent를 추가하지 못했습니다."); else window.alert(`“${context.text}”을(를) ${taxon?.name ?? "상위 분류"}에 연결했습니다.`);
   }
   return <div className="rich-input-wrap">
-    <div ref={editor} className="rich-study-input" data-study-item={item.id} contentEditable suppressContentEditableWarning data-placeholder="내용을 입력하세요" style={{ fontWeight: item.bold ? 750 : undefined, fontStyle: item.italic ? "italic" : undefined, background: item.highlight ? "#594f24" : undefined }} onInput={() => { normalize(false); emit(); }} onBlur={() => { normalize(true); emit(); }} onKeyDown={(event) => {
-      if ((event.metaKey || event.ctrlKey) && ["b", "i"].includes(event.key.toLowerCase())) {
+    <div
+      ref={editor}
+      className="rich-study-input"
+      data-study-item={item.id}
+      contentEditable
+      suppressContentEditableWarning
+      data-placeholder="내용을 입력하세요"
+      style={{
+        fontWeight: item.bold ? 750 : undefined,
+        fontStyle: item.italic ? "italic" : undefined,
+        background: item.highlight ? "#594f24" : undefined,
+      }}
+      onCompositionStart={() => {
+        composing.current = true;
+      }}
+      onCompositionEnd={() => {
+        composing.current = false;
+        normalize(false);
+        emit();
+      }}
+      onInput={() => {
+        if (composing.current) return;
+
+        normalize(false);
+        emit();
+      }}
+      onBlur={() => {
+        composing.current = false;
+        normalize(true);
+        emit();
+      }}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || composing.current) {
+          return;
+        }
+
+        if ((event.metaKey || event.ctrlKey) && ["b", "i"].includes(event.key.toLowerCase())) {
         event.preventDefault();
         command(event.key.toLowerCase() === "b" ? "bold" : "italic");
         return;

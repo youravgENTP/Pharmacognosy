@@ -841,7 +841,7 @@ html, body { background: var(--paper); color: var(--ink); }
 @media (max-width: 760px) { .settings-layout { grid-template-columns: 1fr; } .settings-nav { position: static; grid-template-columns: repeat(5, minmax(90px, 1fr)); overflow-x: auto; } .settings-nav a { text-align: center; } .settings-fields-list > div { grid-template-columns: 60px 1fr; padding: 8px 0; } .settings-fields-list select { grid-column: 2; } .settings-new-field { grid-template-columns: 25px 1fr; } .settings-new-field select { grid-column: 2; } .storage-metrics { grid-template-columns: 1fr; } .shortcut-head { display: none; } .shortcut-row { grid-template-columns: 1fr 90px 68px; } .shortcut-new { grid-template-columns: 1fr 90px auto; } .shortcut-new > svg { display: none; } }
 
 /* Concept graph and Collection workspace */
-.concept-overlay { position: fixed; z-index: 90; inset: 0; pointer-events: none; }
+.concept-overlay { position: fixed; z-index: 120; inset: 0; pointer-events: none; }
 .concept-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .concept-lines path { fill: none; stroke-width: 1.5; opacity: .28; pointer-events: stroke; transition: opacity .15s, stroke-width .15s; }
 .concept-lines path:hover, .concept-lines path.selected { opacity: .95; stroke-width: 2.5; }

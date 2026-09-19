@@ -395,7 +395,35 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
 
       if (event.key === "Enter" || event.key === "Tab") normalize(true);
       onKeyAction(event, content());
-    }} onMouseUp={() => { rememberSelection(); if (highlightArmed && savedRange.current && !savedRange.current.collapsed) { command("hiliteColor", highlightColor); setHighlightArmed(false); } }} onKeyUp={rememberSelection} onContextMenu={(event) => { rememberSelection(); const selection = window.getSelection()?.toString().trim(); if (selection && contextTaxonId) { event.preventDefault(); setContext({ x: event.clientX, y: event.clientY, text: selection }); } }}/>
+    }} onMouseUp={() => { rememberSelection(); if (highlightArmed && savedRange.current && !savedRange.current.collapsed) { command("hiliteColor", highlightColor); setHighlightArmed(false); } }} onKeyUp={rememberSelection} onContextMenu={(event) => {
+  rememberSelection();
+
+  const selection = window.getSelection()?.toString().trim();
+  if (!selection || !contextTaxonId) return;
+
+  event.preventDefault();
+
+  const wrapper = event.currentTarget.closest(
+    ".rich-input-wrap",
+  ) as HTMLElement | null;
+
+  if (!wrapper) return;
+
+  const bounds = wrapper.getBoundingClientRect();
+
+  const menuWidth = 310;
+  const localX = event.clientX - bounds.left + 8;
+  const localY = event.clientY - bounds.top + 8;
+
+  setContext({
+    x: Math.max(
+      0,
+      Math.min(localX, bounds.width - menuWidth),
+    ),
+    y: localY,
+    text: selection,
+  });
+}}/>
     <div className="hierarchy-actions"><button onMouseDown={(event) => event.preventDefault()} onClick={() => command("bold")} title="선택 영역 굵게 · ⌘B"><Bold size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => command("italic")} title="선택 영역 기울임 · ⌘I"><Italic size={13}/></button><span className="format-split"><button className={highlightArmed ? "active" : ""} style={{ color: highlightColor }} onMouseDown={(event) => event.preventDefault()} onClick={() => { if (restoreSelection() && savedRange.current && !savedRange.current.collapsed) command("hiliteColor", highlightColor); else setHighlightArmed((value) => !value); }} title="하이라이트"><Highlighter size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => setPaletteOpen((value) => !value)} title="하이라이트 색"><ChevronDown size={10}/></button>{paletteOpen ? <span className="highlight-palette">{presets.map((color) => <button key={color} style={{ background: color }} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseHighlight(color)} aria-label={`${color} 선택`}/>)}<input type="color" value={highlightColor} onChange={(event) => chooseHighlight(event.target.value)} title="새 색상 저장"/></span> : null}</span><label className="text-color-button" title="글자색"><Palette size={13}/><input type="color" defaultValue="#e7eaee" onChange={(event) => command("foreColor", event.target.value)}/></label><button onClick={onRemove} title="삭제"><Trash2 size={13}/></button></div>
     {context ? <div className="constituent-context-menu" style={{ left: context.x, top: context.y }}><button onClick={() => void createConstituent()}><strong>“{context.text}”</strong><span>{taxon?.name ?? "상위 분류"}의 constituent로 추가</span></button></div> : null}
   </div>;

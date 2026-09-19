@@ -267,7 +267,57 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
   useEffect(() => { const node = editor.current; if (!node || document.activeElement === node) return; const desired = item.html ? sanitizeRichHtml(item.html) : escapeHtml(item.text); if (node.innerHTML !== desired) node.innerHTML = desired; }, [item.html, item.text]);
   function content() { const node = editor.current!; return { text: node.innerText.replace(/\n/g, ""), html: sanitizeRichHtml(node.innerHTML) }; }
   function emit() { onChange(content()); }
-  function normalize(includeEnd: boolean) { const node = editor.current; if (!node) return; const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); const textNodes: Text[] = []; while (walker.nextNode()) textNodes.push(walker.currentNode as Text); for (const textNode of textNodes) textNode.data = applyLatexShortcuts(textNode.data, includeEnd, shortcuts); }
+  function normalize(includeEnd: boolean) {
+    const node = editor.current;
+    if (!node) return;
+
+    const selection = window.getSelection();
+    const hasCaret = Boolean(
+      selection?.rangeCount
+      && selection.isCollapsed
+      && node.contains(selection.anchorNode),
+    );
+
+    const offset = hasCaret
+      ? caretOffset(node)
+      : 0;
+
+    const walker = document.createTreeWalker(
+      node,
+      NodeFilter.SHOW_TEXT,
+    );
+
+    const textNodes: Text[] = [];
+
+    while (walker.nextNode()) {
+      textNodes.push(walker.currentNode as Text);
+    }
+
+    let totalDelta = 0;
+    let changed = false;
+
+    for (const textNode of textNodes) {
+      const before = textNode.data;
+      const after = applyLatexShortcuts(
+        before,
+        includeEnd,
+        shortcuts,
+      );
+
+      if (after === before) continue;
+
+      textNode.data = after;
+      totalDelta += after.length - before.length;
+      changed = true;
+    }
+
+    if (changed && hasCaret) {
+      placeCaretAtOffset(
+        node,
+        Math.max(0, offset + totalDelta),
+      );
+    }
+  }
   function rememberSelection() { const selection = window.getSelection(); const node = editor.current; if (selection?.rangeCount && node?.contains(selection.anchorNode)) savedRange.current = selection.getRangeAt(0).cloneRange(); }
   function restoreSelection() { const range = savedRange.current; if (!range) return false; const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); return !range.collapsed; }
   function command(name: string, value?: string) {

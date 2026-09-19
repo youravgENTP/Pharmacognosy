@@ -13,131 +13,12 @@ type ChangeValue = { items: StudyItem[]; blocks: StudyBlock[] };
 export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: { items: StudyItem[]; blocks?: StudyBlock[]; mode: FieldInputMode; onChange: (value: ChangeValue) => void; taxonomy?: TaxonomyData }) {
   const latexShortcuts = useLatexShortcuts();
   const legacyId = useId(); const fileInput = useRef<HTMLInputElement>(null); const editorRoot = useRef<HTMLDivElement>(null);
-  const [uploading, setUploading] = useState(false); const [dragging, setDragging] = useState(false); const [draggedBlockId, setDraggedBlockId] = useState<string>(); const [dropTarget, setDropTarget] = useState<{ index: number; before: boolean }>(); const [error, setError] = useState<string>();
+  const [uploading, setUploading] = useState(false); const [dragging, setDragging] = useState(false); const [error, setError] = useState<string>();
   const rendered: StudyBlock[] = blocks?.length ? blocks : [{ id: `legacy-${legacyId}`, type: "items", items }];
   function commit(next: StudyBlock[]) { onChange({ blocks: next, items: next.flatMap((block) => block.type === "items" ? block.items : []) }); }
   function updateText(id: string, nextItems: StudyItem[]) { commit(rendered.map((block) => block.id === id && block.type === "items" ? { ...block, items: nextItems } : block)); }
   function updateImage(id: string, patch: Partial<Extract<StudyBlock, { type: "image" }>>) { commit(rendered.map((block) => block.id === id && block.type === "image" ? { ...block, ...patch } : block)); }
-  function positionImage(block: Extract<StudyBlock, { type: "image" }>, clientX: number): Extract<StudyBlock, { type: "image" }> {
-    const bounds = editorRoot.current?.getBoundingClientRect();
-    if (!bounds) return { ...block };
 
-    const width = block.widthPercent ?? ({
-      small: 25,
-      medium: 50,
-      large: 75,
-      full: 100,
-    }[block.size]);
-
-    const xPercent = Math.round(
-      Math.max(
-        0,
-        Math.min(
-          100 - width,
-          (clientX - bounds.left) / bounds.width * 100 - width / 2,
-        ),
-      ) * 10,
-    ) / 10;
-
-    return {
-      ...block,
-      xPercent,
-      align: "left",
-    };
-  }
-
-  function normalizeBlocks(value: StudyBlock[]) {
-    const normalized: StudyBlock[] = [];
-
-    for (const block of value) {
-      const previous = normalized.at(-1);
-
-      if (block.type === "items" && previous?.type === "items") {
-        previous.items = [...previous.items, ...block.items];
-        continue;
-      }
-
-      normalized.push(
-        block.type === "items"
-          ? { ...block, items: [...block.items] }
-          : { ...block },
-      );
-    }
-
-    return normalized;
-  }
-
-  function dropBlock(targetIndex: number, before: boolean, clientX: number) {
-    if (!draggedBlockId) return;
-
-    const sourceIndex = rendered.findIndex((block) => block.id === draggedBlockId);
-    if (sourceIndex < 0) return;
-
-    const next = [...rendered];
-    const [source] = next.splice(sourceIndex, 1);
-    const moved = source.type === "image"
-      ? positionImage(source, clientX)
-      : source;
-
-    let insertion = targetIndex + (before ? 0 : 1);
-
-    if (sourceIndex < insertion) insertion -= 1;
-
-    insertion = Math.max(0, Math.min(next.length, insertion));
-    next.splice(insertion, 0, moved);
-
-    commit(normalizeBlocks(next));
-    setDraggedBlockId(undefined);
-    setDropTarget(undefined);
-  }
-  function dropImageIntoItemsBlock(targetBlockId: string, itemIndex: number, clientX: number) {
-    if (!draggedBlockId) return;
-
-    const source = rendered.find((block) => block.id === draggedBlockId);
-    if (!source || source.type !== "image") return;
-
-    const next = rendered.filter((block) => block.id !== draggedBlockId);
-    const targetIndex = next.findIndex((block) => block.id === targetBlockId);
-
-    if (targetIndex < 0) return;
-
-    const target = next[targetIndex];
-    if (target.type !== "items") return;
-
-    const splitIndex = Math.max(0, Math.min(itemIndex, target.items.length));
-    const beforeItems = target.items.slice(0, splitIndex);
-    const afterItems = target.items.slice(splitIndex);
-    const moved = positionImage(source, clientX);
-
-    const replacement: StudyBlock[] = [];
-
-    if (beforeItems.length) {
-      replacement.push({
-        ...target,
-        items: beforeItems,
-      });
-    }
-
-    replacement.push(moved);
-
-    if (afterItems.length) {
-      replacement.push({
-        id: beforeItems.length ? crypto.randomUUID() : target.id,
-        type: "items",
-        items: afterItems,
-      });
-    }
-
-    if (!beforeItems.length && !afterItems.length) {
-      replacement.push(target);
-    }
-
-    next.splice(targetIndex, 1, ...replacement);
-
-    commit(normalizeBlocks(next));
-    setDraggedBlockId(undefined);
-    setDropTarget(undefined);
-  }
 
   async function upload(file?: File) {
     if (!file || !file.type.startsWith("image/")) return;
@@ -205,13 +86,11 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
   }
 
   let topLevelOffset = 0;
-  return <div ref={editorRoot} className={`study-content-editor ${dragging ? "dragging" : ""}`} tabIndex={0} onPaste={(event) => { const file = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"))?.getAsFile(); if (file) { event.preventDefault(); void upload(file); } }} onDragOver={(event) => { event.preventDefault(); if (!draggedBlockId) setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={(event) => { event.preventDefault(); setDragging(false); if (draggedBlockId) { dropBlock(rendered.length - 1, false, event.clientX); return; } void upload([...event.dataTransfer.files].find((file) => file.type.startsWith("image/"))); }}>
-    {rendered.map((block, index) => {
-      const dropClass = dropTarget?.index === index ? (dropTarget.before ? "drop-before" : "drop-after") : "";
-      const dragEvents = { onDragOver: (event: React.DragEvent<HTMLDivElement>) => { if (!draggedBlockId) return; event.preventDefault(); event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setDropTarget({ index, before: event.clientY < bounds.top + bounds.height / 2 }); }, onDrop: (event: React.DragEvent<HTMLDivElement>) => { if (!draggedBlockId) return; event.preventDefault(); event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); dropBlock(index, event.clientY < bounds.top + bounds.height / 2, event.clientX); } };
-      if (block.type === "image") return <div className={`study-flow-block ${dropClass}`} key={block.id} {...dragEvents}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); setDraggedBlockId(block.id); }} onDragEnd={() => { setDraggedBlockId(undefined); setDropTarget(undefined); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
+  return <div ref={editorRoot} className={`study-content-editor ${dragging ? "dragging" : ""}`} tabIndex={0} onPaste={(event) => { const file = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"))?.getAsFile(); if (file) { event.preventDefault(); void upload(file); } }} onDragOver={(event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={(event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(false); void upload([...event.dataTransfer.files].find((file) => file.type.startsWith("image/"))); }}>
+    {rendered.map((block) => {
+      if (block.type === "image") return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onMove={(xPercent, yPx) => updateImage(block.id, { xPercent, yPx, align: "left" })} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
       const offset = topLevelOffset; topLevelOffset += block.items.length;
-      return <div className={`study-flow-block study-items-block ${dropClass}`} key={block.id} {...dragEvents}>{mode === "text" ? <TextEditor items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset} onImageDrop={(itemIndex, clientX) => dropImageIntoItemsBlock(block.id, itemIndex, clientX)}/>}</div>;
+      return <div className="study-flow-block study-items-block" key={block.id}>{mode === "text" ? <TextEditor items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset}/>}</div>;
     })}
     <div className="image-insert-row"><button type="button" onClick={() => fileInput.current?.click()} disabled={uploading}><ImagePlus size={14}/>{uploading ? "업로드 중…" : "이미지"}</button><span>파일을 드래그하거나 붙여넣기 ⌘V</span><input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => void upload(event.target.files?.[0])}/></div>
     {dragging ? <div className="image-drop-overlay"><ImagePlus size={22}/> 이미지를 놓아 삽입</div> : null}{error ? <p className="image-upload-error">{error}</p> : null}
@@ -223,16 +102,133 @@ function TextEditor({ items, shortcuts, onChange }: { items: StudyItem[]; shortc
   return <textarea className="plain-field-editor" value={item.text} onChange={(event) => onChange([{ ...item, text: applyLatexShortcuts(event.target.value, false, shortcuts) }])} onBlur={(event) => onChange([{ ...item, text: applyLatexShortcuts(event.currentTarget.value, true, shortcuts) }])} placeholder="내용을 입력하세요"/>;
 }
 
-function ImageBlock({ block, onResize, onDragStart, onDragEnd, onDelete }: { block: Extract<StudyBlock, { type: "image" }>; onResize: (widthPercent: number, xPercent: number) => void; onDragStart: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void; onDelete: () => void }) {
-  const initialWidth = block.widthPercent ?? ({ small: 25, medium: 50, large: 75, full: 100 }[block.size]); const initialX = block.xPercent ?? (block.align === "center" ? (100 - initialWidth) / 2 : block.align === "right" ? 100 - initialWidth : 0); const [preview, setPreview] = useState({ width: initialWidth, x: initialX });
-  function beginResize(event: React.PointerEvent<HTMLButtonElement>, side: "left" | "right") {
-    event.preventDefault(); event.stopPropagation(); const figure = event.currentTarget.closest("figure"); const containerWidth = figure?.parentElement?.clientWidth || 1; const startPointerX = event.clientX; const start = preview;
+function ImageBlock({
+  block,
+  onResize,
+  onMove,
+  onDelete,
+}: {
+  block: Extract<StudyBlock, { type: "image" }>;
+  onResize: (widthPercent: number, xPercent: number) => void;
+  onMove: (xPercent: number, yPx: number) => void;
+  onDelete: () => void;
+}) {
+  const initialWidth = block.widthPercent ?? ({
+    small: 25,
+    medium: 50,
+    large: 75,
+    full: 100,
+  }[block.size]);
+
+  const initialX = block.xPercent
+    ?? (block.align === "center"
+      ? (100 - initialWidth) / 2
+      : block.align === "right"
+        ? 100 - initialWidth
+        : 0);
+
+  const initialY = block.yPx ?? 0;
+
+  const [preview, setPreview] = useState({
+    width: initialWidth,
+    x: initialX,
+    y: initialY,
+  });
+
+  function beginMove(event: React.PointerEvent<HTMLElement>) {
+    if ((event.target as HTMLElement).closest("button")) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const figure = event.currentTarget;
+    const container = figure.parentElement;
+    if (!container) return;
+
+    const containerWidth = container.clientWidth || 1;
+    const startPointerX = event.clientX;
+    const startPointerY = event.clientY;
+    const start = preview;
+
+    figure.setPointerCapture(event.pointerId);
+
+    const move = (pointer: PointerEvent) => {
+      const deltaX = (pointer.clientX - startPointerX) / containerWidth * 100;
+      const deltaY = pointer.clientY - startPointerY;
+
+      const x = Math.max(
+        0,
+        Math.min(
+          100 - start.width,
+          start.x + deltaX,
+        ),
+      );
+
+      setPreview({
+        ...start,
+        x,
+        y: start.y + deltaY,
+      });
+    };
+
+    const end = (pointer: PointerEvent) => {
+      const deltaX = (pointer.clientX - startPointerX) / containerWidth * 100;
+      const deltaY = pointer.clientY - startPointerY;
+
+      const x = Math.round(
+        Math.max(
+          0,
+          Math.min(
+            100 - start.width,
+            start.x + deltaX,
+          ),
+        ) * 10,
+      ) / 10;
+
+      const y = Math.round(start.y + deltaY);
+
+      setPreview({
+        ...start,
+        x,
+        y,
+      });
+
+      onMove(x, y);
+
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end, { once: true });
+    window.addEventListener("pointercancel", end, { once: true });
+  }
+
+  function beginResize(
+    event: React.PointerEvent<HTMLButtonElement>,
+    side: "left" | "right",
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const figure = event.currentTarget.closest("figure");
+    const containerWidth = figure?.parentElement?.clientWidth || 1;
+    const startPointerX = event.clientX;
+    const start = preview;
+
     const calculate = (clientX: number) => {
       const pointerDelta = (clientX - startPointerX) / containerWidth * 100;
 
       if (side === "left") {
         const rightEdge = start.x + start.width;
-        const nextX = Math.max(0, Math.min(rightEdge - 15, start.x + pointerDelta));
+        const nextX = Math.max(
+          0,
+          Math.min(
+            rightEdge - 15,
+            start.x + pointerDelta,
+          ),
+        );
 
         return {
           width: rightEdge - nextX,
@@ -242,7 +238,10 @@ function ImageBlock({ block, onResize, onDragStart, onDragEnd, onDelete }: { blo
 
       const nextWidth = Math.max(
         15,
-        Math.min(100 - start.x, start.width + pointerDelta),
+        Math.min(
+          100 - start.x,
+          start.width + pointerDelta,
+        ),
       );
 
       return {
@@ -250,11 +249,82 @@ function ImageBlock({ block, onResize, onDragStart, onDragEnd, onDelete }: { blo
         x: start.x,
       };
     };
-    const move = (pointer: PointerEvent) => setPreview(calculate(pointer.clientX));
-    const end = (pointer: PointerEvent) => { const value = calculate(pointer.clientX); const width = Math.round(value.width * 10) / 10; const x = Math.round(value.x * 10) / 10; setPreview({ width, x }); onResize(width, x); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); };
-    window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true });
+
+    const move = (pointer: PointerEvent) => {
+      const value = calculate(pointer.clientX);
+
+      setPreview((current) => ({
+        ...current,
+        ...value,
+      }));
+    };
+
+    const end = (pointer: PointerEvent) => {
+      const value = calculate(pointer.clientX);
+      const width = Math.round(value.width * 10) / 10;
+      const x = Math.round(value.x * 10) / 10;
+
+      setPreview((current) => ({
+        ...current,
+        width,
+        x,
+      }));
+
+      onResize(width, x);
+
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end, { once: true });
   }
-  return <figure draggable className="study-image-block" style={{ width: `${preview.width}%`, marginLeft: `${preview.x}%` }} onDragStart={onDragStart} onDragEnd={onDragEnd}><img src={`/api/media/${block.mediaAssetId}/content`} alt="학습 자료 이미지" draggable={false}/>{(["top-left", "top-right", "bottom-left", "bottom-right"] as const).map((corner) => <button type="button" className={`image-resize-handle ${corner}`} key={corner} onPointerDown={(event) => beginResize(event, corner.endsWith("left") ? "left" : "right")} aria-label="이미지 크기 조절"/>)}<div className="study-image-toolbar"><button type="button" onMouseDown={(event) => event.stopPropagation()} onClick={onDelete} title="삭제"><Trash2 size={14}/></button></div></figure>;
+
+  return (
+    <figure
+      className="study-image-block"
+      style={{
+        width: `${preview.width}%`,
+        marginLeft: `${preview.x}%`,
+        transform: `translateY(${preview.y}px)`,
+      }}
+      onPointerDown={beginMove}
+    >
+      <img
+        src={`/api/media/${block.mediaAssetId}/content`}
+        alt="학습 자료 이미지"
+        draggable={false}
+      />
+
+      {(["top-left", "top-right", "bottom-left", "bottom-right"] as const).map(
+        (corner) => (
+          <button
+            type="button"
+            className={`image-resize-handle ${corner}`}
+            key={corner}
+            onPointerDown={(event) =>
+              beginResize(
+                event,
+                corner.endsWith("left") ? "left" : "right",
+              )
+            }
+            aria-label="이미지 크기 조절"
+          />
+        ),
+      )}
+
+      <div className="study-image-toolbar">
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onDelete}
+          title="삭제"
+        >
+          <Trash2 size={14}/>
+        </button>
+      </div>
+    </figure>
+  );
 }
 
 async function prepareImage(file: File) {

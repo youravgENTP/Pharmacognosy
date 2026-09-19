@@ -8,7 +8,7 @@ import { applyLatexShortcuts, type LatexShortcut } from "@/lib/latex-shortcuts";
 
 export type TaxonomyData = { nodes: { id: string; name: string; kind: string }[]; edges: { parentId: string; childId: string }[] };
 
-export function HierarchyEditor({ items, mode, onChange, taxonomy, shortcuts, startIndex = 0, onImageDrop }: { items: StudyItem[]; mode: Exclude<FieldInputMode, "text">; onChange: (items: StudyItem[]) => void; taxonomy?: TaxonomyData; shortcuts: LatexShortcut[]; startIndex?: number; onImageDrop?: (index: number, clientX: number) => void }) {
+export function HierarchyEditor({ items, mode, onChange, taxonomy, shortcuts, startIndex = 0 }: { items: StudyItem[]; mode: Exclude<FieldInputMode, "text">; onChange: (items: StudyItem[]) => void; taxonomy?: TaxonomyData; shortcuts: LatexShortcut[]; startIndex?: number }) {
   const focusNext = useRef<string | undefined>(undefined); const emptyId = useId(); const emptyItem = useRef<StudyItem>({ id: `empty-${emptyId}`, text: "" }); const renderedItems = items.length ? items : [emptyItem.current];
   useEffect(() => { if (!focusNext.current) return; const input = document.querySelector<HTMLElement>(`[data-study-item="${focusNext.current}"]`); if (input) { input.focus(); placeCaretAtEnd(input); } focusNext.current = undefined; }, [items]);
   function change(id: string, patch: Partial<StudyItem>) { onChange(updateItem(renderedItems, id, patch)); }
@@ -55,32 +55,14 @@ export function HierarchyEditor({ items, mode, onChange, taxonomy, shortcuts, st
       onChange(removeItem(source, id));
     }
   }
-  return <div className="hierarchy-editor"><HierarchyRows items={renderedItems} depth={0} mode={mode} onChange={change} onKeyAction={keyAction} onRemove={(itemId) => onChange(removeItem(renderedItems, itemId))} taxonomy={taxonomy} shortcuts={shortcuts} startIndex={startIndex} onImageDrop={onImageDrop}/></div>;
+  return <div className="hierarchy-editor"><HierarchyRows items={renderedItems} depth={0} mode={mode} onChange={change} onKeyAction={keyAction} onRemove={(itemId) => onChange(removeItem(renderedItems, itemId))} taxonomy={taxonomy} shortcuts={shortcuts} startIndex={startIndex}/></div>;
 }
 
-function HierarchyRows({ items, depth, mode, onChange, onKeyAction, onRemove, taxonomy, shortcuts, startIndex, inheritedTaxonId, onImageDrop }: { items: StudyItem[]; depth: number; mode: Exclude<FieldInputMode, "text">; onChange: (id: string, patch: Partial<StudyItem>) => void; onKeyAction: (event: React.KeyboardEvent<HTMLElement>, id: string, content: Pick<StudyItem, "text" | "html">) => void; onRemove: (id: string) => void; taxonomy?: TaxonomyData; shortcuts: LatexShortcut[]; startIndex: number; inheritedTaxonId?: string; onImageDrop?: (index: number, clientX: number) => void }) {
+function HierarchyRows({ items, depth, mode, onChange, onKeyAction, onRemove, taxonomy, shortcuts, startIndex, inheritedTaxonId }: { items: StudyItem[]; depth: number; mode: Exclude<FieldInputMode, "text">; onChange: (id: string, patch: Partial<StudyItem>) => void; onKeyAction: (event: React.KeyboardEvent<HTMLElement>, id: string, content: Pick<StudyItem, "text" | "html">) => void; onRemove: (id: string) => void; taxonomy?: TaxonomyData; shortcuts: LatexShortcut[]; startIndex: number; inheritedTaxonId?: string }) {
   return <>{items.map((item, index) => {
     const activeTaxonId = item.linkedConstituentId ?? inheritedTaxonId;
-    const imageDropEvents = depth === 0 && onImageDrop ? {
-      onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
-        if (!event.dataTransfer.types.includes("application/x-herb-image-block")) return;
-        event.preventDefault();
-        event.stopPropagation();
-      },
-      onDrop: (event: React.DragEvent<HTMLDivElement>) => {
-        if (!event.dataTransfer.types.includes("application/x-herb-image-block")) return;
 
-        event.preventDefault();
-        event.stopPropagation();
-
-        const bounds = event.currentTarget.getBoundingClientRect();
-        const after = event.clientY >= bounds.top + bounds.height / 2;
-
-        onImageDrop(index + (after ? 1 : 0), event.clientX);
-      },
-    } : {};
-
-    return <div className="hierarchy-node" key={item.id}><div className={`hierarchy-row depth-${Math.min(depth, 3)}`} {...imageDropEvents}><span className="hierarchy-marker">{marker(depth, index + (depth === 0 ? startIndex : 0), mode)}</span><RichStudyInput item={item} shortcuts={shortcuts} taxonomy={taxonomy} contextTaxonId={inheritedTaxonId ?? item.linkedConstituentId} onChange={(patch) => onChange(item.id, patch)} onKeyAction={(event, content) => onKeyAction(event, item.id, content)} onRemove={() => onRemove(item.id)}/>{item.linkedConstituentId && taxonomy ? <TaxonomyIndicator taxonId={item.linkedConstituentId} taxonomy={taxonomy}/> : null}</div>{item.children?.length ? <div className="hierarchy-children"><HierarchyRows items={item.children} depth={depth + 1} mode={mode} onChange={onChange} onKeyAction={onKeyAction} onRemove={onRemove} taxonomy={taxonomy} shortcuts={shortcuts} startIndex={0} inheritedTaxonId={activeTaxonId} onImageDrop={onImageDrop}/></div> : null}</div>;
+    return <div className="hierarchy-node" key={item.id}><div className={`hierarchy-row depth-${Math.min(depth, 3)}`}><span className="hierarchy-marker">{marker(depth, index + (depth === 0 ? startIndex : 0), mode)}</span><RichStudyInput item={item} shortcuts={shortcuts} taxonomy={taxonomy} contextTaxonId={inheritedTaxonId ?? item.linkedConstituentId} onChange={(patch) => onChange(item.id, patch)} onKeyAction={(event, content) => onKeyAction(event, item.id, content)} onRemove={() => onRemove(item.id)}/>{item.linkedConstituentId && taxonomy ? <TaxonomyIndicator taxonId={item.linkedConstituentId} taxonomy={taxonomy}/> : null}</div>{item.children?.length ? <div className="hierarchy-children"><HierarchyRows items={item.children} depth={depth + 1} mode={mode} onChange={onChange} onKeyAction={onKeyAction} onRemove={onRemove} taxonomy={taxonomy} shortcuts={shortcuts} startIndex={0} inheritedTaxonId={activeTaxonId}/></div> : null}</div>;
   })}</>;
 }
 

@@ -645,6 +645,9 @@ html, body { background: var(--paper); color: var(--ink); }
 
 .study-image-block {
   cursor: grab;
+  touch-action: none;
+  user-select: none;
+  will-change: transform, margin-left, width;
 }
 
 .study-image-block:active {
@@ -655,25 +658,8 @@ html, body { background: var(--paper); color: var(--ink); }
   position: relative;
 }
 
-.study-flow-block.drop-before::before,
-.study-flow-block.drop-after::after {
-  content: "";
-  position: absolute;
-  z-index: 6;
-  right: 0;
-  left: 0;
-  height: 2px;
-  border-radius: 999px;
-  background: #6ea7f5;
-  pointer-events: none;
-}
-
-.study-flow-block.drop-before::before {
-  top: -5px;
-}
-
-.study-flow-block.drop-after::after {
-  bottom: -5px;
+.study-image-flow-block {
+  z-index: 8;
 }
 
 .image-insert-row { min-height: 34px; margin-top: 8px; display: flex; align-items: center; gap: 10px; color: #68727d; font-size: 10px; }

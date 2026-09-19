@@ -6,7 +6,7 @@ export type OriginPlant = { nameKo: string | null; scientificName: string | null
 export type FieldInputMode = "hierarchy4" | "hierarchy3" | "text";
 export type StudyItem = { id: string; text: string; html?: string; bold?: boolean; italic?: boolean; highlight?: boolean; linkedConstituentId?: string; children?: StudyItem[] };
 export type ImageDisplaySize = "small" | "medium" | "large" | "full";
-export type StudyBlock = { id: string; type: "items"; items: StudyItem[] } | { id: string; type: "image"; mediaAssetId: string; size: ImageDisplaySize; widthPercent?: number; xPercent?: number; align?: "left" | "center" | "right" };
+export type StudyBlock = { id: string; type: "items"; items: StudyItem[] } | { id: string; type: "image"; mediaAssetId: string; size: ImageDisplaySize; widthPercent?: number; xPercent?: number; yPx?: number; align?: "left" | "center" | "right" };
 export type StudySection = { id: string; title: string; fieldDefinitionId?: string; items: StudyItem[]; blocks?: StudyBlock[] };
 
 export const categories = pgTable("categories", {

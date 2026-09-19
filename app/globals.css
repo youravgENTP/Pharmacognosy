@@ -843,24 +843,27 @@ html, body { background: var(--paper); color: var(--ink); }
 /* Concept graph and Collection workspace */
 .concept-overlay { position: fixed; z-index: 120; inset: 0; pointer-events: none; }
 .concept-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.concept-lines path { fill: none; stroke-width: 1.5; opacity: .28; pointer-events: stroke; transition: opacity .15s, stroke-width .15s; }
-.concept-lines path:hover, .concept-lines path.selected { opacity: .95; stroke-width: 2.5; }
-.concept-lines path.draft { opacity: .8; stroke-dasharray: 5 4; }
-.concept-anchor-box { position: fixed; min-width: 2px; border-bottom: 2px solid #70a8f7; border-radius: 3px; background-color: rgba(91,151,235,.13); background-position: left bottom; background-repeat: no-repeat; background-size: 100% 2px; pointer-events: none; cursor: pointer; }
-.concept-anchor-box.hovered, .concept-anchor-box.selected { pointer-events: auto; }
-.concept-anchor-box:hover, .concept-anchor-box.selected { background-color: rgba(91,151,235,.23); outline: 1px solid rgba(112,168,247,.55); }
+.concept-lines path { fill: none; }
+.concept-line-visible { stroke-width: 1.5; opacity: .28; pointer-events: none; transition: opacity .15s, stroke-width .15s; }
+.concept-line-group:hover .concept-line-visible, .concept-line-visible.selected { opacity: .95; stroke-width: 2.5; }
+.concept-line-hit { stroke: transparent; stroke-width: 14; opacity: 0; pointer-events: stroke; cursor: pointer; }
+.concept-line-visible.draft { opacity: .8; stroke-dasharray: 5 4; }
+.concept-anchor-box { position: fixed; min-width: 2px; border-bottom: 2px solid #70a8f7; border-radius: 3px; background-color: rgba(91,151,235,.13); background-position: left bottom; background-repeat: no-repeat; background-size: 100% 2px; pointer-events: none; }
+.concept-anchor-box.hovered, .concept-anchor-box.selected { background-color: rgba(91,151,235,.23); outline: 1px solid rgba(112,168,247,.55); }
+.concept-anchor-box.snap-target { background-color: rgba(112,168,247,.34); outline: 2px solid #a9cfff; box-shadow: 0 0 0 4px rgba(112,168,247,.16); }
 .concept-anchor-box.updated { outline: 1px solid #dba24d; }
 .concept-anchor-box.broken { border: 1px dashed #e66f6f; background-color: rgba(203,67,67,.13); }
 .concept-anchor-box.historical { border-bottom-style: dashed; opacity: .72; }
 .concept-anchor-box > i { position: absolute; right: -7px; top: -8px; width: 15px; height: 15px; border-radius: 50%; background: #d48a35; color: white; font: 800 10px/15px sans-serif; text-align: center; }
-.connection-handle { position: absolute; width: 9px; height: 9px; padding: 0; border: 1px solid #a9cfff; border-radius: 50%; background: #397edc; opacity: 0; pointer-events: auto; }
-.concept-anchor-box:hover .connection-handle, .concept-anchor-box.selected .connection-handle { opacity: 1; }
-.connection-handle.top { left: calc(50% - 4px); top: -7px; }
-.connection-handle.right { right: -7px; top: calc(50% - 4px); }
-.connection-handle.bottom { left: calc(50% - 4px); bottom: -7px; }
-.connection-handle.left { left: -7px; top: calc(50% - 4px); }
-.range-handle { position: absolute; top: -2px; width: 6px; height: calc(100% + 4px); padding: 0; border: 0; border-left: 2px solid #b8d7ff; border-right: 2px solid #b8d7ff; border-radius: 0; background: transparent; opacity: 0; cursor: ew-resize; pointer-events: auto; }
-.concept-anchor-box:hover .range-handle, .concept-anchor-box.selected .range-handle { opacity: 1; }
+.connection-handle { position: absolute; width: 20px; height: 20px; padding: 0; border: 0; background: transparent; opacity: 0; pointer-events: none; }
+.connection-handle::after { content: ""; position: absolute; left: 5px; top: 5px; width: 9px; height: 9px; border: 1px solid #a9cfff; border-radius: 50%; background: #397edc; }
+.concept-anchor-box.hovered .connection-handle, .concept-anchor-box.selected .connection-handle { opacity: 1; pointer-events: auto; }
+.connection-handle.top { left: calc(50% - 10px); top: -12px; }
+.connection-handle.right { right: -12px; top: calc(50% - 10px); }
+.connection-handle.bottom { left: calc(50% - 10px); bottom: -12px; }
+.connection-handle.left { left: -12px; top: calc(50% - 10px); }
+.range-handle { position: absolute; top: -2px; width: 6px; height: calc(100% + 4px); padding: 0; border: 0; border-left: 2px solid #b8d7ff; border-right: 2px solid #b8d7ff; border-radius: 0; background: transparent; opacity: 0; cursor: ew-resize; pointer-events: none; }
+.concept-anchor-box.hovered .range-handle, .concept-anchor-box.selected .range-handle { opacity: 1; pointer-events: auto; }
 .range-handle.start { left: -8px; }
 .range-handle.end { right: -8px; }
 .concept-context-menu { position: fixed; z-index: 130; min-width: 150px; padding: 5px; border: 1px solid #3b444e; border-radius: 8px; background: #14191e; box-shadow: 0 12px 36px rgba(0,0,0,.46); }

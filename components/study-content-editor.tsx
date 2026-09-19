@@ -141,6 +141,44 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
       align: "left",
     });
   }
+
+  function moveImageHorizontally(
+    imageId: string,
+    clientX: number,
+  ) {
+    const image = rendered.find(
+      (block): block is Extract<StudyBlock, { type: "image" }> =>
+        block.type === "image" && block.id === imageId,
+    );
+
+    if (!image) return;
+
+    const bounds = editorRoot.current?.getBoundingClientRect();
+    if (!bounds) return;
+
+    const width = image.widthPercent ?? ({
+      small: 25,
+      medium: 50,
+      large: 75,
+      full: 100,
+    }[image.size]);
+
+    const xPercent = Math.round(
+      Math.max(
+        0,
+        Math.min(
+          100 - width,
+          (clientX - bounds.left) / bounds.width * 100 - width / 2,
+        ),
+      ) * 10,
+    ) / 10;
+
+    updateImage(imageId, {
+      xPercent,
+      align: "left",
+    });
+  }
+
   let topLevelOffset = 0;
 
   return <div ref={editorRoot} className={`study-content-editor ${dragging ? "dragging" : ""}`} tabIndex={0} onPaste={(event) => { const file = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"))?.getAsFile(); if (file) { event.preventDefault(); void upload(file); } }} onDragOver={(event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={(event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(false); void upload([...event.dataTransfer.files].find((file) => file.type.startsWith("image/"))); }}>
@@ -148,7 +186,7 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
       if (block.type === "image") {
         if (block.anchorItemId) return null;
 
-        return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
+        return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); }} onDragEnd={(event) => { if (event.clientX <= 0) return; moveImageHorizontally(block.id, event.clientX); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
       }
 
       const offset = topLevelOffset;
@@ -179,6 +217,10 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
                 image.id,
               );
             }}
+            onDragEnd={(event) => {
+              if (event.clientX <= 0) return;
+              moveImageHorizontally(image.id, event.clientX);
+            }}
             onDelete={() =>
               commit(rendered.filter((candidate) => candidate.id !== image.id))
             }
@@ -204,11 +246,13 @@ function ImageBlock({
   block,
   onResize,
   onDragStart,
+  onDragEnd,
   onDelete,
 }: {
   block: Extract<StudyBlock, { type: "image" }>;
   onResize: (widthPercent: number, xPercent: number) => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void;
+  onDragEnd: (event: React.DragEvent<HTMLElement>) => void;
   onDelete: () => void;
 }) {
   const initialWidth = block.widthPercent ?? ({
@@ -313,6 +357,7 @@ function ImageBlock({
         marginLeft: `${preview.x}%`,
       }}
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
     >
       <img
         src={`/api/media/${block.mediaAssetId}/content`}

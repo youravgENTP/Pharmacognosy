@@ -665,14 +665,25 @@ html, body { background: var(--paper); color: var(--ink); }
   position: relative;
   min-height: 8px;
   width: 100%;
+  margin-top: -4px;
+  margin-bottom: -4px;
   border-radius: 5px;
   transition:
     min-height .12s ease,
+    margin .12s ease,
     background .12s ease;
+}
+
+.hierarchy-image-slot:has(.study-image-block) {
+  min-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .hierarchy-image-slot.active {
   min-height: 18px;
+  margin-top: 0;
+  margin-bottom: 0;
   background: rgba(110, 167, 245, .12);
 }
 

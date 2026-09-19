@@ -18,25 +18,77 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
   function commit(next: StudyBlock[]) { onChange({ blocks: next, items: next.flatMap((block) => block.type === "items" ? block.items : []) }); }
   function updateText(id: string, nextItems: StudyItem[]) { commit(rendered.map((block) => block.id === id && block.type === "items" ? { ...block, items: nextItems } : block)); }
   function updateImage(id: string, patch: Partial<Extract<StudyBlock, { type: "image" }>>) { commit(rendered.map((block) => block.id === id && block.type === "image" ? { ...block, ...patch } : block)); }
+  function positionImage(block: Extract<StudyBlock, { type: "image" }>, clientX: number): Extract<StudyBlock, { type: "image" }> {
+    const bounds = editorRoot.current?.getBoundingClientRect();
+    if (!bounds) return { ...block };
+
+    const width = block.widthPercent ?? ({
+      small: 25,
+      medium: 50,
+      large: 75,
+      full: 100,
+    }[block.size]);
+
+    const xPercent = Math.round(
+      Math.max(
+        0,
+        Math.min(
+          100 - width,
+          (clientX - bounds.left) / bounds.width * 100 - width / 2,
+        ),
+      ) * 10,
+    ) / 10;
+
+    return {
+      ...block,
+      xPercent,
+      align: "left",
+    };
+  }
+
+  function normalizeBlocks(value: StudyBlock[]) {
+    const normalized: StudyBlock[] = [];
+
+    for (const block of value) {
+      const previous = normalized.at(-1);
+
+      if (block.type === "items" && previous?.type === "items") {
+        previous.items = [...previous.items, ...block.items];
+        continue;
+      }
+
+      normalized.push(
+        block.type === "items"
+          ? { ...block, items: [...block.items] }
+          : { ...block },
+      );
+    }
+
+    return normalized;
+  }
+
   function dropBlock(targetIndex: number, before: boolean, clientX: number) {
     if (!draggedBlockId) return;
-    const sourceIndex = rendered.findIndex((block) => block.id === draggedBlockId); if (sourceIndex < 0) return;
-    const next = [...rendered]; const [moved] = next.splice(sourceIndex, 1); let insertion = targetIndex + (before ? 0 : 1); if (sourceIndex < insertion) insertion -= 1; insertion = Math.max(0, Math.min(next.length, insertion));
-    const bounds = editorRoot.current?.getBoundingClientRect(); if (moved.type === "image" && bounds) { const width = moved.widthPercent ?? ({ small: 25, medium: 50, large: 75, full: 100 }[moved.size]); moved.xPercent = Math.round(Math.max(0, Math.min(100 - width, (clientX - bounds.left) / bounds.width * 100 - width / 2)) * 10) / 10; moved.align = "left"; }
-    next.splice(insertion, 0, moved); commit(next); setDraggedBlockId(undefined); setDropTarget(undefined);
-  }
-  async function upload(file?: File) {
-    if (!file || !file.type.startsWith("image/")) return;
-    setUploading(true); setError(undefined);
-    try {
-      const prepared = await prepareImage(file); const form = new FormData(); form.append("file", prepared.file); form.append("width", String(prepared.width)); form.append("height", String(prepared.height));
-      const response = await fetch("/api/media", { method: "POST", body: form });
-      const asset = response.headers.get("content-type")?.includes("application/json") ? await response.json() : null;
-      if (!response.ok) throw new Error(asset?.error ?? "이미지를 업로드하지 못했습니다.");
-      if (!asset?.id) throw new Error("이미지 업로드 응답을 확인하지 못했습니다.");
-      commit([...rendered, { id: crypto.randomUUID(), type: "image", mediaAssetId: asset.id, size: "medium", widthPercent: 50, xPercent: 0, align: "left" }, { id: crypto.randomUUID(), type: "items", items: [] }]);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "이미지를 업로드하지 못했습니다."); }
-    finally { setUploading(false); if (fileInput.current) fileInput.current.value = ""; }
+
+    const sourceIndex = rendered.findIndex((block) => block.id === draggedBlockId);
+    if (sourceIndex < 0) return;
+
+    const next = [...rendered];
+    const [source] = next.splice(sourceIndex, 1);
+    const moved = source.type === "image"
+      ? positionImage(source, clientX)
+      : source;
+
+    let insertion = targetIndex + (before ? 0 : 1);
+
+    if (sourceIndex < insertion) insertion -= 1;
+
+    insertion = Math.max(0, Math.min(next.length, insertion));
+    next.splice(insertion, 0, moved);
+
+    commit(normalizeBlocks(next));
+    setDraggedBlockId(undefined);
+    setDropTarget(undefined);
   }
   let topLevelOffset = 0;
   return <div ref={editorRoot} className={`study-content-editor ${dragging ? "dragging" : ""}`} tabIndex={0} onPaste={(event) => { const file = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"))?.getAsFile(); if (file) { event.preventDefault(); void upload(file); } }} onDragOver={(event) => { event.preventDefault(); if (!draggedBlockId) setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={(event) => { event.preventDefault(); setDragging(false); if (draggedBlockId) { dropBlock(rendered.length - 1, false, event.clientX); return; } void upload([...event.dataTransfer.files].find((file) => file.type.startsWith("image/"))); }}>
@@ -45,7 +97,7 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
       const dragEvents = { onDragOver: (event: React.DragEvent<HTMLDivElement>) => { if (!draggedBlockId) return; event.preventDefault(); event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); setDropTarget({ index, before: event.clientY < bounds.top + bounds.height / 2 }); }, onDrop: (event: React.DragEvent<HTMLDivElement>) => { if (!draggedBlockId) return; event.preventDefault(); event.stopPropagation(); const bounds = event.currentTarget.getBoundingClientRect(); dropBlock(index, event.clientY < bounds.top + bounds.height / 2, event.clientX); } };
       if (block.type === "image") return <div className={`study-flow-block ${dropClass}`} key={block.id} {...dragEvents}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); setDraggedBlockId(block.id); }} onDragEnd={() => { setDraggedBlockId(undefined); setDropTarget(undefined); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
       const offset = topLevelOffset; topLevelOffset += block.items.length;
-      return <div className={`study-flow-block study-items-block ${dropClass}`} key={block.id} {...dragEvents}>{mode === "text" ? <TextEditor items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset}/>}</div>;
+      return <div className={`study-flow-block study-items-block ${dropClass}`} key={block.id} {...dragEvents}>{mode === "text" ? <TextEditor items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset} onImageDrop={(itemIndex, clientX) => dropImageIntoItemsBlock(block.id, itemIndex, clientX)}/>}</div>;
     })}
     <div className="image-insert-row"><button type="button" onClick={() => fileInput.current?.click()} disabled={uploading}><ImagePlus size={14}/>{uploading ? "업로드 중…" : "이미지"}</button><span>파일을 드래그하거나 붙여넣기 ⌘V</span><input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => void upload(event.target.files?.[0])}/></div>
     {dragging ? <div className="image-drop-overlay"><ImagePlus size={22}/> 이미지를 놓아 삽입</div> : null}{error ? <p className="image-upload-error">{error}</p> : null}

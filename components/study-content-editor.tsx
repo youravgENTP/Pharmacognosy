@@ -90,6 +90,120 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
     setDraggedBlockId(undefined);
     setDropTarget(undefined);
   }
+  function dropImageIntoItemsBlock(targetBlockId: string, itemIndex: number, clientX: number) {
+    if (!draggedBlockId) return;
+
+    const source = rendered.find((block) => block.id === draggedBlockId);
+    if (!source || source.type !== "image") return;
+
+    const next = rendered.filter((block) => block.id !== draggedBlockId);
+    const targetIndex = next.findIndex((block) => block.id === targetBlockId);
+
+    if (targetIndex < 0) return;
+
+    const target = next[targetIndex];
+    if (target.type !== "items") return;
+
+    const splitIndex = Math.max(0, Math.min(itemIndex, target.items.length));
+    const beforeItems = target.items.slice(0, splitIndex);
+    const afterItems = target.items.slice(splitIndex);
+    const moved = positionImage(source, clientX);
+
+    const replacement: StudyBlock[] = [];
+
+    if (beforeItems.length) {
+      replacement.push({
+        ...target,
+        items: beforeItems,
+      });
+    }
+
+    replacement.push(moved);
+
+    if (afterItems.length) {
+      replacement.push({
+        id: beforeItems.length ? crypto.randomUUID() : target.id,
+        type: "items",
+        items: afterItems,
+      });
+    }
+
+    if (!beforeItems.length && !afterItems.length) {
+      replacement.push(target);
+    }
+
+    next.splice(targetIndex, 1, ...replacement);
+
+    commit(normalizeBlocks(next));
+    setDraggedBlockId(undefined);
+    setDropTarget(undefined);
+  }
+
+  async function upload(file?: File) {
+    if (!file || !file.type.startsWith("image/")) return;
+
+    setUploading(true);
+    setError(undefined);
+
+    try {
+      const prepared = await prepareImage(file);
+      const form = new FormData();
+
+      form.append("file", prepared.file);
+      form.append("width", String(prepared.width));
+      form.append("height", String(prepared.height));
+
+      const response = await fetch("/api/media", {
+        method: "POST",
+        body: form,
+      });
+
+      const asset = response.headers
+        .get("content-type")
+        ?.includes("application/json")
+        ? await response.json()
+        : null;
+
+      if (!response.ok) {
+        throw new Error(asset?.error ?? "이미지를 업로드하지 못했습니다.");
+      }
+
+      if (!asset?.id) {
+        throw new Error("이미지 업로드 응답을 확인하지 못했습니다.");
+      }
+
+      commit([
+        ...rendered,
+        {
+          id: crypto.randomUUID(),
+          type: "image",
+          mediaAssetId: asset.id,
+          size: "medium",
+          widthPercent: 50,
+          xPercent: 0,
+          align: "left",
+        },
+        {
+          id: crypto.randomUUID(),
+          type: "items",
+          items: [],
+        },
+      ]);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "이미지를 업로드하지 못했습니다.",
+      );
+    } finally {
+      setUploading(false);
+
+      if (fileInput.current) {
+        fileInput.current.value = "";
+      }
+    }
+  }
+
   let topLevelOffset = 0;
   return <div ref={editorRoot} className={`study-content-editor ${dragging ? "dragging" : ""}`} tabIndex={0} onPaste={(event) => { const file = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"))?.getAsFile(); if (file) { event.preventDefault(); void upload(file); } }} onDragOver={(event) => { event.preventDefault(); if (!draggedBlockId) setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={(event) => { event.preventDefault(); setDragging(false); if (draggedBlockId) { dropBlock(rendered.length - 1, false, event.clientX); return; } void upload([...event.dataTransfer.files].find((file) => file.type.startsWith("image/"))); }}>
     {rendered.map((block, index) => {

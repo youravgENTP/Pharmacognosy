@@ -186,7 +186,7 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
       if (block.type === "image") {
         if (block.anchorItemId) return null;
 
-        return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); }} onDragEnd={(event) => { if (event.clientX <= 0) return; moveImageHorizontally(block.id, event.clientX); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
+        return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); }} onDragEnd={(clientX) => { moveImageHorizontally(block.id, clientX); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
       }
 
       const offset = topLevelOffset;
@@ -217,9 +217,8 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
                 image.id,
               );
             }}
-            onDragEnd={(event) => {
-              if (event.clientX <= 0) return;
-              moveImageHorizontally(image.id, event.clientX);
+            onDragEnd={(clientX) => {
+              moveImageHorizontally(image.id, clientX);
             }}
             onDelete={() =>
               commit(rendered.filter((candidate) => candidate.id !== image.id))
@@ -252,7 +251,7 @@ function ImageBlock({
   block: Extract<StudyBlock, { type: "image" }>;
   onResize: (widthPercent: number, xPercent: number) => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void;
-  onDragEnd: (event: React.DragEvent<HTMLElement>) => void;
+  onDragEnd: (clientX: number) => void;
   onDelete: () => void;
 }) {
   const initialWidth = block.widthPercent ?? ({
@@ -273,7 +272,7 @@ function ImageBlock({
     width: initialWidth,
     x: initialX,
   });
-
+  const lastDragClientX = useRef(0);
   function beginResize(
     event: React.PointerEvent<HTMLButtonElement>,
     side: "left" | "right",
@@ -356,8 +355,45 @@ function ImageBlock({
         width: `${preview.width}%`,
         marginLeft: `${preview.x}%`,
       }}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onDragStart={(event) => {
+        lastDragClientX.current = event.clientX;
+        onDragStart(event);
+      }}
+      onDrag={(event) => {
+        if (event.clientX > 0) {
+          lastDragClientX.current = event.clientX;
+        }
+      }}
+      onDragEnd={(event) => {
+        const clientX = event.clientX > 0
+          ? event.clientX
+          : lastDragClientX.current;
+
+        if (clientX <= 0) return;
+
+        const container = event.currentTarget.parentElement;
+        if (!container) return;
+
+        const bounds = container.getBoundingClientRect();
+        const width = preview.width;
+
+        const x = Math.round(
+          Math.max(
+            0,
+            Math.min(
+              100 - width,
+              (clientX - bounds.left) / bounds.width * 100 - width / 2,
+            ),
+          ) * 10,
+        ) / 10;
+
+        setPreview((current) => ({
+          ...current,
+          x,
+        }));
+
+        onDragEnd(clientX);
+      }}
     >
       <img
         src={`/api/media/${block.mediaAssetId}/content`}

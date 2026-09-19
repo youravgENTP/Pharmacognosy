@@ -275,21 +275,14 @@ h1 { font-weight: 750; letter-spacing: -.035em; }
 .tab.active { background: #397edc; border-color: #397edc; }
 
 /* Vertical crude-drug profile */
-.modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(15,18,23,.64); backdrop-filter: blur(3px); display: flex; justify-content: center; align-items: flex-start; padding: 28px; overflow: auto; }
-.profile-modal-card { position: relative; width: min(820px, 100%); min-height: calc(100vh - 56px); background: white; border-radius: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.28); overflow: hidden; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(15,18,23,.64); backdrop-filter: blur(3px); display: flex; justify-content: center; align-items: flex-start; padding: 28px; overflow: hidden; }
+.profile-modal-card { position: relative; width: min(820px, 100%); height: calc(100vh - 56px); max-height: calc(100vh - 56px); background: white; border-radius: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.28); overflow-x: hidden; overflow-y: auto; }
 .modal-close { position: absolute; top: 17px; right: 18px; z-index: 30; border: 0; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #f0f2f5; color: #59616c; }
 .modal-close:hover { background: #e3e7ec; color: #171b22; }
 .drug-profile { background: white; min-height: 100vh; }
 .drug-profile.standalone { width: min(820px, calc(100% - 48px)); margin: 32px auto; min-height: calc(100vh - 64px); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
 .profile-toolbar { height: 55px; padding: 0 62px 0 34px; border-bottom: 1px solid #eef0f3; display: flex; align-items: center; justify-content: flex-end; position: sticky; top: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); z-index: 3; }
-.profile-identity {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  padding: 35px 44px 30px;
-  border-bottom: 1px solid var(--line);
-  background: #171b1f;
-}
+.profile-identity { position: sticky; top: 0; z-index: 20; padding: 35px 44px 30px; border-bottom: 1px solid var(--line); background: #171b1f; }
 .profile-name-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 25px; }
 .profile-name-fields { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
 .profile-korean-name, .profile-latin-name { border: 0; padding: 0; box-shadow: none !important; background: transparent; }

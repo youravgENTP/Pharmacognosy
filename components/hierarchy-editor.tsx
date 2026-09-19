@@ -264,6 +264,30 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
   const [highlightColor, setHighlightColor] = useState("#f3df73"); const [highlightArmed, setHighlightArmed] = useState(false); const [paletteOpen, setPaletteOpen] = useState(false); const [context, setContext] = useState<{ x: number; y: number; text: string }>();
   const [presets, setPresets] = useState(["#f3df73", "#9ed9a5", "#91c7f3", "#e9a6c5"]);
   useEffect(() => { const stored = localStorage.getItem("highlight-presets"); if (stored) try { setPresets(JSON.parse(stored)); } catch { /* ignore invalid local preference */ } }, []);
+  useEffect(() => {
+    if (!context) return;
+
+    function dismissContextMenu(event: MouseEvent) {
+      const target = event.target as Node | null;
+
+      if (
+        target
+        && document
+          .querySelector(".constituent-context-menu")
+          ?.contains(target)
+      ) {
+        return;
+      }
+
+      setContext(undefined);
+    }
+
+    document.addEventListener("mousedown", dismissContextMenu);
+
+    return () => {
+      document.removeEventListener("mousedown", dismissContextMenu);
+    };
+  }, [context]);  
   useEffect(() => { const node = editor.current; if (!node || document.activeElement === node) return; const desired = item.html ? sanitizeRichHtml(item.html) : escapeHtml(item.text); if (node.innerHTML !== desired) node.innerHTML = desired; }, [item.html, item.text]);
   function content() { const node = editor.current!; return { text: node.innerText.replace(/\n/g, ""), html: sanitizeRichHtml(node.innerHTML) }; }
   function emit() { onChange(content()); }

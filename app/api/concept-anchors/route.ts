@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { serializeConceptAnchorTargetRef } from "@/lib/concept-target-ref";
 import { db } from "@/lib/db";
 import { conceptAnchors } from "@/lib/db/schema";
 import { getOwnerConceptGraph, snapshotHash } from "@/lib/concepts";
@@ -15,7 +16,8 @@ export async function POST(request: Request) {
   const parsed = conceptAnchorCreateSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const match = await db.select().from(conceptAnchors).where(and(eq(conceptAnchors.ownerType, parsed.data.ownerType), eq(conceptAnchors.ownerId, parsed.data.ownerId), eq(conceptAnchors.targetType, parsed.data.targetType)));
-  const existing = match.find((anchor) => JSON.stringify(anchor.targetRef) === JSON.stringify(parsed.data.targetRef) && anchor.startOffset === (parsed.data.startOffset ?? null) && anchor.endOffset === (parsed.data.endOffset ?? null) && anchor.status !== "broken");
+  const serializedTargetRef = serializeConceptAnchorTargetRef(parsed.data.targetRef);
+  const existing = match.find((anchor) => serializeConceptAnchorTargetRef(anchor.targetRef) === serializedTargetRef && anchor.startOffset === (parsed.data.startOffset ?? null) && anchor.endOffset === (parsed.data.endOffset ?? null) && anchor.status !== "broken");
   if (existing) return NextResponse.json(existing);
   const [created] = await db.insert(conceptAnchors).values({ ...parsed.data, startOffset: parsed.data.startOffset ?? null, endOffset: parsed.data.endOffset ?? null, snapshotText: parsed.data.snapshotText ?? null, snapshotHash: snapshotHash(parsed.data.snapshotText), assetVersion: parsed.data.assetVersion ?? null }).returning();
   return NextResponse.json(created, { status: 201 });

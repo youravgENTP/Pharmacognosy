@@ -14,6 +14,9 @@ export async function getOwnerConceptGraph(ownerType: "drug" | "collection", own
   const ids = owned.map((anchor) => anchor.id);
   const connections = await db.select().from(conceptConnections).where(or(inArray(conceptConnections.anchorAId, ids), inArray(conceptConnections.anchorBId, ids)));
   const relatedIds = [...new Set(connections.flatMap((connection) => [connection.anchorAId, connection.anchorBId]))];
-  const relatedAnchors = relatedIds.length ? await db.select().from(conceptAnchors).where(inArray(conceptAnchors.id, relatedIds)) : [];
-  return { anchors: relatedAnchors, connections };
+  const ownedIds = new Set(ids);
+  const remoteIds = relatedIds.filter((id) => !ownedIds.has(id));
+  const remoteAnchors = remoteIds.length ? await db.select().from(conceptAnchors).where(inArray(conceptAnchors.id, remoteIds)) : [];
+  const graphAnchors = [...new Map([...owned, ...remoteAnchors].map((anchor) => [anchor.id, anchor])).values()];
+  return { anchors: graphAnchors, connections };
 }

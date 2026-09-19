@@ -19,6 +19,22 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
   function updateText(id: string, nextItems: StudyItem[]) { commit(rendered.map((block) => block.id === id && block.type === "items" ? { ...block, items: nextItems } : block)); }
   function updateImage(id: string, patch: Partial<Extract<StudyBlock, { type: "image" }>>) { commit(rendered.map((block) => block.id === id && block.type === "image" ? { ...block, ...patch } : block)); }
 
+  function collectItemIds(source: StudyItem[]) {
+    const ids = new Set<string>();
+
+    const visit = (rows: StudyItem[]) => {
+      for (const item of rows) {
+        ids.add(item.id);
+
+        if (item.children?.length) {
+          visit(item.children);
+        }
+      }
+    };
+
+    visit(source);
+    return ids;
+  }
 
   async function upload(file?: File) {
     if (!file || !file.type.startsWith("image/")) return;
@@ -84,16 +100,98 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
       }
     }
   }
+  function moveImageToAnchor(
+    imageId: string,
+    anchorItemId: string,
+    anchorSide: "before" | "after",
+    clientX: number,
+  ) {
+    const image = rendered.find(
+      (block): block is Extract<StudyBlock, { type: "image" }> =>
+        block.type === "image" && block.id === imageId,
+    );
 
+    if (!image) return;
+
+    const bounds = editorRoot.current?.getBoundingClientRect();
+    if (!bounds) return;
+
+    const width = image.widthPercent ?? ({
+      small: 25,
+      medium: 50,
+      large: 75,
+      full: 100,
+    }[image.size]);
+
+    const xPercent = Math.round(
+      Math.max(
+        0,
+        Math.min(
+          100 - width,
+          (clientX - bounds.left) / bounds.width * 100 - width / 2,
+        ),
+      ) * 10,
+    ) / 10;
+
+    updateImage(imageId, {
+      anchorItemId,
+      anchorSide,
+      xPercent,
+      yPx: undefined,
+      align: "left",
+    });
+  }
   let topLevelOffset = 0;
+
   return <div ref={editorRoot} className={`study-content-editor ${dragging ? "dragging" : ""}`} tabIndex={0} onPaste={(event) => { const file = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"))?.getAsFile(); if (file) { event.preventDefault(); void upload(file); } }} onDragOver={(event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={(event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(false); void upload([...event.dataTransfer.files].find((file) => file.type.startsWith("image/"))); }}>
     {rendered.map((block) => {
-      if (block.type === "image") return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onMove={(xPercent, yPx) => updateImage(block.id, { xPercent, yPx, align: "left" })} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
-      const offset = topLevelOffset; topLevelOffset += block.items.length;
-      return <div className="study-flow-block study-items-block" key={block.id}>{mode === "text" ? <TextEditor items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset}/>}</div>;
+      if (block.type === "image") {
+        if (block.anchorItemId) return null;
+
+        return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
+      }
+
+      const offset = topLevelOffset;
+      topLevelOffset += block.items.length;
+
+      const itemIds = collectItemIds(block.items);
+
+      const renderAnchoredImages = (
+        itemId: string,
+        side: "before" | "after",
+      ) => rendered
+        .filter((candidate): candidate is Extract<StudyBlock, { type: "image" }> =>
+          candidate.type === "image"
+          && candidate.anchorItemId === itemId
+          && (candidate.anchorSide ?? "after") === side
+        )
+        .map((image) => (
+          <ImageBlock
+            key={image.id}
+            block={image}
+            onResize={(widthPercent, xPercent) =>
+              updateImage(image.id, { widthPercent, xPercent })
+            }
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData(
+                "application/x-herb-image-block",
+                image.id,
+              );
+            }}
+            onDelete={() =>
+              commit(rendered.filter((candidate) => candidate.id !== image.id))
+            }
+          />
+        ));
+
+      return <div className="study-flow-block study-items-block" key={block.id}>{mode === "text" ? <TextEditor items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset} renderAnchoredImages={renderAnchoredImages} onImageDrop={(imageId, anchorItemId, anchorSide, clientX) => { if (!itemIds.has(anchorItemId)) return; moveImageToAnchor(imageId, anchorItemId, anchorSide, clientX); }}/>}</div>;
     })}
+
     <div className="image-insert-row"><button type="button" onClick={() => fileInput.current?.click()} disabled={uploading}><ImagePlus size={14}/>{uploading ? "업로드 중…" : "이미지"}</button><span>파일을 드래그하거나 붙여넣기 ⌘V</span><input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => void upload(event.target.files?.[0])}/></div>
-    {dragging ? <div className="image-drop-overlay"><ImagePlus size={22}/> 이미지를 놓아 삽입</div> : null}{error ? <p className="image-upload-error">{error}</p> : null}
+
+    {dragging ? <div className="image-drop-overlay"><ImagePlus size={22}/> 이미지를 놓아 삽입</div> : null}
+    {error ? <p className="image-upload-error">{error}</p> : null}
   </div>;
 }
 
@@ -105,12 +203,12 @@ function TextEditor({ items, shortcuts, onChange }: { items: StudyItem[]; shortc
 function ImageBlock({
   block,
   onResize,
-  onMove,
+  onDragStart,
   onDelete,
 }: {
   block: Extract<StudyBlock, { type: "image" }>;
   onResize: (widthPercent: number, xPercent: number) => void;
-  onMove: (xPercent: number, yPx: number) => void;
+  onDragStart: (event: React.DragEvent<HTMLElement>) => void;
   onDelete: () => void;
 }) {
   const initialWidth = block.widthPercent ?? ({
@@ -127,83 +225,10 @@ function ImageBlock({
         ? 100 - initialWidth
         : 0);
 
-  const initialY = block.yPx ?? 0;
-
   const [preview, setPreview] = useState({
     width: initialWidth,
     x: initialX,
-    y: initialY,
   });
-
-  function beginMove(event: React.PointerEvent<HTMLElement>) {
-    if ((event.target as HTMLElement).closest("button")) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const figure = event.currentTarget;
-    const container = figure.parentElement;
-    if (!container) return;
-
-    const containerWidth = container.clientWidth || 1;
-    const startPointerX = event.clientX;
-    const startPointerY = event.clientY;
-    const start = preview;
-
-    figure.setPointerCapture(event.pointerId);
-
-    const move = (pointer: PointerEvent) => {
-      const deltaX = (pointer.clientX - startPointerX) / containerWidth * 100;
-      const deltaY = pointer.clientY - startPointerY;
-
-      const x = Math.max(
-        0,
-        Math.min(
-          100 - start.width,
-          start.x + deltaX,
-        ),
-      );
-
-      setPreview({
-        ...start,
-        x,
-        y: start.y + deltaY,
-      });
-    };
-
-    const end = (pointer: PointerEvent) => {
-      const deltaX = (pointer.clientX - startPointerX) / containerWidth * 100;
-      const deltaY = pointer.clientY - startPointerY;
-
-      const x = Math.round(
-        Math.max(
-          0,
-          Math.min(
-            100 - start.width,
-            start.x + deltaX,
-          ),
-        ) * 10,
-      ) / 10;
-
-      const y = Math.round(start.y + deltaY);
-
-      setPreview({
-        ...start,
-        x,
-        y,
-      });
-
-      onMove(x, y);
-
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
-    };
-
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", end, { once: true });
-    window.addEventListener("pointercancel", end, { once: true });
-  }
 
   function beginResize(
     event: React.PointerEvent<HTMLButtonElement>,
@@ -253,10 +278,10 @@ function ImageBlock({
     const move = (pointer: PointerEvent) => {
       const value = calculate(pointer.clientX);
 
-      setPreview((current) => ({
-        ...current,
-        ...value,
-      }));
+      setPreview({
+        width: value.width,
+        x: value.x,
+      });
     };
 
     const end = (pointer: PointerEvent) => {
@@ -264,11 +289,10 @@ function ImageBlock({
       const width = Math.round(value.width * 10) / 10;
       const x = Math.round(value.x * 10) / 10;
 
-      setPreview((current) => ({
-        ...current,
+      setPreview({
         width,
         x,
-      }));
+      });
 
       onResize(width, x);
 
@@ -282,13 +306,13 @@ function ImageBlock({
 
   return (
     <figure
+      draggable
       className="study-image-block"
       style={{
         width: `${preview.width}%`,
         marginLeft: `${preview.x}%`,
-        transform: `translateY(${preview.y}px)`,
       }}
-      onPointerDown={beginMove}
+      onDragStart={onDragStart}
     >
       <img
         src={`/api/media/${block.mediaAssetId}/content`}
@@ -302,6 +326,7 @@ function ImageBlock({
             type="button"
             className={`image-resize-handle ${corner}`}
             key={corner}
+            draggable={false}
             onPointerDown={(event) =>
               beginResize(
                 event,
@@ -316,7 +341,8 @@ function ImageBlock({
       <div className="study-image-toolbar">
         <button
           type="button"
-          onPointerDown={(event) => event.stopPropagation()}
+          draggable={false}
+          onMouseDown={(event) => event.stopPropagation()}
           onClick={onDelete}
           title="삭제"
         >

@@ -645,9 +645,8 @@ html, body { background: var(--paper); color: var(--ink); }
 
 .study-image-block {
   cursor: grab;
-  touch-action: none;
   user-select: none;
-  will-change: transform, margin-left, width;
+  will-change: margin-left, width;
 }
 
 .study-image-block:active {
@@ -660,6 +659,39 @@ html, body { background: var(--paper); color: var(--ink); }
 
 .study-image-flow-block {
   z-index: 8;
+}
+
+.hierarchy-image-slot {
+  position: relative;
+  min-height: 8px;
+  width: 100%;
+  border-radius: 5px;
+  transition:
+    min-height .12s ease,
+    background .12s ease;
+}
+
+.hierarchy-image-slot.active {
+  min-height: 18px;
+  background: rgba(110, 167, 245, .12);
+}
+
+.hierarchy-image-slot.active::before {
+  content: "";
+  position: absolute;
+  z-index: 10;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #6ea7f5;
+  transform: translateY(-50%);
+}
+
+.hierarchy-image-slot > .study-image-block {
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .image-insert-row { min-height: 34px; margin-top: 8px; display: flex; align-items: center; gap: 10px; color: #68727d; font-size: 10px; }

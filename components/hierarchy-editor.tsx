@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FieldInputMode, StudyItem } from "@/lib/db/schema";
 import { applyLatexShortcuts, type LatexShortcut } from "@/lib/latex-shortcuts";
+import { conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 
 export type TaxonomyData = { nodes: { id: string; name: string; kind: string }[]; edges: { parentId: string; childId: string }[] };
 
@@ -17,6 +18,7 @@ export function HierarchyEditor({
   startIndex = 0,
   renderAnchoredImages,
   onImageDrop,
+  concept,
 }: {
   items: StudyItem[];
   mode: Exclude<FieldInputMode, "text">;
@@ -34,6 +36,7 @@ export function HierarchyEditor({
     anchorSide: "before" | "after",
     clientX: number,
   ) => void;
+  concept?: { ownerType: "drug" | "collection"; ownerId: string; sectionId?: string; blockId?: string };
 }) {
   const focusNext = useRef<string | undefined>(undefined); const emptyId = useId(); const emptyItem = useRef<StudyItem>({ id: `empty-${emptyId}`, text: "" }); const renderedItems = items.length ? items : [emptyItem.current];
   useEffect(() => { if (!focusNext.current) return; const input = document.querySelector<HTMLElement>(`[data-study-item="${focusNext.current}"]`); if (input) { input.focus(); placeCaretAtEnd(input); } focusNext.current = undefined; }, [items]);
@@ -81,7 +84,7 @@ export function HierarchyEditor({
       onChange(removeItem(source, id));
     }
   }
-  return <div className="hierarchy-editor"><HierarchyRows items={renderedItems} depth={0} mode={mode} onChange={change} onKeyAction={keyAction} onRemove={(itemId) => onChange(removeItem(renderedItems, itemId))} taxonomy={taxonomy} shortcuts={shortcuts} startIndex={startIndex} renderAnchoredImages={renderAnchoredImages} onImageDrop={onImageDrop}/></div>;
+  return <div className="hierarchy-editor"><HierarchyRows concept={concept} items={renderedItems} depth={0} mode={mode} onChange={change} onKeyAction={keyAction} onRemove={(itemId) => onChange(removeItem(renderedItems, itemId))} taxonomy={taxonomy} shortcuts={shortcuts} startIndex={startIndex} renderAnchoredImages={renderAnchoredImages} onImageDrop={onImageDrop}/></div>;
 }
 
 function HierarchyRows({
@@ -97,6 +100,7 @@ function HierarchyRows({
   inheritedTaxonId,
   renderAnchoredImages,
   onImageDrop,
+  concept,
 }: {
   items: StudyItem[];
   depth: number;
@@ -122,6 +126,7 @@ function HierarchyRows({
     anchorSide: "before" | "after",
     clientX: number,
   ) => void;
+  concept?: { ownerType: "drug" | "collection"; ownerId: string; sectionId?: string; blockId?: string };
 }) {
   return <>{items.map((item, index) => {
     const activeTaxonId = item.linkedConstituentId ?? inheritedTaxonId;
@@ -205,6 +210,7 @@ function HierarchyRows({
           </span>
 
           <RichStudyInput
+            conceptTarget={concept ? { ownerType: concept.ownerType, ownerId: concept.ownerId, targetType: concept.ownerType === "drug" ? "study_item" : "collection_hierarchy_item", targetRef: { sectionId: concept.sectionId, blockId: concept.blockId, itemId: item.id } } : undefined}
             item={item}
             shortcuts={shortcuts}
             taxonomy={taxonomy}
@@ -249,6 +255,7 @@ function HierarchyRows({
                 inheritedTaxonId={activeTaxonId}
                 renderAnchoredImages={renderAnchoredImages}
                 onImageDrop={onImageDrop}
+                concept={concept}
               />
             </div>
           : null}
@@ -257,10 +264,11 @@ function HierarchyRows({
   })}</>;
 }
 
-function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, onKeyAction, onRemove }: { item: StudyItem; shortcuts: LatexShortcut[]; taxonomy?: TaxonomyData; contextTaxonId?: string; onChange: (patch: Partial<StudyItem>) => void; onKeyAction: (event: React.KeyboardEvent<HTMLElement>, content: Pick<StudyItem, "text" | "html">) => void; onRemove: () => void }) {
+function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, onKeyAction, onRemove, conceptTarget }: { item: StudyItem; shortcuts: LatexShortcut[]; taxonomy?: TaxonomyData; contextTaxonId?: string; onChange: (patch: Partial<StudyItem>) => void; onKeyAction: (event: React.KeyboardEvent<HTMLElement>, content: Pick<StudyItem, "text" | "html">) => void; onRemove: () => void; conceptTarget?: ConceptTarget }) {
   const editor = useRef<HTMLDivElement>(null);
   const savedRange = useRef<Range | undefined>(undefined);
   const composing = useRef(false);
+  const concepts = useConceptEngine();
   const [highlightColor, setHighlightColor] = useState("#f3df73"); const [highlightArmed, setHighlightArmed] = useState(false); const [paletteOpen, setPaletteOpen] = useState(false); const [context, setContext] = useState<{ x: number; y: number; text: string }>();
   const [presets, setPresets] = useState(["#f3df73", "#9ed9a5", "#91c7f3", "#e9a6c5"]);
   useEffect(() => { const stored = localStorage.getItem("highlight-presets"); if (stored) try { setPresets(JSON.parse(stored)); } catch { /* ignore invalid local preference */ } }, []);
@@ -290,7 +298,7 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
   }, [context]);  
   useEffect(() => { const node = editor.current; if (!node || document.activeElement === node) return; const desired = item.html ? sanitizeRichHtml(item.html) : escapeHtml(item.text); if (node.innerHTML !== desired) node.innerHTML = desired; }, [item.html, item.text]);
   function content() { const node = editor.current!; return { text: node.innerText.replace(/\n/g, ""), html: sanitizeRichHtml(node.innerHTML) }; }
-  function emit() { onChange(content()); }
+  function emit() { const next = content(); if (conceptTarget && concepts?.reconcileText(conceptTarget, item.text, next.text) === false) { const node = editor.current; if (node) node.innerHTML = item.html ? sanitizeRichHtml(item.html) : escapeHtml(item.text); return; } onChange(next); }
   function normalize(includeEnd: boolean) {
     const node = editor.current;
     if (!node) return;
@@ -382,6 +390,7 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
       contentEditable
       suppressContentEditableWarning
       data-placeholder="내용을 입력하세요"
+      {...(conceptTarget ? conceptTargetAttributes(conceptTarget) : {})}
       style={{
         fontWeight: item.bold ? 750 : undefined,
         fontStyle: item.italic ? "italic" : undefined,
@@ -423,7 +432,10 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
   rememberSelection();
 
   const selection = window.getSelection()?.toString().trim();
-  if (!selection || !contextTaxonId) return;
+  if (!selection) return;
+
+  if (conceptTarget) concepts?.openMenu(event, conceptTarget);
+  if (!contextTaxonId) return;
 
   event.preventDefault();
 
@@ -449,7 +461,7 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
   });
 }}/>
     <div className="hierarchy-actions"><button onMouseDown={(event) => event.preventDefault()} onClick={() => command("bold")} title="선택 영역 굵게 · ⌘B"><Bold size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => command("italic")} title="선택 영역 기울임 · ⌘I"><Italic size={13}/></button><span className="format-split"><button className={highlightArmed ? "active" : ""} style={{ color: highlightColor }} onMouseDown={(event) => event.preventDefault()} onClick={() => { if (restoreSelection() && savedRange.current && !savedRange.current.collapsed) command("hiliteColor", highlightColor); else setHighlightArmed((value) => !value); }} title="하이라이트"><Highlighter size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => setPaletteOpen((value) => !value)} title="하이라이트 색"><ChevronDown size={10}/></button>{paletteOpen ? <span className="highlight-palette">{presets.map((color) => <button key={color} style={{ background: color }} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseHighlight(color)} aria-label={`${color} 선택`}/>)}<input type="color" value={highlightColor} onChange={(event) => chooseHighlight(event.target.value)} title="새 색상 저장"/></span> : null}</span><label className="text-color-button" title="글자색"><Palette size={13}/><input type="color" defaultValue="#e7eaee" onChange={(event) => command("foreColor", event.target.value)}/></label><button onClick={onRemove} title="삭제"><Trash2 size={13}/></button></div>
-    {context ? <div className="constituent-context-menu" style={{ left: context.x, top: context.y }}><button onClick={() => void createConstituent()}><strong>“{context.text}”</strong><span>{taxon?.name ?? "상위 분류"}의 constituent로 추가</span></button></div> : null}
+    {context ? <div className="constituent-context-menu" style={{ left: context.x, top: context.y }}><button onClick={() => conceptTarget && editor.current && concepts?.openMenu({ currentTarget: editor.current, preventDefault() {}, clientX: context.x, clientY: context.y } as unknown as React.MouseEvent<HTMLElement>, conceptTarget)}><strong>개념연결</strong><span>선택한 텍스트를 개념 앵커로 만들기</span></button><button onClick={() => void createConstituent()}><strong>“{context.text}”</strong><span>{taxon?.name ?? "상위 분류"}의 constituent로 추가</span></button></div> : null}
   </div>;
 }
 

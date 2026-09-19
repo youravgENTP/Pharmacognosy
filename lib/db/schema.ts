@@ -8,6 +8,20 @@ export type StudyItem = { id: string; text: string; html?: string; bold?: boolea
 export type ImageDisplaySize = "small" | "medium" | "large" | "full";
 export type StudyBlock = { id: string; type: "items"; items: StudyItem[] } | { id: string; type: "image"; mediaAssetId: string; size: ImageDisplaySize; widthPercent?: number; xPercent?: number; yPx?: number; anchorItemId?: string; anchorSide?: "before" | "after"; align?: "left" | "center" | "right" };
 export type StudySection = { id: string; title: string; fieldDefinitionId?: string; items: StudyItem[]; blocks?: StudyBlock[] };
+export type RichTextValue = { text: string; html?: string };
+export type CollectionTextBlock = { id: string; type: "text"; content: RichTextValue };
+export type CollectionHeadingBlock = { id: string; type: "heading"; level: 1 | 2 | 3; content: RichTextValue };
+export type CollectionHierarchyBlock = { id: string; type: "hierarchy"; items: StudyItem[]; blocks?: StudyBlock[] };
+export type CollectionImageBlock = { id: string; type: "image"; mediaAssetId: string; widthPercent: number; align: "left" | "center" | "right" };
+export type TableCell = { id: string; text: string; html?: string; bold?: boolean; italic?: boolean; highlight?: string; textColor?: string; horizontal?: "left" | "center" | "right"; vertical?: "top" | "middle" | "bottom"; wrap?: boolean };
+export type TableRange = { startRow: number; startColumn: number; endRow: number; endColumn: number };
+export type CollectionTableBlock = { id: string; type: "table"; rows: number; columns: number; cells: Record<string, TableCell>; rowSizes: number[]; columnSizes: number[]; mergedRanges: TableRange[] };
+export type CollectionBlock = CollectionTextBlock | CollectionHeadingBlock | CollectionHierarchyBlock | CollectionImageBlock | CollectionTableBlock;
+export type CollectionDocument = { version: 1; blocks: CollectionBlock[] };
+export type ConceptOwnerType = "drug" | "collection";
+export type ConceptTargetType = "drug_identifier" | "study_item" | "collection_text" | "collection_heading" | "collection_hierarchy_item" | "table_cell" | "table_cell_text" | "image";
+export type ConceptAnchorStatus = "healthy" | "updated" | "broken" | "historical";
+export type ConceptAnchorTargetRef = { key?: string; sectionId?: string; itemId?: string; blockId?: string; cellId?: string; mediaAssetId?: string; originIndex?: number; relationId?: string };
 
 export const categories = pgTable("categories", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -123,9 +137,40 @@ export const collections = pgTable("collections", {
   description: text("description"),
   kind: text("kind").notNull().default("manual"),
   rule: jsonb("rule"),
+  document: jsonb("document").$type<CollectionDocument>().notNull().default({ version: 1, blocks: [] }),
+  revision: integer("revision").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const conceptAnchors = pgTable("concept_anchors", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerType: text("owner_type").$type<ConceptOwnerType>().notNull(),
+  ownerId: uuid("owner_id").notNull(),
+  targetType: text("target_type").$type<ConceptTargetType>().notNull(),
+  targetRef: jsonb("target_ref").$type<ConceptAnchorTargetRef>().notNull(),
+  startOffset: integer("start_offset"),
+  endOffset: integer("end_offset"),
+  status: text("status").$type<ConceptAnchorStatus>().notNull().default("healthy"),
+  snapshotText: text("snapshot_text"),
+  snapshotHash: text("snapshot_hash"),
+  assetVersion: text("asset_version"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("concept_anchors_owner_idx").on(t.ownerType, t.ownerId), index("concept_anchors_target_idx").on(t.targetType)]);
+
+export const conceptConnections = pgTable("concept_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  anchorAId: uuid("anchor_a_id").notNull().references(() => conceptAnchors.id, { onDelete: "restrict" }),
+  anchorBId: uuid("anchor_b_id").notNull().references(() => conceptAnchors.id, { onDelete: "restrict" }),
+  color: text("color").notNull(),
+  anchorASnapshot: jsonb("anchor_a_snapshot").$type<{ text?: string; hash?: string; assetVersion?: string }>().notNull(),
+  anchorBSnapshot: jsonb("anchor_b_snapshot").$type<{ text?: string; hash?: string; assetVersion?: string }>().notNull(),
+  historicalA: boolean("historical_a").notNull().default(false),
+  historicalB: boolean("historical_b").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("concept_connections_edge_idx").on(t.anchorAId, t.anchorBId), index("concept_connections_anchor_a_idx").on(t.anchorAId), index("concept_connections_anchor_b_idx").on(t.anchorBId)]);
 
 export const collectionMembers = pgTable("collection_members", {
   collectionId: uuid("collection_id").notNull().references(() => collections.id, { onDelete: "cascade" }),
@@ -167,6 +212,8 @@ export const crudeDrugRelations = relations(crudeDrugs, ({ one, many }) => ({
   collectionMembers: many(collectionMembers),
 }));
 export const collectionRelations = relations(collections, ({ many }) => ({ members: many(collectionMembers) }));
+export const conceptAnchorRelations = relations(conceptAnchors, ({ many }) => ({ connectionsA: many(conceptConnections, { relationName: "anchorA" }), connectionsB: many(conceptConnections, { relationName: "anchorB" }) }));
+export const conceptConnectionRelations = relations(conceptConnections, ({ one }) => ({ anchorA: one(conceptAnchors, { fields: [conceptConnections.anchorAId], references: [conceptAnchors.id], relationName: "anchorA" }), anchorB: one(conceptAnchors, { fields: [conceptConnections.anchorBId], references: [conceptAnchors.id], relationName: "anchorB" }) }));
 export const memberRelations = relations(collectionMembers, ({ one }) => ({
   collection: one(collections, { fields: [collectionMembers.collectionId], references: [collections.id] }),
   crudeDrug: one(crudeDrugs, { fields: [collectionMembers.crudeDrugId], references: [crudeDrugs.id] }),

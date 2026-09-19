@@ -7,10 +7,12 @@ import { HierarchyEditor, type TaxonomyData } from "@/components/hierarchy-edito
 import { useLatexShortcuts } from "@/components/use-latex-shortcuts";
 import type { FieldInputMode, StudyBlock, StudyItem } from "@/lib/db/schema";
 import { applyLatexShortcuts } from "@/lib/latex-shortcuts";
+import { conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 
 type ChangeValue = { items: StudyItem[]; blocks: StudyBlock[] };
 
-export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: { items: StudyItem[]; blocks?: StudyBlock[]; mode: FieldInputMode; onChange: (value: ChangeValue) => void; taxonomy?: TaxonomyData }) {
+type StudyConcept = { ownerType: "drug" | "collection"; ownerId: string; sectionId?: string; blockId?: string };
+export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, concept }: { items: StudyItem[]; blocks?: StudyBlock[]; mode: FieldInputMode; onChange: (value: ChangeValue) => void; taxonomy?: TaxonomyData; concept?: StudyConcept }) {
   const latexShortcuts = useLatexShortcuts();
   const legacyId = useId(); const fileInput = useRef<HTMLInputElement>(null); const editorRoot = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false); const [dragging, setDragging] = useState(false); const [error, setError] = useState<string>();
@@ -186,7 +188,7 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
       if (block.type === "image") {
         if (block.anchorItemId) return null;
 
-        return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); }} onDragEnd={(clientX) => { moveImageHorizontally(block.id, clientX); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
+        return <div className="study-flow-block study-image-flow-block" key={block.id}><ImageBlock conceptTarget={concept ? { ownerType: concept.ownerType, ownerId: concept.ownerId, targetType: "image", targetRef: { sectionId: concept.sectionId, blockId: concept.blockId ?? block.id, mediaAssetId: block.mediaAssetId } } : undefined} block={block} onResize={(widthPercent, xPercent) => updateImage(block.id, { widthPercent, xPercent })} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-herb-image-block", block.id); }} onDragEnd={(clientX) => { moveImageHorizontally(block.id, clientX); }} onDelete={() => commit(rendered.filter((item) => item.id !== block.id))}/></div>;
       }
 
       const offset = topLevelOffset;
@@ -207,6 +209,7 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
           <ImageBlock
             key={image.id}
             block={image}
+            conceptTarget={concept ? { ownerType: concept.ownerType, ownerId: concept.ownerId, targetType: "image", targetRef: { sectionId: concept.sectionId, blockId: concept.blockId ?? image.id, mediaAssetId: image.mediaAssetId } } : undefined}
             onResize={(widthPercent, xPercent) =>
               updateImage(image.id, { widthPercent, xPercent })
             }
@@ -226,7 +229,7 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
           />
         ));
 
-      return <div className="study-flow-block study-items-block" key={block.id}>{mode === "text" ? <TextEditor items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset} renderAnchoredImages={renderAnchoredImages} onImageDrop={(imageId, anchorItemId, anchorSide, clientX) => { if (!itemIds.has(anchorItemId)) return; moveImageToAnchor(imageId, anchorItemId, anchorSide, clientX); }}/>}</div>;
+      return <div className="study-flow-block study-items-block" key={block.id}>{mode === "text" ? <TextEditor conceptTarget={concept ? { ownerType: concept.ownerType, ownerId: concept.ownerId, targetType: concept.ownerType === "drug" ? "study_item" : "collection_hierarchy_item", targetRef: { sectionId: concept.sectionId, blockId: concept.blockId ?? block.id, itemId: block.items[0]?.id } } : undefined} items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor concept={concept} items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset} renderAnchoredImages={renderAnchoredImages} onImageDrop={(imageId, anchorItemId, anchorSide, clientX) => { if (!itemIds.has(anchorItemId)) return; moveImageToAnchor(imageId, anchorItemId, anchorSide, clientX); }}/>}</div>;
     })}
 
     <div className="image-insert-row"><button type="button" onClick={() => fileInput.current?.click()} disabled={uploading}><ImagePlus size={14}/>{uploading ? "업로드 중…" : "이미지"}</button><span>파일을 드래그하거나 붙여넣기 ⌘V</span><input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => void upload(event.target.files?.[0])}/></div>
@@ -236,9 +239,10 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy }: 
   </div>;
 }
 
-function TextEditor({ items, shortcuts, onChange }: { items: StudyItem[]; shortcuts: import("@/lib/latex-shortcuts").LatexShortcut[]; onChange: (items: StudyItem[]) => void }) {
+function TextEditor({ items, shortcuts, onChange, conceptTarget }: { items: StudyItem[]; shortcuts: import("@/lib/latex-shortcuts").LatexShortcut[]; onChange: (items: StudyItem[]) => void; conceptTarget?: ConceptTarget }) {
   const emptyId = useId(); const item = items[0] ?? { id: `empty-${emptyId}`, text: "" };
-  return <textarea className="plain-field-editor" value={item.text} onChange={(event) => onChange([{ ...item, text: applyLatexShortcuts(event.target.value, false, shortcuts) }])} onBlur={(event) => onChange([{ ...item, text: applyLatexShortcuts(event.currentTarget.value, true, shortcuts) }])} placeholder="내용을 입력하세요"/>;
+  const concepts = useConceptEngine();
+  return <textarea {...(conceptTarget ? conceptTargetAttributes(conceptTarget) : {})} className="plain-field-editor" value={item.text} onContextMenu={(event) => conceptTarget && concepts?.openMenu(event, conceptTarget)} onChange={(event) => { const value = applyLatexShortcuts(event.target.value, false, shortcuts); if (conceptTarget && concepts?.reconcileText(conceptTarget, item.text, value) === false) return; onChange([{ ...item, text: value }]); }} onBlur={(event) => onChange([{ ...item, text: applyLatexShortcuts(event.currentTarget.value, true, shortcuts) }])} placeholder="내용을 입력하세요"/>;
 }
 
 function ImageBlock({
@@ -247,13 +251,16 @@ function ImageBlock({
   onDragStart,
   onDragEnd,
   onDelete,
+  conceptTarget,
 }: {
   block: Extract<StudyBlock, { type: "image" }>;
   onResize: (widthPercent: number, xPercent: number) => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void;
   onDragEnd: (clientX: number) => void;
   onDelete: () => void;
+  conceptTarget?: ConceptTarget;
 }) {
+  const concepts = useConceptEngine();
   const initialWidth = block.widthPercent ?? ({
     small: 25,
     medium: 50,
@@ -349,6 +356,7 @@ function ImageBlock({
 
   return (
     <figure
+      {...(conceptTarget ? conceptTargetAttributes(conceptTarget) : {})}
       draggable
       className="study-image-block"
       style={{
@@ -394,6 +402,7 @@ function ImageBlock({
 
         onDragEnd(clientX);
       }}
+      onContextMenu={(event) => conceptTarget && concepts?.openMenu(event, conceptTarget, undefined, block.mediaAssetId)}
     >
       <img
         src={`/api/media/${block.mediaAssetId}/content`}

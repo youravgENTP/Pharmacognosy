@@ -2,9 +2,10 @@
 
 import { Plus, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type Drug = { id: string; koreanName: string };
-type Collection = { id: string; name: string; description: string | null; members: Drug[] };
+type Collection = { id: string; name: string; description: string | null; members: Drug[]; updatedAt: string; unresolved: boolean };
 
 export function CollectionsManager({ drugs }: { drugs: Drug[] }) {
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -21,11 +22,10 @@ export function CollectionsManager({ drugs }: { drugs: Drug[] }) {
     <form className="form-row panel" onSubmit={create} style={{ marginBottom: 20 }}><input className="plain-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="새 컬렉션 이름 (예: 정유 함유 생약)"/><button className="button"><Plus size={15}/> 만들기</button></form>
     {loading ? <p className="muted">불러오는 중…</p> : collections.length ? <div className="collection-grid">{collections.map((collection) => {
       const available = drugs.filter((drug) => !collection.members.some((member) => member.id === drug.id));
-      return <article className="panel" key={collection.id}><div className="collection-title"><button className="icon-button" style={{ fontSize: 18, color: "var(--ink)", fontWeight: 700 }} onClick={() => rename(collection.id, collection.name)}>{collection.name}</button><button className="icon-button" onClick={() => remove(collection.id)}><Trash2 size={16}/></button></div>
+      return <article className="panel collection-index-card" key={collection.id}><div className="collection-title"><Link href={`/collections/${collection.id}`} style={{ fontSize: 18, color: "var(--ink)", fontWeight: 700 }}>{collection.name}{collection.unresolved ? <b className="collection-conflict-badge">!</b> : null}</Link><span><button className="icon-button" onClick={() => rename(collection.id, collection.name)}>이름 변경</button><button className="icon-button" onClick={() => remove(collection.id)}><Trash2 size={16}/></button></span></div><small className="collection-updated">최근 수정 {new Date(collection.updatedAt).toLocaleString("ko-KR")}</small>
         <div className="chips">{collection.members.map((member) => <span className="chip" key={member.id}>{member.koreanName}<button className="icon-button" onClick={() => removeMember(collection.id, member.id)}><X size={12}/></button></span>)}</div>
-        <select className="plain-input" style={{ marginTop: 16 }} value="" onChange={(event) => addMember(collection.id, event.target.value)}><option value="">+ 생약 추가</option>{available.map((drug) => <option key={drug.id} value={drug.id}>{drug.koreanName}</option>)}</select>
+        <select className="plain-input" style={{ marginTop: 16 }} value="" onChange={(event) => addMember(collection.id, event.target.value)}><option value="">+ 기존 그룹 멤버 추가</option>{available.map((drug) => <option key={drug.id} value={drug.id}>{drug.koreanName}</option>)}</select><Link className="button collection-open" href={`/collections/${collection.id}`}>문서 열기</Link>
       </article>;
     })}</div> : <div className="empty">첫 컬렉션을 만들어 새로운 관점으로 생약을 묶어 보세요.</div>}
   </>;
 }
-

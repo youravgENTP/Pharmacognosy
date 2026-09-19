@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FieldInputMode, ImportanceLevel, OriginPlant, StudyItem, StudySection } from "@/lib/db/schema";
 import { StudyContentEditor } from "@/components/study-content-editor";
 import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
+import { ConceptBoundary, conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 
 type DrugDraft = {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
@@ -21,7 +22,9 @@ type OriginSuggestion = OriginPlant & { drugs: { id: string; name: string }[] };
 type FamilySuggestion = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null };
 const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
-export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: { id: string; initial: DrugDraft; family: string | null; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean }) {
+type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean };
+export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
+function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: DrugEditorProps) {
   const [draft, setDraft] = useState(initial);
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
   const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinition[]>([]);
@@ -110,14 +113,14 @@ export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDr
   return <div className={`drug-profile ${modal ? "in-modal" : "standalone"}`}>
     <section className="profile-identity indicator-field">
       <div className="profile-name-row">
-        <div className="profile-name-fields"><input className="profile-korean-name" value={draft.koreanName} onChange={(event) => setField("koreanName", event.target.value)} aria-label="생약명"/><input className="profile-latin-name" value={draft.latinName ?? ""} onChange={(event) => setField("latinName", event.target.value)} placeholder="Latin name" aria-label="Latin name"/></div>
+        <div className="profile-name-fields"><AnchorableInput className="profile-korean-name" value={draft.koreanName} onChange={(value) => setField("koreanName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "koreanName" } }} aria-label="생약명"/><AnchorableInput className="profile-latin-name" value={draft.latinName ?? ""} onChange={(value) => setField("latinName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "latinName" } }} placeholder="Latin name" aria-label="Latin name"/></div>
         <div className="profile-controls"><select className={`importance-select importance-${importanceClass(draft.importance)}`} value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
       </div>
       <div className="identity-lines">
-        <IndicatorLine label="기원"><OriginEditor origins={draft.origins} legacyOrigin={draft.origin} suggestions={identitySuggestions.origins} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>
-        <IndicatorLine label="과"><FamilyEditor initialLabel={family} familyId={draft.familyId} suggestions={identitySuggestions.families} onChange={(familyId) => setField("familyId", familyId)}/></IndicatorLine>
-        <IndicatorLine label="연관생약"><RelationshipList items={relatedDrugs} type="연관생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("연관생약")}/></IndicatorLine>
-        <IndicatorLine label="유사생약"><RelationshipList items={similarDrugs} type="유사생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("유사생약")}/></IndicatorLine>
+        <IndicatorLine label="기원"><OriginEditor drugId={id} origins={draft.origins} legacyOrigin={draft.origin} suggestions={identitySuggestions.origins} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>
+        <IndicatorLine label="과"><FamilyEditor drugId={id} initialLabel={family} familyId={draft.familyId} suggestions={identitySuggestions.families} onChange={(familyId) => setField("familyId", familyId)}/></IndicatorLine>
+        <IndicatorLine label="연관생약"><RelationshipList drugId={id} items={relatedDrugs} type="연관생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("연관생약")}/></IndicatorLine>
+        <IndicatorLine label="유사생약"><RelationshipList drugId={id} items={similarDrugs} type="유사생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("유사생약")}/></IndicatorLine>
       </div>
     </section>
     <div className="profile-sections">{draft.sections.map((section) => {
@@ -125,7 +128,7 @@ export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDr
       const inputMode = fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.inputMode ?? "hierarchy4";
       return <section className="profile-field" key={section.id}>
         <div className="profile-field-title"><h2>{name}</h2><button className="field-remove" onClick={() => removeSection(section.id)} title="이 생약에서 필드 삭제" aria-label={`${name} 삭제`}><X size={21}/></button></div>
-        <StudyContentEditor items={section.items} blocks={section.blocks} mode={inputMode} taxonomy={name === "성분" ? constituentData : undefined} onChange={(value) => updateSection(section.id, value)}/>
+        <StudyContentEditor items={section.items} blocks={section.blocks} mode={inputMode} taxonomy={name === "성분" ? constituentData : undefined} concept={{ ownerType: "drug", ownerId: id, sectionId: section.id }} onChange={(value) => updateSection(section.id, value)}/>
         {name === "성분" ? <div className="field-add-actions constituent-actions"><button className="add-line" onClick={() => updateSection(section.id, appendItem(section, newItem()))}><Plus size={14}/> 새 항목 추가</button><button className="taxonomy-picker-button" onClick={() => setPickerSectionId(section.id)}><Plus size={14}/> Compound Tree에서 추가</button></div> : null}
       </section>;
     })}</div>
@@ -137,25 +140,26 @@ export function DrugEditor({ id, initial, family, relatedDrugs: initialRelatedDr
 }
 
 function IndicatorLine({ label, children }: { label: string; children: React.ReactNode }) { return <div className="identity-line indicator-line"><strong>{label}</strong><span className="identity-colon">:</span>{children}</div>; }
-function RelationshipList({ items, type, onRemove, onAdd }: { items: RelatedDrug[]; type: RelationshipType; onRemove: (id: string, type: RelationshipType) => void; onAdd: () => void }) {
-  return <div className="related-editor relationship-list">{[...items].sort(sortDrug).map((related, index) => <span className="relationship-item" key={related.id}><b>{circledNumber(index + 1)}</b><Link href={`/drugs/${related.drugId}`} scroll={false}>({formatDrugIndex(related.catalogIndex, related.referenceIndex)}, {related.name})</Link><button onClick={() => onRemove(related.id, type)} aria-label={`${related.name} 연결 해제`}><X size={13}/></button></span>)}<button className="inline-add" onClick={onAdd}><Plus size={14}/> 연결</button></div>;
+function RelationshipList({ drugId, items, type, onRemove, onAdd }: { drugId: string; items: RelatedDrug[]; type: RelationshipType; onRemove: (id: string, type: RelationshipType) => void; onAdd: () => void }) {
+  const concepts = useConceptEngine();
+  return <div className="related-editor relationship-list">{[...items].sort(sortDrug).map((related, index) => { const target: ConceptTarget = { ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: type, relationId: related.id } }; return <span className="relationship-item" key={related.id}><b>{circledNumber(index + 1)}</b><Link {...conceptTargetAttributes(target)} onContextMenu={(event) => concepts?.openMenu(event, target)} href={`/drugs/${related.drugId}`} scroll={false}>({formatDrugIndex(related.catalogIndex, related.referenceIndex)}, {related.name})</Link><button onClick={() => onRemove(related.id, type)} aria-label={`${related.name} 연결 해제`}><X size={13}/></button></span>; })}<button className="inline-add" onClick={onAdd}><Plus size={14}/> 연결</button></div>;
 }
 function circledNumber(value: number) { return value <= 20 ? String.fromCodePoint(0x2460 + value - 1) : `(${value})`; }
-function OriginEditor({ origins, legacyOrigin, suggestions, onChange }: { origins: OriginPlant[]; legacyOrigin: string | null; suggestions: OriginSuggestion[]; onChange: (value: OriginPlant[]) => void }) {
+function OriginEditor({ drugId, origins, legacyOrigin, suggestions, onChange }: { drugId: string; origins: OriginPlant[]; legacyOrigin: string | null; suggestions: OriginSuggestion[]; onChange: (value: OriginPlant[]) => void }) {
   const rows = origins.length ? origins : [{ nameKo: legacyOrigin ?? "", scientificName: null }];
   function update(index: number, patch: Partial<OriginPlant>) { onChange(rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row)); }
   function remove(index: number) { onChange(rows.filter((_, rowIndex) => rowIndex !== index)); }
-  return <div className="origin-editor">{rows.map((origin, index) => <OriginRow key={index} origin={origin} suggestions={suggestions} onChange={(patch) => update(index, patch)} onRemove={() => remove(index)}/>)}<button className="origin-add" onClick={() => onChange([...rows, { nameKo: null, scientificName: null }])}><Plus size={13}/> 기원식물 추가</button></div>;
+  return <div className="origin-editor">{rows.map((origin, index) => <OriginRow drugId={drugId} index={index} key={index} origin={origin} suggestions={suggestions} onChange={(patch) => update(index, patch)} onRemove={() => remove(index)}/>)}<button className="origin-add" onClick={() => onChange([...rows, { nameKo: null, scientificName: null }])}><Plus size={13}/> 기원식물 추가</button></div>;
 }
 
-function OriginRow({ origin, suggestions, onChange, onRemove }: { origin: OriginPlant; suggestions: OriginSuggestion[]; onChange: (patch: Partial<OriginPlant>) => void; onRemove: () => void }) {
+function OriginRow({ drugId, index, origin, suggestions, onChange, onRemove }: { drugId: string; index: number; origin: OriginPlant; suggestions: OriginSuggestion[]; onChange: (patch: Partial<OriginPlant>) => void; onRemove: () => void }) {
   const [focused, setFocused] = useState<"ko" | "scientific">();
   const needle = (focused === "scientific" ? origin.scientificName : origin.nameKo)?.trim().toLocaleLowerCase() ?? "";
   const matches = needle ? suggestions.filter((item) => [item.nameKo, item.scientificName, ...item.drugs.map((drug) => drug.name)].some((value) => value?.toLocaleLowerCase().includes(needle))).slice(0, 8) : [];
-  return <div className="origin-row autocomplete-anchor"><input value={origin.nameKo ?? ""} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => onChange({ nameKo: event.target.value || null })} placeholder="기원식물 한글명"/><input className="scientific" value={origin.scientificName ?? ""} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => onChange({ scientificName: event.target.value || null })} placeholder="Scientific name"/><button onClick={onRemove} aria-label="기원식물 삭제"><X size={15}/></button>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={`${item.nameKo}-${item.scientificName}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange({ nameKo: item.nameKo, scientificName: item.scientificName }); setFocused(undefined); }}><span><strong>{item.nameKo || "한글명 없음"}</strong><em>{item.scientificName}</em></span>{item.drugs.length ? <small>{item.drugs.map((drug) => drug.name).join(" · ")}</small> : null}</button>)}</div> : null}</div>;
+  return <div className="origin-row autocomplete-anchor"><AnchorableInput value={origin.nameKo ?? ""} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => onChange({ nameKo: value || null })} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originName", originIndex: index } }} placeholder="기원식물 한글명"/><AnchorableInput className="scientific" value={origin.scientificName ?? ""} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => onChange({ scientificName: value || null })} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "originScientific", originIndex: index } }} placeholder="Scientific name"/><button onClick={onRemove} aria-label="기원식물 삭제"><X size={15}/></button>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={`${item.nameKo}-${item.scientificName}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange({ nameKo: item.nameKo, scientificName: item.scientificName }); setFocused(undefined); }}><span><strong>{item.nameKo || "한글명 없음"}</strong><em>{item.scientificName}</em></span>{item.drugs.length ? <small>{item.drugs.map((drug) => drug.name).join(" · ")}</small> : null}</button>)}</div> : null}</div>;
 }
 
-function FamilyEditor({ initialLabel, familyId, suggestions, onChange }: { initialLabel: string | null; familyId: string | null; suggestions: FamilySuggestion[]; onChange: (id: string | null) => void }) {
+function FamilyEditor({ drugId, initialLabel, familyId, suggestions, onChange }: { drugId: string; initialLabel: string | null; familyId: string | null; suggestions: FamilySuggestion[]; onChange: (id: string | null) => void }) {
   const selected = suggestions.find((item) => item.id === familyId);
   const initialParts = (initialLabel ?? "").split(" · ");
   const [koreanQuery, setKoreanQuery] = useState(initialParts[0] ?? "");
@@ -165,8 +169,10 @@ function FamilyEditor({ initialLabel, familyId, suggestions, onChange }: { initi
   const needle = (focused === "scientific" ? scientificQuery : koreanQuery).trim().toLocaleLowerCase();
   const matches = needle ? suggestions.filter((item) => [item.koreanName, item.scientificName, item.acceptedScientificName].some((value) => value?.toLocaleLowerCase().includes(needle))).slice(0, 8) : suggestions.slice(0, 8);
   function choose(item: FamilySuggestion) { setKoreanQuery(item.koreanName); setScientificQuery(item.scientificName); onChange(item.id); setFocused(undefined); }
-  return <div className="family-row autocomplete-anchor"><input value={koreanQuery} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => { setKoreanQuery(event.target.value); onChange(null); }} placeholder="과 한글명"/><input className="scientific" value={scientificQuery} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(event) => { setScientificQuery(event.target.value); onChange(null); }} placeholder="Scientific family name"/>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(item)}><span><strong>{item.koreanName}</strong><em>{item.scientificName}</em></span>{item.acceptedScientificName ? <small>{item.acceptedScientificName}</small> : null}</button>)}</div> : null}</div>;
+  return <div className="family-row autocomplete-anchor"><AnchorableInput value={koreanQuery} onFocus={() => setFocused("ko")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => { setKoreanQuery(value); onChange(null); }} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "familyKorean" } }} placeholder="과 한글명"/><AnchorableInput className="scientific" value={scientificQuery} onFocus={() => setFocused("scientific")} onBlur={() => window.setTimeout(() => setFocused(undefined), 100)} onChange={(value) => { setScientificQuery(value); onChange(null); }} target={{ ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: "familyScientific" } }} placeholder="Scientific family name"/>{focused && matches.length ? <div className="identity-suggestions">{matches.map((item) => <button type="button" key={item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(item)}><span><strong>{item.koreanName}</strong><em>{item.scientificName}</em></span>{item.acceptedScientificName ? <small>{item.acceptedScientificName}</small> : null}</button>)}</div> : null}</div>;
 }
+
+function AnchorableInput({ value, onChange, target, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & { value: string; onChange: (value: string) => void; target: ConceptTarget }) { const concepts = useConceptEngine(); return <input {...props} {...conceptTargetAttributes(target)} value={value} onContextMenu={(event) => concepts?.openMenu(event, target)} onChange={(event) => { if (concepts?.reconcileText(target, value, event.target.value) === false) return; onChange(event.target.value); }}/>; }
 function newItem(): StudyItem { return { id: crypto.randomUUID(), text: "" }; }
 function importanceClass(value: ImportanceLevel) { return { 중요: "important", 중간: "medium", 비중요: "low" }[value]; }
 function hasContent(items: StudyItem[]): boolean { return items.some((item) => item.text.trim() || hasContent(item.children ?? [])); }

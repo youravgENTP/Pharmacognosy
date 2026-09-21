@@ -1076,3 +1076,19 @@ html, body { background: var(--paper); color: var(--ink); }
 .spreadsheet-shell:hover .sheet-resize-corner { border-color: #79a9de; }
 body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 @media (max-width: 900px) { .collection-workspace-header label { display: none; } .source-pane { position: fixed; z-index: 35; inset: 60px auto 0 76px; width: min(520px,calc(100vw - 76px)) !important; max-width: none; box-shadow: 15px 0 45px rgba(0,0,0,.45); } .pane-divider { display: none; } .collection-document-pane { padding-right: 18px; padding-left: 18px; } }
+
+/* Auth inputs stay light even when the application uses its dark workspace theme. */
+.auth-shell .auth-field input,
+.auth-shell .auth-field input:focus {
+  background: #ffffff;
+  color: #171b22;
+  caret-color: #171b22;
+  -webkit-text-fill-color: #171b22;
+}
+.auth-shell .auth-field input::placeholder { color: #7a8380; opacity: 1; }
+.auth-shell .auth-field input:-webkit-autofill,
+.auth-shell .auth-field input:-webkit-autofill:hover,
+.auth-shell .auth-field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #171b22;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+}

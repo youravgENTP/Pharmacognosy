@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { and, asc, eq, ilike, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -5,7 +6,7 @@ import { db } from "@/lib/db";
 import { constituentMemberships, constituents, constituentTaxa, constituentTaxonEdges } from "@/lib/db/schema";
 import { uuidSchema } from "@/lib/validators";
 
-export async function GET(request: Request) {
+export async function GET(request: Request) { const authError = await authorizeApi("user"); if (authError) return authError;
   const { searchParams } = new URL(request.url);
   const taxonId = searchParams.get("taxonId");
   const includeDescendants = searchParams.get("includeDescendants") !== "false";
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ taxonIds, count: rows.length, constituents: rows });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const parsed = z.object({ name: z.string().trim().min(1).max(160), taxonId: z.string().uuid() }).safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "성분명과 상위 분류가 필요합니다." }, { status: 400 });
   const [taxon] = await db.select({ id: constituentTaxa.id }).from(constituentTaxa).where(eq(constituentTaxa.id, parsed.data.taxonId)).limit(1);

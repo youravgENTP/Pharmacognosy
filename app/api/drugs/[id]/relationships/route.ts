@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { and, eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { uuidSchema } from "@/lib/validators";
 const relationSchema = z.enum(["연관생약", "유사생약"]);
 const bodySchema = z.object({ targetId: z.string().uuid(), type: relationSchema });
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   const parsed = bodySchema.safeParse(await request.json());
   if (!uuidSchema.safeParse(id).success || !parsed.success || parsed.data.targetId === id) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
@@ -23,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json({ id: created.id, drugId: target.id, catalogIndex: target.catalogIndex, referenceIndex: target.referenceIndex, name: target.name, latinName: target.latinName, type: parsed.data.type }, { status: 201 });
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   const parsed = z.object({ relationshipId: z.string().uuid() }).safeParse(await request.json());
   if (!uuidSchema.safeParse(id).success || !parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });

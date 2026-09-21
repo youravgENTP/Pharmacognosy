@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { put, del } from "@vercel/blob";
 import { asc, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -9,7 +10,7 @@ import { getMediaReferences } from "@/lib/media/references";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export async function GET(request: Request) { const authError = await authorizeApi("user"); if (authError) return authError;
   const sort = new URL(request.url).searchParams.get("sort") === "newest" ? "newest" : "size";
   const assets = await db.select().from(mediaAssets).orderBy(sort === "newest" ? desc(mediaAssets.createdAt) : desc(mediaAssets.sizeBytes), asc(mediaAssets.originalFilename));
   const references = await getMediaReferences();
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
   });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const blobConfigured = Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
   if (!blobConfigured && !canUseLocalMedia()) return NextResponse.json({ error: "Vercel Blob 환경변수가 설정되지 않았습니다." }, { status: 503 });
   const form = await request.formData();

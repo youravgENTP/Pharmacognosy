@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { asc, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -6,12 +7,12 @@ import { fieldDefinitions } from "@/lib/db/schema";
 
 const inputModeSchema = z.enum(["hierarchy4", "hierarchy3", "text"]);
 
-export async function GET() {
+export async function GET() { const authError = await authorizeApi("user"); if (authError) return authError;
   const fields = await db.select().from(fieldDefinitions).where(eq(fieldDefinitions.active, true)).orderBy(asc(fieldDefinitions.kind), asc(fieldDefinitions.position), asc(fieldDefinitions.name));
   return NextResponse.json(fields);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const parsed = z.object({ name: z.string().trim().min(1).max(100), inputMode: inputModeSchema }).safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "필드 이름을 입력하세요." }, { status: 400 });
   const [existing] = await db.select().from(fieldDefinitions).where(eq(fieldDefinitions.name, parsed.data.name)).limit(1);

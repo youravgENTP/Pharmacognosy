@@ -1,15 +1,16 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { collections, conceptAnchors } from "@/lib/db/schema";
 import { collectionPatchSchema, uuidSchema } from "@/lib/validators";
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("user"); if (authError) return authError;
   const { id } = await params; if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const [row] = await db.select().from(collections).where(eq(collections.id, id)).limit(1); return row ? NextResponse.json(row) : NextResponse.json({ error: "Not found" }, { status: 404 });
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const parsed = collectionPatchSchema.safeParse(await request.json());
@@ -18,7 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   return NextResponse.json(row);
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   await db.update(conceptAnchors).set({ status: "broken", updatedAt: new Date() }).where(eq(conceptAnchors.ownerId, id));

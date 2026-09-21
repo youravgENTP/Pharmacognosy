@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { del } from "@vercel/blob";
 import { inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -6,7 +7,7 @@ import { mediaAssets } from "@/lib/db/schema";
 import { deleteLocalMedia, isLocalMedia } from "@/lib/media/local";
 import { getMediaReferences } from "@/lib/media/references";
 
-export async function POST() {
+export async function POST() { const authError = await authorizeApi("editor"); if (authError) return authError;
   const [assets, references] = await Promise.all([db.select().from(mediaAssets), getMediaReferences()]);
   const unused = assets.filter((asset) => !references.has(asset.id));
   if (!unused.length) return NextResponse.json({ deleted: 0, bytes: 0 });

@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -7,7 +8,7 @@ import { z } from "zod";
 
 const requestSchema = z.object({ payload: pharmacognosyImportV1Schema, existingStrategy: z.enum(["merge", "skip"]) });
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const parsed = requestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   const result = await db.transaction(async (tx) => {

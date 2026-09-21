@@ -1,9 +1,10 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { crudeDrugs, families, type OriginPlant } from "@/lib/db/schema";
 
-export async function GET() {
+export async function GET() { const authError = await authorizeApi("user"); if (authError) return authError;
   const [familyRows, drugRows] = await Promise.all([
     db.select({ id: families.id, koreanName: families.koreanName, scientificName: families.scientificName, acceptedScientificName: families.acceptedScientificName }).from(families).orderBy(asc(families.koreanName)),
     db.select({ id: crudeDrugs.id, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, origin: crudeDrugs.origin, origins: crudeDrugs.origins, scientificName: crudeDrugs.scientificName }).from(crudeDrugs).orderBy(asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex)),

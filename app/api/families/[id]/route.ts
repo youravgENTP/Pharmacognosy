@@ -1,10 +1,11 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { families } from "@/lib/db/schema";
 import { familyPatchSchema, uuidSchema } from "@/lib/validators";
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const parsed = familyPatchSchema.safeParse(await request.json());

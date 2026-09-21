@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -7,7 +8,7 @@ import { uuidSchema } from "@/lib/validators";
 
 const bodySchema = z.object({ parentId: z.string().uuid() });
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   const parsed = bodySchema.safeParse(await request.json());
   if (!uuidSchema.safeParse(id).success || !parsed.success || parsed.data.parentId === id) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
@@ -17,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json({ ok: true }, { status: 201 });
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   const parsed = bodySchema.safeParse(await request.json());
   if (!uuidSchema.safeParse(id).success || !parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });

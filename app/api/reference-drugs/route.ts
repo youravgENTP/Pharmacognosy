@@ -1,9 +1,10 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createReferenceDrug } from "@/lib/data/reference-drug";
 import { formatDrugIndex } from "@/lib/drug-index";
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   try {
     const payload = await request.json().catch(() => null);
     const parsed = z.object({ koreanName: z.string().trim().min(1).max(100) }).safeParse(payload);

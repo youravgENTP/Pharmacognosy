@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { get } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -8,7 +9,7 @@ import { uuidSchema } from "@/lib/validators";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("user"); if (authError) return authError;
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const [asset] = await db.select().from(mediaAssets).where(eq(mediaAssets.id, id)).limit(1);

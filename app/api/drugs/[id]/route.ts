@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -5,14 +6,14 @@ import { crudeDrugs } from "@/lib/db/schema";
 import { drugPatchSchema, uuidSchema } from "@/lib/validators";
 import { getDrugProfile } from "@/lib/data/drug";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("user"); if (authError) return authError;
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const drug = await getDrugProfile(id);
   return drug ? NextResponse.json(drug) : NextResponse.json({ error: "Not found" }, { status: 404 });
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const parsed = drugPatchSchema.safeParse(await request.json());

@@ -1,10 +1,11 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { crudeDrugs } from "@/lib/db/schema";
 import { pharmacognosyImportV1Schema } from "@/lib/import-schema";
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const parsed = pharmacognosyImportV1Schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ valid: false, errors: parsed.error.issues }, { status: 400 });
   const names = parsed.data.drugs.map((drug) => drug.koreanName);

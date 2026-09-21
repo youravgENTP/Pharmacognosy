@@ -13,16 +13,20 @@
     "db:migrate:exam": "tsx scripts/migrate-exam-scope.ts",
     "db:migrate:taxonomy": "tsx scripts/migrate-constituent-taxonomy.ts",
     "db:migrate:families": "tsx scripts/migrate-botanical-families.ts",
+    "auth:bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.5",
     "@vercel/blob": "^2.8.0",
-    "drizzle-orm": "^0.44.5",
+    "better-auth": "^1.7.5",
+    "drizzle-orm": "^0.45.2",
     "lucide-react": "^0.468.0",
     "next": "^15.5.2",
     "postgres": "^3.4.7",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "resend": "^6.28.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -5,7 +6,7 @@ import { db } from "@/lib/db";
 import { fieldDefinitions } from "@/lib/db/schema";
 import { uuidSchema } from "@/lib/validators";
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   const parsed = z.object({ name: z.string().trim().min(1).max(100).optional(), inputMode: z.enum(["hierarchy4", "hierarchy3", "text"]).optional() }).refine((value) => value.name || value.inputMode).safeParse(await request.json());
   if (!uuidSchema.safeParse(id).success || !parsed.success) return NextResponse.json({ error: "잘못된 입력입니다." }, { status: 400 });
@@ -21,7 +22,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "잘못된 ID입니다." }, { status: 400 });
   const [field] = await db.select().from(fieldDefinitions).where(eq(fieldDefinitions.id, id)).limit(1);

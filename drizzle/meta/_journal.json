@@ -57,6 +57,13 @@
       "when": 1789811684308,
       "tag": "0007_eager_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789971195254,
+      "tag": "0008_abandoned_adam_destine",
+      "breakpoints": true
     }
   ]
 }

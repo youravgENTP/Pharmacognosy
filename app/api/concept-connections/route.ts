@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { and, count, eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -5,7 +6,7 @@ import { conceptAnchors, conceptConnections } from "@/lib/db/schema";
 import { CONNECTION_PALETTE, endpointSnapshot } from "@/lib/concepts";
 import { conceptConnectionCreateSchema } from "@/lib/validators";
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const parsed = conceptConnectionCreateSchema.safeParse(await request.json()); if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const [anchorAId, anchorBId] = [parsed.data.anchorAId, parsed.data.anchorBId].sort();
   const anchors = await db.select().from(conceptAnchors).where(or(eq(conceptAnchors.id, anchorAId), eq(conceptAnchors.id, anchorBId)));

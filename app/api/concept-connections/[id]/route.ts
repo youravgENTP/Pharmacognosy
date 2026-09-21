@@ -1,3 +1,4 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -5,7 +6,7 @@ import { conceptAnchors, conceptConnections } from "@/lib/db/schema";
 import { endpointSnapshot } from "@/lib/concepts";
 import { conceptConnectionPatchSchema, uuidSchema } from "@/lib/validators";
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params; if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const parsed = conceptConnectionPatchSchema.safeParse(await request.json()); if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   const [edge] = await db.select().from(conceptConnections).where(eq(conceptConnections.id, id)).limit(1); if (!edge) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -17,4 +18,4 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const [updated] = await db.update(conceptConnections).set(patch).where(eq(conceptConnections.id, id)).returning(); return NextResponse.json(updated);
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 }); await db.delete(conceptConnections).where(eq(conceptConnections.id, id)); return new NextResponse(null, { status: 204 }); }
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError; const { id } = await params; if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 }); await db.delete(conceptConnections).where(eq(conceptConnections.id, id)); return new NextResponse(null, { status: 204 }); }

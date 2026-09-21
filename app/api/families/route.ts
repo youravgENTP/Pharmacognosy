@@ -1,14 +1,15 @@
+import { authorizeApi } from "@/lib/auth/permissions";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { families } from "@/lib/db/schema";
 import { getFamilyExplorerData } from "@/lib/data/family";
 import { familyCreateSchema } from "@/lib/validators";
 
-export async function GET() {
+export async function GET() { const authError = await authorizeApi("user"); if (authError) return authError;
   return NextResponse.json(await getFamilyExplorerData());
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const parsed = familyCreateSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   try {

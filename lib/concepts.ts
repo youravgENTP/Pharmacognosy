@@ -3,7 +3,7 @@ import { eq, inArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { conceptAnchors, conceptConnections } from "@/lib/db/schema";
 
-export const CONNECTION_PALETTE = ["#70a8f7", "#75c6a4", "#e9a66f", "#c69af2", "#ef819b", "#79c8de", "#d4bd64", "#9fa9f6"];
+export { CONNECTION_PALETTE } from "@/lib/concept-connection-colors";
 export function snapshotHash(value?: string | null) { return value == null ? null : createHash("sha256").update(value).digest("hex"); }
 export function endpointSnapshot(anchor: typeof conceptAnchors.$inferSelect) { return { text: anchor.snapshotText ?? undefined, hash: anchor.snapshotHash ?? undefined, assetVersion: anchor.assetVersion ?? undefined }; }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type Drug = { id: string; koreanName: string };
@@ -11,15 +11,18 @@ export function CollectionsManager({ drugs }: { drugs: Drug[] }) {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
-  async function load() { const response = await fetch("/api/collections"); setCollections(await response.json()); setLoading(false); }
-  useEffect(() => { void load(); }, []);
-  async function create(event: React.FormEvent) { event.preventDefault(); if (!name.trim()) return; await fetch("/api/collections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }); setName(""); await load(); }
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string>();
+  const nameInput = useRef<HTMLInputElement>(null);
+  async function load() { const response = await fetch("/api/collections"); if (!response.ok) throw new Error(`컬렉션 목록을 불러오지 못했습니다. (${response.status})`); setCollections(await response.json()); setLoading(false); }
+  useEffect(() => { void load().catch((error) => { setCreateError(error instanceof Error ? error.message : "컬렉션 목록을 불러오지 못했습니다."); setLoading(false); }); }, []);
+  async function create(event: React.FormEvent) { event.preventDefault(); const trimmedName = name.trim(); if (!trimmedName) { setCreateError("컬렉션 이름을 입력해 주세요."); nameInput.current?.focus(); return; } setCreating(true); setCreateError(undefined); try { const response = await fetch("/api/collections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: trimmedName }) }); if (!response.ok) throw new Error(`컬렉션을 만들지 못했습니다. (${response.status})`); setName(""); await load(); } catch (error) { setCreateError(error instanceof Error ? error.message : "컬렉션을 만들지 못했습니다."); } finally { setCreating(false); } }
   async function rename(id: string, current: string) { const next = window.prompt("새 컬렉션 이름", current); if (!next?.trim()) return; await fetch(`/api/collections/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: next }) }); await load(); }
   async function remove(id: string) { if (!window.confirm("이 컬렉션을 삭제할까요? 생약 데이터는 삭제되지 않습니다.")) return; await fetch(`/api/collections/${id}`, { method: "DELETE" }); await load(); }
   async function addMember(collectionId: string, crudeDrugId: string) { if (!crudeDrugId) return; await fetch(`/api/collections/${collectionId}/members`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ crudeDrugId }) }); await load(); }
   async function removeMember(collectionId: string, crudeDrugId: string) { await fetch(`/api/collections/${collectionId}/members`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ crudeDrugId }) }); await load(); }
   return <>
-    <form className="form-row panel" onSubmit={create} style={{ marginBottom: 20 }}><input className="plain-input" value={name} onChange={(event) => setName(event.target.value)} placeholder="새 컬렉션 이름 (예: 정유 함유 생약)"/><button className="button"><Plus size={15}/> 만들기</button></form>
+    <form className="panel collection-create-form" onSubmit={create} style={{ marginBottom: 20 }} aria-busy={creating}><div className="form-row"><input ref={nameInput} className="plain-input" value={name} onChange={(event) => { setName(event.target.value); if (createError) setCreateError(undefined); }} placeholder="새 컬렉션 이름 (예: 정유 함유 생약)" aria-invalid={Boolean(createError)} aria-describedby={createError ? "collection-create-error" : undefined}/><button className="button" type="submit" disabled={creating}><Plus size={15}/> {creating ? "만드는 중…" : "만들기"}</button></div>{createError ? <p className="collection-create-error" id="collection-create-error" role="alert">{createError}</p> : null}</form>
     {loading ? <p className="muted">불러오는 중…</p> : collections.length ? <div className="collection-grid">{collections.map((collection) => {
       const available = drugs.filter((drug) => !collection.members.some((member) => member.id === drug.id));
       return <article className="panel collection-index-card" key={collection.id}><div className="collection-title"><Link href={`/collections/${collection.id}`} style={{ fontSize: 18, color: "var(--ink)", fontWeight: 700 }}>{collection.name}{collection.unresolved ? <b className="collection-conflict-badge">!</b> : null}</Link><span><button className="icon-button" onClick={() => rename(collection.id, collection.name)}>이름 변경</button><button className="icon-button" onClick={() => remove(collection.id)}><Trash2 size={16}/></button></span></div><small className="collection-updated">최근 수정 {new Date(collection.updatedAt).toLocaleString("ko-KR")}</small>

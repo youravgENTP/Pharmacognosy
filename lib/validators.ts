@@ -44,11 +44,11 @@ export const studyItemSchema: z.ZodType<StudyItem> = z.lazy(() => z.object({
 
 const richTextSchema = z.object({ text: z.string(), html: z.string().max(100000).optional() });
 const tableRangeSchema = z.object({ startRow: z.number().int().nonnegative(), startColumn: z.number().int().nonnegative(), endRow: z.number().int().nonnegative(), endColumn: z.number().int().nonnegative() });
-const tableCellSchema = z.object({ id: z.string(), text: z.string(), html: z.string().max(100000).optional(), bold: z.boolean().optional(), italic: z.boolean().optional(), highlight: z.string().max(20).optional(), textColor: z.string().max(20).optional(), horizontal: z.enum(["left", "center", "right"]).optional(), vertical: z.enum(["top", "middle", "bottom"]).optional(), wrap: z.boolean().optional() });
+const tableCellSchema = z.object({ id: z.string(), text: z.string(), html: z.string().max(100000).optional(), bold: z.boolean().optional(), italic: z.boolean().optional(), strikethrough: z.boolean().optional(), highlight: z.string().max(20).optional(), textColor: z.string().max(20).optional(), horizontal: z.enum(["left", "center", "right"]).optional(), vertical: z.enum(["top", "middle", "bottom"]).optional(), wrap: z.boolean().optional() });
 export const collectionBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("text"), content: richTextSchema }),
   z.object({ id: z.string(), type: z.literal("heading"), level: z.union([z.literal(1), z.literal(2), z.literal(3)]), content: richTextSchema }),
-  z.object({ id: z.string(), type: z.literal("hierarchy"), items: z.array(studyItemSchema), blocks: z.array(z.any()).optional() }),
+  z.object({ id: z.string(), type: z.literal("hierarchy"), mode: z.enum(["hierarchy4", "hierarchy3"]).optional(), items: z.array(studyItemSchema), blocks: z.array(z.any()).optional() }),
   z.object({ id: z.string(), type: z.literal("image"), mediaAssetId: z.union([uuidSchema, z.literal("")]), widthPercent: z.number().min(15).max(100), align: z.enum(["left", "center", "right"]) }),
   z.object({ id: z.string(), type: z.literal("table"), rows: z.number().int().min(1).max(500), columns: z.number().int().min(1).max(100), cells: z.record(z.string(), tableCellSchema), rowSizes: z.array(z.number().min(24).max(500)), columnSizes: z.array(z.number().min(48).max(800)), mergedRanges: z.array(tableRangeSchema) }),
 ]);

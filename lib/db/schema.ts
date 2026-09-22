@@ -150,6 +150,13 @@ export const userDrugMnemonics = pgTable("user_drug_mnemonics", {
   index("user_drug_mnemonics_user_idx").on(t.userId),
 ]);
 
+export const userMnemonicPreferences = pgTable("user_mnemonic_preferences", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
+  preferredMnemonicUserId: text("preferred_mnemonic_user_id").references(() => user.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.drugId] }), index("user_mnemonic_preferences_drug_idx").on(t.drugId)]);
+
 export const legacyDrugMnemonics = pgTable("legacy_drug_mnemonics", {
   drugId: uuid("drug_id").primaryKey().references(() => crudeDrugs.id, { onDelete: "cascade" }),
   items: jsonb("items").$type<StudyItem[]>().notNull().default([]),
@@ -250,7 +257,7 @@ export const collections = pgTable("collections", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
-  kind: text("kind").notNull().default("manual"),
+  kind: text("kind").$type<"document" | "spreadsheet">().notNull().default("document"),
   rule: jsonb("rule"),
   document: jsonb("document").$type<CollectionDocument>().notNull().default({ version: 1, blocks: [] }),
   revision: integer("revision").notNull().default(0),
@@ -339,7 +346,13 @@ export const crudeDrugRelations = relations(crudeDrugs, ({ one, many }) => ({
   family: one(families, { fields: [crudeDrugs.familyId], references: [families.id] }),
   collectionMembers: many(collectionMembers),
   mnemonics: many(userDrugMnemonics),
+  mnemonicPreferences: many(userMnemonicPreferences),
   identityTerms: many(crudeDrugIdentityTerms),
+}));
+export const userMnemonicPreferenceRelations = relations(userMnemonicPreferences, ({ one }) => ({
+  viewingUser: one(user, { fields: [userMnemonicPreferences.userId], references: [user.id], relationName: "mnemonicPreferenceViewer" }),
+  drug: one(crudeDrugs, { fields: [userMnemonicPreferences.drugId], references: [crudeDrugs.id] }),
+  preferredOwner: one(user, { fields: [userMnemonicPreferences.preferredMnemonicUserId], references: [user.id], relationName: "mnemonicPreferenceOwner" }),
 }));
 export const drugIdentityTermRelations = relations(drugIdentityTerms, ({ many }) => ({ drugs: many(crudeDrugIdentityTerms) }));
 export const crudeDrugIdentityTermRelations = relations(crudeDrugIdentityTerms, ({ one }) => ({

@@ -692,6 +692,33 @@ html, body { background: var(--paper); color: var(--ink); }
 .identity-term-combobox > small { display: block; padding: 6px 2px; color: #7f8994; }
 @media (max-width: 650px) { .taxon-description { grid-template-columns: 1fr; } .compound-media article { grid-template-columns: 44px minmax(0, 1fr); } .compound-media article > span { grid-column: 2; } }
 
+/* Export and explicit Collection modes */
+.collection-kind-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 12px; }
+.collection-kind-picker > button { min-height: 74px; border: 1px solid #343b44; border-radius: 10px; padding: 12px; background: #171b1f; color: #98a3ae; display: flex; align-items: flex-start; gap: 10px; text-align: left; }
+.collection-kind-picker > button.active { border-color: #6b9bd9; background: #1d3048; color: #b8d4f7; }
+.collection-kind-picker span { display: grid; gap: 4px; }
+.collection-kind-picker b { color: #edf1f5; }
+.collection-kind-picker small { line-height: 1.4; }
+.collection-type-badge, .collection-workspace-kind { width: fit-content; border: 1px solid #38424d; border-radius: 99px; padding: 4px 8px; color: #8da1b8; display: inline-flex; align-items: center; gap: 5px; }
+.collection-index-card .collection-type-badge { margin-top: 8px; }
+.collection-workspace-kind { flex: 0 0 auto; }
+.collection-export-button, .data-card-export { height: 34px; border: 1px solid #3c4d61; border-radius: 7px; padding: 0 10px; background: #1d2b3c; color: #a9caf5; display: inline-flex; align-items: center; gap: 6px; }
+.spreadsheet-workspace-pane { overflow: auto; padding: 18px; }
+.spreadsheet-workspace-pane > .spreadsheet-shell { min-width: 720px; }
+.sheet-formula-bar textarea { flex: 1; min-width: 0; height: 30px; resize: none; border: 0; padding: 6px 8px; background: transparent; color: #e6eaee; font: inherit; white-space: pre-wrap; }
+.export-dialog-backdrop { position: fixed; inset: 0; z-index: 210; padding: 24px; background: rgba(4,6,8,.8); display: grid; place-items: center; backdrop-filter: blur(4px); }
+.export-dialog { width: min(430px, 100%); border: 1px solid #39424c; border-radius: 14px; padding: 22px; background: #171b1f; box-shadow: 0 28px 80px rgba(0,0,0,.6); display: grid; gap: 14px; }
+.export-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; }
+.export-dialog h2 { margin: 0; font-size: 21px; }
+.export-dialog p { margin: 4px 0 0; color: #7f8994; }
+.export-dialog > header > button { border: 0; padding: 5px; background: transparent; color: #8d97a2; }
+.export-dialog > label { color: #9aa4af; display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
+.export-dialog select { width: 100%; border: 1px solid #343b44; border-radius: 8px; padding: 9px 10px; background: #111519; color: #e8ebef; }
+.export-dialog footer { margin-top: 4px; display: flex; justify-content: flex-end; gap: 7px; }
+.export-dialog footer button { border: 0; border-radius: 7px; padding: 9px 12px; background: #292f36; color: #c4cbd3; display: inline-flex; align-items: center; gap: 6px; }
+.export-dialog footer button.primary { background: #397edc; color: white; }
+@media (max-width: 700px) { .collection-kind-picker { grid-template-columns: 1fr; } .collection-workspace-kind { display: none; } }
+
 /* Botanical Families explorer */
 .families-page { max-width: 1680px; }
 .families-layout { display: grid; grid-template-columns: minmax(310px, 390px) minmax(0, 1fr); gap: 18px; align-items: start; }

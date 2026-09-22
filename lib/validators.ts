@@ -74,9 +74,13 @@ export const collectionBlockSchema = z.discriminatedUnion("type", [
   z.object({ id: z.string(), type: z.literal("table"), rows: z.number().int().min(1).max(500), columns: z.number().int().min(1).max(100), cells: z.record(z.string(), tableCellSchema), rowSizes: z.array(z.number().min(24).max(500)), columnSizes: z.array(z.number().min(48).max(800)), mergedRanges: z.array(tableRangeSchema) }),
 ]);
 export const collectionDocumentSchema: z.ZodType<CollectionDocument> = z.object({ version: z.literal(1), blocks: z.array(collectionBlockSchema).max(1000) }) as never;
-export const collectionCreateSchema = z.object({ name: z.string().trim().min(1).max(100), description: z.string().max(500).nullable().optional() });
-export const collectionPatchSchema = collectionCreateSchema.partial().refine((value) => Object.keys(value).length > 0);
+export const collectionCreateSchema = z.object({ name: z.string().trim().min(1).max(100), description: z.string().max(500).nullable().optional(), kind: z.enum(["document", "spreadsheet"]).default("document") });
+export const collectionPatchSchema = z.object({ name: z.string().trim().min(1).max(100).optional(), description: z.string().max(500).nullable().optional() }).refine((value) => Object.keys(value).length > 0);
 export const collectionDocumentPatchSchema = z.object({ document: collectionDocumentSchema, revision: z.number().int().nonnegative() });
+
+export function validCollectionDocument(kind: "document" | "spreadsheet", document: CollectionDocument) {
+  return kind === "document" || (document.blocks.length === 1 && document.blocks[0]?.type === "table");
+}
 
 export const conceptOwnerTypeSchema = z.enum(["drug", "collection"]);
 export const conceptTargetTypeSchema = z.enum(["drug_identifier", "study_item", "collection_text", "collection_heading", "collection_hierarchy_item", "table_cell", "table_cell_text", "image"]);

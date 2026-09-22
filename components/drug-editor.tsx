@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, ChevronRight, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Download, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { FieldInputMode, ImportanceLevel, OriginPlant, StudyItem, StudySection } from "@/lib/db/schema";
@@ -40,6 +40,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   const [similarDrugs, setSimilarDrugs] = useState(initialSimilarDrugs);
   const [availableDrugs, setAvailableDrugs] = useState(initialAvailableDrugs);
   const [identityTerms, setIdentityTerms] = useState(initialIdentityTerms);
+  const [exportOpen, setExportOpen] = useState(false);
   const first = useRef(true);
   const draftRef = useRef(draft);
   const revision = useRef(0);
@@ -52,7 +53,8 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
       const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
       if (!response.ok) throw new Error();
       if (revision.current === expectedRevision) setStatus("saved");
-    } catch { setStatus("error"); }
+      return true;
+    } catch { setStatus("error"); return false; }
   }
   useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -115,12 +117,20 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     setPickerSectionId(undefined);
   }
   function saveNow() { window.clearTimeout(timer.current); void persist(draftRef.current, revision.current); }
+  async function openExport() {
+    window.clearTimeout(timer.current);
+    if (status !== "saved" && !await persist(draftRef.current, revision.current)) {
+      window.alert("현재 변경 사항을 저장한 뒤 다시 내보내 주세요.");
+      return;
+    }
+    setExportOpen(true);
+  }
 
   return <div className={`drug-profile ${modal ? "in-modal" : "standalone"}`}>
     <section className="profile-identity indicator-field">
       <div className="profile-name-row">
         <div className="profile-name-fields"><AnchorableInput className="profile-korean-name" value={draft.koreanName} onChange={(value) => setField("koreanName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "koreanName" } }} aria-label="생약명"/><AnchorableInput className="profile-latin-name" value={draft.latinName ?? ""} onChange={(value) => setField("latinName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "latinName" } }} placeholder="Latin name" aria-label="Latin name"/></div>
-        <div className="profile-controls"><select className={`importance-select importance-${importanceClass(draft.importance)}`} value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
+        <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><select className={`importance-select importance-${importanceClass(draft.importance)}`} value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
       </div>
       <div className="identity-lines">
         <IndicatorLine label="기원"><OriginEditor drugId={id} origins={draft.origins} legacyOrigin={draft.origin} suggestions={identitySuggestions.origins} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>
@@ -144,7 +154,15 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     {pickerSectionId ? <ConstituentPicker nodes={constituentData.nodes} edges={constituentData.edges} onChoose={chooseConstituent} onClose={() => setPickerSectionId(undefined)}/> : null}
     {relationshipPicker ? <RelatedDrugPicker type={relationshipPicker} drugs={availableDrugs} onChoose={(targetId) => addRelationship(targetId, relationshipPicker)} onCreate={(name) => createAndRelate(name, relationshipPicker)} onClose={() => setRelationshipPicker(undefined)}/> : null}
     {fieldPickerOpen ? <FieldPicker definitions={fieldDefinitions} sections={draft.sections} onDefinitionsChange={setFieldDefinitions} onSave={applyDefinitions} onClose={() => setFieldPickerOpen(false)}/> : null}
+    {exportOpen ? <DataCardExportDialog drugId={id} drugName={draft.koreanName} onClose={() => setExportOpen(false)}/> : null}
   </div>;
+}
+
+function DataCardExportDialog({ drugId, drugName, onClose }: { drugId: string; drugName: string; onClose: () => void }) {
+  const [format, setFormat] = useState<"pdf" | "docx">("pdf"); const [columns, setColumns] = useState<1 | 2>(2); const [mnemonicMode, setMnemonicMode] = useState<"preferred" | "mine" | "user" | "none" | "all">("preferred"); const [users, setUsers] = useState<{ userId: string; userName: string }[]>([]); const [mnemonicUserId, setMnemonicUserId] = useState(""); const [busy, setBusy] = useState(false);
+  useEffect(() => { fetch(`/api/drugs/${drugId}/mnemonics`).then((response) => response.json()).then((value) => { const unique = new Map<string, string>(); for (const version of value.versions ?? []) unique.set(version.userId, version.userName); const rows = [...unique].map(([userId, userName]) => ({ userId, userName })); setUsers(rows); setMnemonicUserId(rows[0]?.userId ?? ""); }).catch(() => undefined); }, [drugId]);
+  async function download() { setBusy(true); try { const response = await fetch("/api/export/drugs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ drugIds: [drugId], format, columns, mnemonicMode, mnemonicUserId: mnemonicMode === "user" ? mnemonicUserId : undefined }) }); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error ?? "내보내지 못했습니다."); } const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${drugName}.${format}`; anchor.click(); URL.revokeObjectURL(url); onClose(); } catch (error) { window.alert(error instanceof Error ? error.message : "내보내지 못했습니다."); } finally { setBusy(false); } }
+  return <div className="export-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="export-dialog"><header><div><h2>Data Card Export</h2><p>{drugName}</p></div><button onClick={onClose}><X size={18}/></button></header><label>파일 형식<select value={format} onChange={(event) => setFormat(event.target.value as "pdf" | "docx")}><option value="pdf">PDF</option><option value="docx">DOCX</option></select></label><label>레이아웃<select value={columns} onChange={(event) => setColumns(Number(event.target.value) as 1 | 2)}><option value={1}>1 column</option><option value={2}>2 columns</option></select></label><label>암기법<select value={mnemonicMode} onChange={(event) => setMnemonicMode(event.target.value as typeof mnemonicMode)}><option value="preferred">Preferred/default mnemonic</option><option value="mine">My mnemonic</option><option value="user">Specific user mnemonic</option><option value="none">No mnemonic</option><option value="all">All mnemonic versions</option></select></label>{mnemonicMode === "user" ? <label>작성자<select value={mnemonicUserId} onChange={(event) => setMnemonicUserId(event.target.value)}>{users.map((user) => <option value={user.userId} key={user.userId}>{user.userName}</option>)}</select></label> : null}<footer><button onClick={onClose}>취소</button><button className="primary" disabled={busy || (mnemonicMode === "user" && !mnemonicUserId)} onClick={() => void download()}><Download size={14}/> {busy ? "생성 중…" : "내보내기"}</button></footer></section></div>;
 }
 
 function IndicatorLine({ label, children }: { label: string; children: React.ReactNode }) { return <div className="identity-line indicator-line"><strong>{label}</strong><span className="identity-colon">:</span>{children}</div>; }

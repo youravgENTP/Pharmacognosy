@@ -4,9 +4,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { collections, collectionMembers, conceptAnchors, conceptConnections, crudeDrugs } from "@/lib/db/schema";
 import { collectionCreateSchema } from "@/lib/validators";
+import { initialCollectionDocument } from "@/lib/collections";
 
 export async function GET() { const authError = await authorizeApi("user"); if (authError) return authError;
-  const rows = await db.select({ id: collections.id, name: collections.name, description: collections.description, revision: collections.revision, createdAt: collections.createdAt, updatedAt: collections.updatedAt }).from(collections).orderBy(asc(collections.createdAt));
+  const rows = await db.select({ id: collections.id, name: collections.name, description: collections.description, kind: collections.kind, revision: collections.revision, createdAt: collections.createdAt, updatedAt: collections.updatedAt }).from(collections).orderBy(asc(collections.createdAt));
   const members = await db.select({ collectionId: collectionMembers.collectionId, id: crudeDrugs.id, koreanName: crudeDrugs.koreanName }).from(collectionMembers).innerJoin(crudeDrugs, eq(collectionMembers.crudeDrugId, crudeDrugs.id));
   const anchors = rows.length ? await db.select().from(conceptAnchors).where(inArray(conceptAnchors.ownerId, rows.map((row) => row.id))) : [];
   const ids = anchors.map((anchor) => anchor.id); const connections = ids.length ? await db.select().from(conceptConnections).where(or(inArray(conceptConnections.anchorAId, ids), inArray(conceptConnections.anchorBId, ids))) : [];
@@ -17,6 +18,6 @@ export async function GET() { const authError = await authorizeApi("user"); if (
 export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const parsed = collectionCreateSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  const [created] = await db.insert(collections).values(parsed.data).returning();
+  const [created] = await db.insert(collections).values({ ...parsed.data, document: initialCollectionDocument(parsed.data.kind) }).returning();
   return NextResponse.json(created, { status: 201 });
 }

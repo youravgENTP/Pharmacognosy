@@ -34,10 +34,10 @@ export function DrugMnemonicVersions({ drugId, mode, onRemove }: { drugId: strin
     fetch(`/api/drugs/${drugId}/mnemonics`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("암기법을 불러오지 못했습니다.");
-        return response.json() as Promise<{ currentUserId: string; versions: MnemonicVersion[] }>;
+        return response.json() as Promise<{ currentUserId: string; preferredMnemonicUserId: string | null; versions: MnemonicVersion[] }>;
       })
       .then((result) => {
-        const selected = result.versions.find((version) => version.isMine) ?? result.versions[0];
+        const selected = result.versions.find((version) => version.userId === result.preferredMnemonicUserId) ?? result.versions.find((version) => version.isMine) ?? result.versions[0];
         setVersions(result.versions);
         setCurrentUserId(result.currentUserId);
         setSelectedUserId(selected?.userId ?? NEW_MINE);
@@ -68,6 +68,7 @@ export function DrugMnemonicVersions({ drugId, mode, onRemove }: { drugId: strin
     if (!next) return;
     setSelectedUserId(next.userId);
     setContent({ items: next.items, blocks: next.blocks });
+    void fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: next.userId }) });
   }
 
   function change(next: MnemonicContent) {
@@ -89,6 +90,7 @@ export function DrugMnemonicVersions({ drugId, mode, onRemove }: { drugId: strin
       const saved = await response.json() as MnemonicVersion;
       setVersions((current) => [saved, ...current.filter((version) => version.userId !== saved.userId)]);
       setSelectedUserId((current) => current === savingSelection ? saved.userId : current);
+      if (savingSelection === NEW_MINE) void fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: saved.userId }) });
       if (revision.current === expectedRevision) setStatus("saved");
     } catch { if (revision.current === expectedRevision) setStatus("error"); }
   }

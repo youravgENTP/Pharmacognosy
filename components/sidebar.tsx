@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsLeft, ChevronsRight, Flower2, Layers3, Leaf, LogOut, PanelsTopLeft, Settings, UserRound } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Download, Flower2, Layers3, Leaf, LogOut, PanelsTopLeft, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -15,6 +15,7 @@ const links = [
   { href: "/families", label: "Families", icon: Flower2 },
   { href: "/collections", label: "Collections", icon: Layers3 },
   { href: "/cards", label: "Word Cards", icon: PanelsTopLeft },
+  { href: "/export", label: "Export", icon: Download },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

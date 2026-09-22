@@ -19,7 +19,7 @@ export async function loadDrugExportCards(ids: string[], viewingUserId: string, 
     const fields: PdfField[] = [];
     if (drug.scientificName) fields.push({ title: "학명", lines: [{ text: drug.scientificName, italic: true }] });
     if (drug.medicinalPart) fields.push({ title: "약용부위", lines: [{ text: drug.medicinalPart }] });
-    const originLines = drug.origins.length ? drug.origins.map((origin) => [origin.nameKo, origin.scientificName].filter(Boolean).join(" · ")) : [drug.origin].filter(Boolean) as string[];
+    const originLines = (drug.origins.length ? drug.origins.map((origin) => [origin.nameKo, origin.scientificName].filter(Boolean).join(" · ")) : [drug.origin]).filter((value): value is string => Boolean(value?.trim()));
     if (originLines.length) fields.push({ title: "기원", lines: originLines.map((text) => ({ text })) });
     if (drug.family) fields.push({ title: "과", lines: [{ text: drug.family }] });
     if (drug.relatedDrugs.length) fields.push({ title: "연관생약", lines: drug.relatedDrugs.map((item) => ({ text: item.name })) });
@@ -35,7 +35,7 @@ export async function loadDrugExportCards(ids: string[], viewingUserId: string, 
 
 async function studyField(title: string, items: StudyItem[], blocks: import("@/lib/db/schema").StudyBlock[]): Promise<PdfField> {
   const lines: PdfField["lines"] = [];
-  const visit = (rows: StudyItem[], depth: number) => rows.forEach((item, index) => { const marker = `${hierarchyMarker(depth, index)} `; const html = item.html ? `${marker}${item.html}` : undefined; lines.push({ text: `${marker}${plainText(item.html, item.text)}`, html, runs: richTextRuns(html, `${marker}${item.text}`), indent: depth * 13, bold: item.bold, italic: item.italic, gapAfter: 2 }); visit(item.children ?? [], depth + 1); });
+  const visit = (rows: StudyItem[], depth: number) => rows.forEach((item, index) => { const content = plainText(item.html, item.text).trim(); if (content) { const marker = `${hierarchyMarker(depth, index)} `; const html = item.html ? `${marker}${item.html}` : undefined; lines.push({ text: `${marker}${content}`, html, runs: richTextRuns(html, `${marker}${content}`), indent: depth * 13, bold: item.bold, italic: item.italic, gapAfter: 2 }); } visit(item.children ?? [], depth + 1); });
   const itemBlocks = (blocks ?? []).filter((block): block is Extract<import("@/lib/db/schema").StudyBlock, { type: "items" }> => block.type === "items");
   if (itemBlocks.length) for (const block of itemBlocks) visit(block.items, 0); else visit(items, 0);
   const images = (await Promise.all(studyImages(blocks).map(async (image) => { const media = await readMediaAsset(image.mediaAssetId).catch(() => null); return media?.buffer ? { buffer: await exportImageBuffer(Buffer.from(media.buffer), media.asset.mimeType), width: media.asset.width, height: media.asset.height } : null; }))).filter((value): value is NonNullable<typeof value> => Boolean(value));

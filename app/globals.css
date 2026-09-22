@@ -719,6 +719,48 @@ html, body { background: var(--paper); color: var(--ink); }
 .export-dialog footer { margin-top: 4px; display: flex; justify-content: flex-end; gap: 7px; }
 .export-dialog footer button { border: 0; border-radius: 7px; padding: 9px 12px; background: #292f36; color: #c4cbd3; display: inline-flex; align-items: center; gap: 6px; }
 .export-dialog footer button.primary { background: #397edc; color: white; }
+.data-export-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 18px; align-items: start; }
+.data-export-picker { min-width: 0; padding: 18px; }
+.data-export-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.data-export-summary > div { display: flex; align-items: baseline; gap: 7px; }
+.data-export-summary strong { color: #79adf2; font-size: 25px; }
+.data-export-summary span { color: #9aa4ae; font-size: 13px; }
+.data-export-summary button, .data-export-quick button { border: 1px solid #37414b; border-radius: 7px; padding: 7px 9px; background: #20262c; color: #aeb8c2; display: inline-flex; align-items: center; gap: 5px; }
+.data-export-summary button:disabled { opacity: .4; }
+.data-export-quick { margin: 14px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.data-export-quick button:hover { border-color: #527fb4; color: #b8d8ff; }
+.data-export-quick small { color: #71808e; }
+.data-export-list-tools { display: grid; grid-template-columns: minmax(180px,1fr) 190px; gap: 8px; }
+.data-export-list-tools .search-wrap { margin: 0; }
+.data-export-list-tools select, .data-export-options select { border: 1px solid #343d46; border-radius: 8px; padding: 8px 10px; background: #111519; color: #dfe4e9; }
+.data-export-drugs { max-height: min(640px, calc(100vh - 315px)); min-height: 240px; margin-top: 12px; border: 1px solid #303840; border-radius: 9px; overflow: auto; }
+.data-export-drugs > label { min-height: 55px; padding: 8px 10px; border-bottom: 1px solid #292f35; display: grid; grid-template-columns: 18px 27px minmax(0,1fr) auto; align-items: center; gap: 9px; cursor: pointer; }
+.data-export-drugs > label:last-child { border-bottom: 0; }
+.data-export-drugs > label:hover { background: #1c2228; }
+.data-export-drugs > label.selected { background: rgba(48,93,145,.2); }
+.data-export-drugs input { position: absolute; opacity: 0; pointer-events: none; }
+.data-export-check { width: 17px; height: 17px; border: 1px solid #4a5662; border-radius: 4px; color: white; display: grid; place-items: center; }
+.data-export-drugs label.selected .data-export-check { border-color: #4a8ee3; background: #397edc; }
+.data-export-drugs > label > b { color: #788794; font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
+.data-export-drugs > label > span:nth-of-type(2) { min-width: 0; display: grid; gap: 2px; }
+.data-export-drugs strong { color: #dfe4e8; font-size: 13px; }
+.data-export-drugs small { overflow: hidden; color: #75818d; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.data-export-drugs em { border-radius: 99px; padding: 3px 7px; font-size: 10px; font-style: normal; }
+.data-export-drugs em.importance-important { background: #4a2529; color: #f0a5ad; }
+.data-export-drugs em.importance-medium { background: #45391e; color: #e2c67c; }
+.data-export-drugs em.importance-low { background: #252d35; color: #8895a1; }
+.data-export-options { position: sticky; top: 24px; display: grid; gap: 15px; }
+.data-export-options > header { display: flex; align-items: flex-start; gap: 10px; }
+.data-export-options > header svg { color: #73a7ec; }
+.data-export-options h2 { margin: 0; font-size: 18px; }
+.data-export-options p { margin: 4px 0 0; color: #7d8994; font-size: 11px; line-height: 1.5; }
+.data-export-options > label { color: #9ba6b0; display: grid; gap: 6px; font-size: 11px; font-weight: 700; }
+.data-export-options .data-export-error { margin: 0; border: 1px solid #73383b; border-radius: 7px; padding: 8px; background: #2d191b; color: #f0a0a5; font-size: 11px; }
+.data-export-submit { min-height: 42px; border: 0; border-radius: 8px; background: #397edc; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 750; }
+.data-export-submit:disabled { background: #29333e; color: #65717c; cursor: not-allowed; }
+.data-export-options > small { color: #707c87; text-align: center; }
+@media (max-width: 900px) { .data-export-layout { grid-template-columns: 1fr; } .data-export-options { position: static; } .data-export-drugs { max-height: 520px; } }
+@media (max-width: 620px) { .data-export-list-tools { grid-template-columns: 1fr; } .data-export-drugs > label { grid-template-columns: 18px 27px minmax(0,1fr); } .data-export-drugs em { display: none; } }
 @media (max-width: 700px) { .collection-kind-picker { grid-template-columns: 1fr; } .collection-workspace-kind { display: none; } }
 
 /* Botanical Families explorer */

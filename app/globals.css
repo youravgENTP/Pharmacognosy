@@ -332,7 +332,8 @@ h1 { font-weight: 750; letter-spacing: -.035em; }
 
 /* Vertical crude-drug profile */
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(15,18,23,.64); backdrop-filter: blur(3px); display: flex; justify-content: center; align-items: flex-start; padding: 28px; overflow: hidden; }
-.profile-modal-card { position: relative; width: min(820px, 100%); height: calc(100vh - 56px); max-height: calc(100vh - 56px); background: white; border-radius: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.28); overflow-x: hidden; overflow-y: auto; }
+.profile-modal-card { position: relative; width: min(820px, 100%); height: calc(100vh - 56px); max-height: calc(100vh - 56px); background: white; border-radius: 18px; box-shadow: 0 28px 80px rgba(0,0,0,.28); overflow: hidden; }
+.profile-modal-body { width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; }
 .modal-close { position: absolute; top: 17px; right: 18px; z-index: 30; border: 0; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #f0f2f5; color: #59616c; }
 .modal-close:hover { background: #e3e7ec; color: #171b22; }
 .drug-profile { background: white; min-height: 100vh; }
@@ -562,6 +563,15 @@ html, body { background: var(--paper); color: var(--ink); }
 .inline-add { border: 0; background: transparent; color: #8db8f5; padding: 4px 5px; display: inline-flex; align-items: center; gap: 4px; }
 .profile-field-title h2 { flex: 1; margin: 0; color: #f2f4f7; font-size: 19px; font-weight: 800; }
 .profile-field-title { min-height: 34px; }
+.mnemonic-title { gap: 8px; }
+.mnemonic-title h2 { min-width: 0; }
+.mnemonic-version-select { width: auto; max-width: 190px; height: 32px; border: 1px solid #3b4652; border-radius: 7px; padding: 0 28px 0 10px; background: #20262c; color: #dce2e9; font-size: 12px; }
+.mnemonic-save-status, .mnemonic-read-only { flex: 0 0 auto; color: #7e8995; font-size: 11px; }
+.mnemonic-save-status.error { color: #df7777; }
+.mnemonic-loading { min-height: 52px; color: #7e8995; font-size: 13px; }
+.study-content-editor.read-only { opacity: .88; }
+.study-content-editor.read-only .rich-study-input, .study-content-editor.read-only .plain-field-editor { cursor: default; }
+.profile-modal-body .profile-name-row { padding-right: 92px; }
 .field-remove { align-self: center; border: 0; background: transparent; color: #78818c; padding: 5px; display: grid; place-items: center; opacity: 1; }
 .field-remove:hover { color: #e47777; }
 .add-field-row > button { border: 1px dashed #4a525c; border-radius: 9px; padding: 10px 14px; background: transparent; color: #9ca5b0; display: inline-flex; align-items: center; gap: 7px; }
@@ -617,6 +627,9 @@ html, body { background: var(--paper); color: var(--ink); }
   .profile-name-row { padding-right: 0; }
   .profile-controls { padding-right: 48px; }
   .modal-close { top: 37px; right: 22px; }
+  .profile-modal-body .profile-name-row { padding-right: 64px; }
+  .mnemonic-title { flex-wrap: wrap; }
+  .mnemonic-title h2 { flex-basis: 100%; }
   .field-card-grid { grid-template-columns: 1fr; }
 }
 

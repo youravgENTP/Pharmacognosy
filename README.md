@@ -34,3 +34,7 @@ To establish the owner account:
 Admins create later invitations in **Settings → Users**. Each invitation is normalized to lowercase, expires after 7 days, is consumed at signup, and creates an `editor` profile. For local development, run `npm install`, `npm run db:migrate`, perform the admin bootstrap above, then `npm run dev`.
 
 Password recovery is handled by an administrator in **Settings → Users**. Resetting a password revokes all of that user's existing sessions. If every administrator is locked out, run `npm run auth:reset-password -- user@example.com` in a trusted terminal, then enter and confirm the new password at the hidden prompts. The command resolves the account by normalized email, hashes the new password through Better Auth, and revokes every existing session for that user.
+
+## User mnemonic migration
+
+The `암기법` field definition and its placement remain shared, but mnemonic content is stored per user in `user_drug_mnemonics`. Migration `0009_outstanding_vargas` cannot safely infer ownership of older shared mnemonic content, so it copies that content to `legacy_drug_mnemonics` before clearing it from the shared `crude_drugs.sections` payload. Legacy rows are retained as a recovery archive and are not exposed as a fake authored version. Any concept anchors that targeted the old shared mnemonic are marked historical with their snapshots intact; new user mnemonics intentionally do not create concept anchors, avoiding ambiguous cross-user targets. Removing and later re-adding the `암기법` field does not delete user mnemonic rows.

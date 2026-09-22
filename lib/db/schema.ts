@@ -123,6 +123,27 @@ export const crudeDrugs = pgTable("crude_drugs", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("crude_drugs_category_idx").on(t.categoryId), uniqueIndex("crude_drugs_korean_name_idx").on(t.koreanName)]);
 
+export const userDrugMnemonics = pgTable("user_drug_mnemonics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  items: jsonb("items").$type<StudyItem[]>().notNull().default([]),
+  blocks: jsonb("blocks").$type<StudyBlock[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("user_drug_mnemonics_drug_user_idx").on(t.drugId, t.userId),
+  index("user_drug_mnemonics_drug_idx").on(t.drugId),
+  index("user_drug_mnemonics_user_idx").on(t.userId),
+]);
+
+export const legacyDrugMnemonics = pgTable("legacy_drug_mnemonics", {
+  drugId: uuid("drug_id").primaryKey().references(() => crudeDrugs.id, { onDelete: "cascade" }),
+  items: jsonb("items").$type<StudyItem[]>().notNull().default([]),
+  blocks: jsonb("blocks").$type<StudyBlock[]>().notNull().default([]),
+  migratedAt: timestamp("migrated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const mediaAssets = pgTable("media_assets", {
   id: uuid("id").defaultRandom().primaryKey(),
   blobUrl: text("blob_url").notNull(),
@@ -273,6 +294,7 @@ export const crudeDrugRelations = relations(crudeDrugs, ({ one, many }) => ({
   category: one(categories, { fields: [crudeDrugs.categoryId], references: [categories.id] }),
   family: one(families, { fields: [crudeDrugs.familyId], references: [families.id] }),
   collectionMembers: many(collectionMembers),
+  mnemonics: many(userDrugMnemonics),
 }));
 export const collectionRelations = relations(collections, ({ many }) => ({ members: many(collectionMembers) }));
 export const conceptAnchorRelations = relations(conceptAnchors, ({ many }) => ({ connectionsA: many(conceptConnections, { relationName: "anchorA" }), connectionsB: many(conceptConnections, { relationName: "anchorB" }) }));
@@ -286,8 +308,13 @@ export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
   profile: one(userProfiles, { fields: [user.id], references: [userProfiles.userId] }),
   invitations: many(userInvitations),
+  drugMnemonics: many(userDrugMnemonics),
 }));
 export const sessionRelations = relations(session, ({ one }) => ({ user: one(user, { fields: [session.userId], references: [user.id] }) }));
 export const accountRelations = relations(account, ({ one }) => ({ user: one(user, { fields: [account.userId], references: [user.id] }) }));
 export const userProfileRelations = relations(userProfiles, ({ one }) => ({ user: one(user, { fields: [userProfiles.userId], references: [user.id] }) }));
 export const userInvitationRelations = relations(userInvitations, ({ one }) => ({ invitedBy: one(user, { fields: [userInvitations.invitedByUserId], references: [user.id] }) }));
+export const userDrugMnemonicRelations = relations(userDrugMnemonics, ({ one }) => ({
+  drug: one(crudeDrugs, { fields: [userDrugMnemonics.drugId], references: [crudeDrugs.id] }),
+  user: one(user, { fields: [userDrugMnemonics.userId], references: [user.id] }),
+}));

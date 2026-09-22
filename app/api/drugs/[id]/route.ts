@@ -2,7 +2,7 @@ import { authorizeApi } from "@/lib/auth/permissions";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { crudeDrugs } from "@/lib/db/schema";
+import { crudeDrugs, fieldDefinitions } from "@/lib/db/schema";
 import { drugPatchSchema, uuidSchema } from "@/lib/validators";
 import { getDrugProfile } from "@/lib/data/drug";
 
@@ -19,7 +19,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const parsed = drugPatchSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   try {
-    const [updated] = await db.update(crudeDrugs).set({ ...parsed.data, updatedAt: new Date() }).where(eq(crudeDrugs.id, id)).returning();
+    const [mnemonicField] = parsed.data.sections ? await db.select({ id: fieldDefinitions.id }).from(fieldDefinitions).where(eq(fieldDefinitions.name, "암기법")).limit(1) : [];
+    const sections = parsed.data.sections?.map((section) => section.title === "암기법" || section.fieldDefinitionId === mnemonicField?.id ? { ...section, items: [], blocks: [] } : section);
+    const [updated] = await db.update(crudeDrugs).set({ ...parsed.data, ...(sections ? { sections } : {}), updatedAt: new Date() }).where(eq(crudeDrugs.id, id)).returning();
     if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(updated);
   } catch (error) {

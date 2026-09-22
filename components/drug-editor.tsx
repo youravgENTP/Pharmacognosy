@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { FieldInputMode, ImportanceLevel, OriginPlant, StudyItem, StudySection } from "@/lib/db/schema";
 import { StudyContentEditor } from "@/components/study-content-editor";
+import { DrugMnemonicVersions } from "@/components/drug-mnemonic-versions";
 import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
 import { ConceptBoundary, conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 
@@ -129,6 +130,7 @@ function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDr
     <div className="profile-sections">{draft.sections.map((section) => {
       const name = fieldName(section);
       const inputMode = fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.inputMode ?? "hierarchy4";
+      if (name === "암기법") return <DrugMnemonicVersions key={section.id} drugId={id} mode={inputMode} onRemove={() => void removeSection(section.id)}/>;
       return <section className="profile-field" key={section.id}>
         <div className="profile-field-title"><h2>{name}</h2><button className="field-remove" onClick={() => void removeSection(section.id)} title="이 생약에서 필드 삭제" aria-label={`${name} 삭제`}><X size={21}/></button></div>
         <StudyContentEditor items={section.items} blocks={section.blocks} mode={inputMode} taxonomy={name === "성분" ? constituentData : undefined} concept={{ ownerType: "drug", ownerId: id, sectionId: section.id }} onChange={(value) => updateSection(section.id, value)}/>

@@ -13,5 +13,5 @@ export function ProfileModal({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", handler);
     return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", handler); };
   });
-  return <div className="modal-backdrop" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}><div className="profile-modal-card"><button className="modal-close" onClick={close} aria-label="닫기"><X size={21}/></button>{children}</div></div>;
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}><div className="profile-modal-card"><button className="modal-close" onClick={close} aria-label="닫기"><X size={21}/></button><div className="profile-modal-body">{children}</div></div></div>;
 }

@@ -64,6 +64,13 @@
       "when": 1789971195254,
       "tag": "0008_abandoned_adam_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790040202430,
+      "tag": "0009_outstanding_vargas",
+      "breakpoints": true
     }
   ]
 }

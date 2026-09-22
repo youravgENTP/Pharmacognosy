@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CollectionDocument, StudyItem } from "@/lib/db/schema";
+import type { CollectionDocument, StudyBlock, StudyItem } from "@/lib/db/schema";
 
 export const uuidSchema = z.string().uuid();
 export const drugPatchSchema = z.object({
@@ -41,6 +41,27 @@ export const studyItemSchema: z.ZodType<StudyItem> = z.lazy(() => z.object({
   linkedConstituentId: z.string().optional(),
   children: z.array(studyItemSchema).optional(),
 })) as never;
+
+export const studyBlockSchema: z.ZodType<StudyBlock> = z.discriminatedUnion("type", [
+  z.object({ id: z.string(), type: z.literal("items"), items: z.array(studyItemSchema) }),
+  z.object({
+    id: z.string(),
+    type: z.literal("image"),
+    mediaAssetId: z.string().uuid(),
+    size: z.enum(["small", "medium", "large", "full"]),
+    widthPercent: z.number().min(15).max(100).optional(),
+    xPercent: z.number().min(0).max(85).optional(),
+    yPx: z.number().optional(),
+    anchorItemId: z.string().optional(),
+    anchorSide: z.enum(["before", "after"]).optional(),
+    align: z.enum(["left", "center", "right"]).optional(),
+  }),
+]) as z.ZodType<StudyBlock>;
+
+export const mnemonicPayloadSchema = z.object({
+  items: z.array(studyItemSchema).max(1000),
+  blocks: z.array(studyBlockSchema).max(1000),
+});
 
 const richTextSchema = z.object({ text: z.string(), html: z.string().max(100000).optional() });
 const tableRangeSchema = z.object({ startRow: z.number().int().nonnegative(), startColumn: z.number().int().nonnegative(), endRow: z.number().int().nonnegative(), endColumn: z.number().int().nonnegative() });

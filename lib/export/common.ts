@@ -1,4 +1,6 @@
 import type { StudyBlock, StudyItem } from "@/lib/db/schema";
+import { parseInlineRuns } from "@/lib/rich-text";
+export type { InlineTextRun } from "@/lib/rich-text";
 export type { PdfField, PdfCard } from "@/lib/export/pdf";
 
 export function safeFilename(value: string, fallback = "HerbOverflow") {
@@ -11,10 +13,7 @@ export function plainText(html: string | undefined, fallback: string) {
 }
 
 export function richTextRuns(html: string | undefined, fallback: string) {
-  if (!html) return [{ text: fallback }];
-  const state = { bold: false, italic: false, color: undefined as string | undefined }; const runs: { text: string; bold?: boolean; italic?: boolean; color?: string }[] = [];
-  for (const token of html.replace(/<br\s*\/?\s*>/gi, "\n").split(/(<[^>]+>)/).filter(Boolean)) { if (token.startsWith("<")) { const closing = /^<\//.test(token); const tag = token.match(/^<\/?\s*([a-z0-9]+)/i)?.[1]?.toLowerCase(); if (tag === "b" || tag === "strong") state.bold = !closing; if (tag === "i" || tag === "em") state.italic = !closing; if (tag === "span") state.color = closing ? undefined : token.match(/color\s*:\s*(#[0-9a-f]{6})/i)?.[1]; continue; } const text = token.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"); if (text) runs.push({ text, bold: state.bold, italic: state.italic, color: state.color }); }
-  return runs.length ? runs : [{ text: fallback }];
+  return parseInlineRuns(html, fallback);
 }
 
 export function flattenStudyItems(items: StudyItem[], depth = 0): { text: string; html?: string; depth: number; bold?: boolean; italic?: boolean }[] {

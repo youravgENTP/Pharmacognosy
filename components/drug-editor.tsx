@@ -10,6 +10,7 @@ import { DrugMnemonicVersions } from "@/components/drug-mnemonic-versions";
 import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
 import { ConceptBoundary, conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 import { taxonomyIndent } from "@/lib/constituent-taxonomy";
+import { appendStudyItem } from "@/lib/study-blocks";
 
 type DrugDraft = {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
@@ -209,9 +210,7 @@ function hasContent(items: StudyItem[]): boolean { return items.some((item) => i
 function sortDrug(a: { catalogIndex: number | null; referenceIndex?: number | null; name: string }, b: { catalogIndex: number | null; referenceIndex?: number | null; name: string }) { return compareDrugIndexes(a, b); }
 function appendItem(section: StudySection, item: StudyItem): Partial<StudySection> {
   if (!section.blocks?.length) return { items: hasContent(section.items) ? [...section.items, item] : [item] };
-  const blocks = structuredClone(section.blocks); let target = [...blocks].reverse().find((block) => block.type === "items");
-  if (!target || target.type !== "items") { target = { id: crypto.randomUUID(), type: "items", items: [] }; blocks.push(target); }
-  if (hasContent(target.items)) target.items.push(item); else target.items = [item];
+  const blocks = appendStudyItem(section.blocks, item, () => crypto.randomUUID());
   return { blocks, items: blocks.flatMap((block) => block.type === "items" ? block.items : []) };
 }
 function sortSections(sections: StudySection[], definitions: FieldDefinition[]) {

@@ -8,6 +8,7 @@ import { useLatexShortcuts } from "@/components/use-latex-shortcuts";
 import type { FieldInputMode, StudyBlock, StudyItem } from "@/lib/db/schema";
 import { applyLatexShortcuts } from "@/lib/latex-shortcuts";
 import { conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
+import { normalizeStudyBlocks, visibleStudyBlocks } from "@/lib/study-blocks";
 
 type ChangeValue = { items: StudyItem[]; blocks: StudyBlock[] };
 
@@ -16,8 +17,9 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, co
   const latexShortcuts = useLatexShortcuts();
   const legacyId = useId(); const fileInput = useRef<HTMLInputElement>(null); const editorRoot = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false); const [dragging, setDragging] = useState(false); const [error, setError] = useState<string>();
-  const rendered: StudyBlock[] = blocks?.length ? blocks : [{ id: `legacy-${legacyId}`, type: "items", items }];
-  function commit(next: StudyBlock[]) { onChange({ blocks: next, items: next.flatMap((block) => block.type === "items" ? block.items : []) }); }
+  const fallback: StudyBlock = { id: `legacy-${legacyId}`, type: "items", items };
+  const rendered = visibleStudyBlocks(blocks?.length ? blocks : [fallback], fallback);
+  function commit(next: StudyBlock[]) { const normalized = normalizeStudyBlocks(next); onChange({ blocks: normalized, items: normalized.flatMap((block) => block.type === "items" ? block.items : []) }); }
   function updateText(id: string, nextItems: StudyItem[]) { commit(rendered.map((block) => block.id === id && block.type === "items" ? { ...block, items: nextItems } : block)); }
   function updateImage(id: string, patch: Partial<Extract<StudyBlock, { type: "image" }>>) { commit(rendered.map((block) => block.id === id && block.type === "image" ? { ...block, ...patch } : block)); }
 
@@ -81,11 +83,6 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, co
           widthPercent: 50,
           xPercent: 0,
           align: "left",
-        },
-        {
-          id: crypto.randomUUID(),
-          type: "items",
-          items: [],
         },
       ]);
     } catch (caught) {

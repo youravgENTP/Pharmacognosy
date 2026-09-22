@@ -1,7 +1,9 @@
 import path from "node:path";
 import PDFDocument from "pdfkit";
+import type { InlineTextRun } from "@/lib/rich-text";
+import { cssColorToHex } from "@/lib/rich-text";
 
-export type PdfLine = { text: string; html?: string; runs?: { text: string; bold?: boolean; italic?: boolean; color?: string }[]; indent?: number; bold?: boolean; italic?: boolean; size?: number; color?: string; gapAfter?: number };
+export type PdfLine = { text: string; html?: string; runs?: InlineTextRun[]; indent?: number; bold?: boolean; italic?: boolean; size?: number; color?: string; gapAfter?: number };
 export type PdfImage = { buffer: Buffer; width: number; height: number; caption?: string };
 export type PdfTable = { rows: number; columns: number; cells: Record<string, { text: string; bold?: boolean; italic?: boolean; strikethrough?: boolean; highlight?: string; textColor?: string; horizontal?: "left" | "center" | "right"; vertical?: "top" | "middle" | "bottom" }>; rowSizes: number[]; columnSizes: number[]; mergedRanges: { startRow: number; startColumn: number; endRow: number; endColumn: number }[] };
 export type PdfField = { title: string; lines: PdfLine[]; images?: PdfImage[]; table?: PdfTable };
@@ -44,7 +46,35 @@ class PdfColumnFlow {
   ensure(height: number) { if (this.doc.y + height > this.bottom && this.doc.y > this.margin + 2) { this.advance(); return true; } return false; }
   gap(value: number) { this.ensure(value); this.doc.y += value; }
   textHeight(text: string, size = 10, bold = false, indent = 0) { this.doc.font(bold ? "NotoBold" : "Noto").fontSize(size); return this.doc.heightOfString(text || " ", { width: this.width - indent, lineGap: 2 }); }
-  text(text: string, line: Omit<PdfLine, "text"> = {}) { const size = line.size ?? 10, indent = line.indent ?? 0; const height = this.textHeight(text, size, line.bold, indent); this.ensure(height + (line.gapAfter ?? 2)); if (line.runs?.length) { this.doc.x = this.x + indent; for (const [index, run] of line.runs.entries()) this.doc.font(run.bold || line.bold ? "NotoBold" : "Noto").fontSize(size).fillColor(run.color ?? line.color ?? "#1c2733").text(run.text, { width: this.width - indent, lineGap: 2, oblique: run.italic || line.italic, continued: index < line.runs.length - 1 }); } else this.doc.font(line.bold ? "NotoBold" : "Noto").fontSize(size).fillColor(line.color ?? "#1c2733").text(text || " ", this.x + indent, this.doc.y, { width: this.width - indent, lineGap: 2, oblique: line.italic }); this.doc.y += line.gapAfter ?? 2; }
+  text(text: string, line: Omit<PdfLine, "text"> = {}) {
+    const size = line.size ?? 10, indent = line.indent ?? 0;
+    const height = this.textHeight(text, size, line.bold, indent);
+    this.ensure(height + (line.gapAfter ?? 2));
+    if (line.runs?.length) {
+      this.doc.x = this.x + indent;
+      for (const [index, run] of line.runs.entries()) {
+        const runSize = run.superscript || run.subscript ? size * .72 : size;
+        this.doc.font(run.bold || line.bold ? "NotoBold" : "Noto").fontSize(runSize);
+        const highlight = cssColorToHex(run.highlight);
+        if (highlight && !run.text.includes("\n")) {
+          const available = this.x + this.width - this.doc.x;
+          const width = Math.min(Math.max(0, available), this.doc.widthOfString(run.text));
+          if (width > 0) this.doc.save().fillColor(`#${highlight}`).opacity(.35).rect(this.doc.x, this.doc.y, width, runSize + 2).fill().restore();
+        }
+        this.doc.fillColor(run.color ?? line.color ?? "#1c2733").text(run.text, {
+          width: this.width - indent,
+          lineGap: 2,
+          oblique: run.italic || line.italic,
+          underline: run.underline,
+          strike: run.strike,
+          baseline: run.superscript ? size * .32 : run.subscript ? -size * .18 : undefined,
+          characterSpacing: run.characterSpacing === "tight" ? -.3 : run.characterSpacing === "wide" ? .8 : 0,
+          continued: index < line.runs.length - 1,
+        });
+      }
+    } else this.doc.font(line.bold ? "NotoBold" : "Noto").fontSize(size).fillColor(line.color ?? "#1c2733").text(text || " ", this.x + indent, this.doc.y, { width: this.width - indent, lineGap: 2, oblique: line.italic });
+    this.doc.y += line.gapAfter ?? 2;
+  }
   fieldHeight(field: PdfField) { let value = field.title ? this.textHeight(field.title, 12, true) + 7 : 0; for (const line of field.lines) value += this.textHeight(line.text, line.size ?? 10, line.bold, line.indent ?? 0) + (line.gapAfter ?? 2); for (const image of field.images ?? []) value += Math.min(220, image.height * Math.min(1, (this.width - 8) / image.width)) + (image.caption ? 18 : 8); if (field.table) value += this.tableLayout(field.table).heights.reduce((sum, height) => sum + height, 0); return value + 9; }
   field(field: PdfField) {
     const estimated = this.fieldHeight(field); this.ensure(Math.min(estimated, this.capacity));

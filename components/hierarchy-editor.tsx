@@ -1,11 +1,12 @@
 "use client";
 
-import { Bold, ChevronDown, GitBranch, Highlighter, Italic, Palette, Trash2 } from "lucide-react";
+import { Bold, ChevronDown, GitBranch, Highlighter, Italic, Palette, Strikethrough, Subscript, Superscript, Trash2, Underline } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FieldInputMode, StudyItem } from "@/lib/db/schema";
 import { applyLatexShortcuts, type LatexShortcut } from "@/lib/latex-shortcuts";
 import { conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
+import { characterSpacingCss, sanitizeRichHtml, type CharacterSpacing } from "@/lib/rich-text";
 
 export type TaxonomyData = { nodes: { id: string; name: string; kind: string }[]; edges: { parentId: string; childId: string }[] };
 
@@ -378,8 +379,26 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
     }
 
     document.execCommand("styleWithCSS", false, "true");
+    if (name === "superscript" && document.queryCommandState("subscript")) document.execCommand("subscript");
+    if (name === "subscript" && document.queryCommandState("superscript")) document.execCommand("superscript");
     document.execCommand(name, false, value);
     rememberSelection();
+    emit();
+  }
+  function applyCharacterSpacing(spacing: CharacterSpacing) {
+    const node = editor.current;
+    if (!node || !restoreSelection()) return;
+    const selection = window.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+    if (!range || range.collapsed || !node.contains(range.commonAncestorContainer)) return;
+    const span = document.createElement("span");
+    span.style.letterSpacing = characterSpacingCss[spacing];
+    span.append(range.extractContents());
+    range.insertNode(span);
+    range.selectNodeContents(span);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    savedRange.current = range.cloneRange();
     emit();
   }
   function chooseHighlight(color: string) { setHighlightColor(color); setPaletteOpen(false); if (!presets.includes(color)) { const next = [...presets, color].slice(-8); setPresets(next); localStorage.setItem("highlight-presets", JSON.stringify(next)); } }
@@ -427,9 +446,9 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
           return;
         }
 
-        if ((event.metaKey || event.ctrlKey) && ["b", "i"].includes(event.key.toLowerCase())) {
+        if ((event.metaKey || event.ctrlKey) && ["b", "i", "u"].includes(event.key.toLowerCase())) {
         event.preventDefault();
-        command(event.key.toLowerCase() === "b" ? "bold" : "italic");
+        command({ b: "bold", i: "italic", u: "underline" }[event.key.toLowerCase()]!);
         return;
       }
 
@@ -466,7 +485,18 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
     text: selection,
   });
 }}/>
-    {!readOnly ? <div className="hierarchy-actions"><button onMouseDown={(event) => event.preventDefault()} onClick={() => command("bold")} title="선택 영역 굵게 · ⌘B"><Bold size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => command("italic")} title="선택 영역 기울임 · ⌘I"><Italic size={13}/></button><span className="format-split"><button className={highlightArmed ? "active" : ""} style={{ color: highlightColor }} onMouseDown={(event) => event.preventDefault()} onClick={() => { if (restoreSelection() && savedRange.current && !savedRange.current.collapsed) command("hiliteColor", highlightColor); else setHighlightArmed((value) => !value); }} title="하이라이트"><Highlighter size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => setPaletteOpen((value) => !value)} title="하이라이트 색"><ChevronDown size={10}/></button>{paletteOpen ? <span className="highlight-palette">{presets.map((color) => <button key={color} style={{ background: color }} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseHighlight(color)} aria-label={`${color} 선택`}/>)}<input type="color" value={highlightColor} onChange={(event) => chooseHighlight(event.target.value)} title="새 색상 저장"/></span> : null}</span><label className="text-color-button" title="글자색"><Palette size={13}/><input type="color" defaultValue="#e7eaee" onChange={(event) => command("foreColor", event.target.value)}/></label><button onClick={() => { if (!conceptTarget) onRemove(); else void concepts?.breakTarget(conceptTarget).then((allowed) => { if (allowed) onRemove(); }); }} title="삭제"><Trash2 size={13}/></button></div> : null}
+    {!readOnly ? <div className="hierarchy-actions">
+      <button onMouseDown={(event) => event.preventDefault()} onClick={() => command("bold")} title="선택 영역 굵게 · ⌘B"><Bold size={13}/></button>
+      <button onMouseDown={(event) => event.preventDefault()} onClick={() => command("italic")} title="선택 영역 기울임 · ⌘I"><Italic size={13}/></button>
+      <button onMouseDown={(event) => event.preventDefault()} onClick={() => command("underline")} title="선택 영역 밑줄 · ⌘U"><Underline size={13}/></button>
+      <button onMouseDown={(event) => event.preventDefault()} onClick={() => command("strikeThrough")} title="선택 영역 취소선"><Strikethrough size={13}/></button>
+      <button onMouseDown={(event) => event.preventDefault()} onClick={() => command("superscript")} title="위 첨자"><Superscript size={13}/></button>
+      <button onMouseDown={(event) => event.preventDefault()} onClick={() => command("subscript")} title="아래 첨자"><Subscript size={13}/></button>
+      <select className="character-spacing-select" defaultValue="normal" onMouseDown={rememberSelection} onChange={(event) => applyCharacterSpacing(event.target.value as CharacterSpacing)} title="자간"><option value="tight">좁게</option><option value="normal">보통</option><option value="wide">넓게</option></select>
+      <span className="format-split"><button className={highlightArmed ? "active" : ""} style={{ color: highlightColor }} onMouseDown={(event) => event.preventDefault()} onClick={() => { if (restoreSelection() && savedRange.current && !savedRange.current.collapsed) command("hiliteColor", highlightColor); else setHighlightArmed((value) => !value); }} title="하이라이트"><Highlighter size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => setPaletteOpen((value) => !value)} title="하이라이트 색"><ChevronDown size={10}/></button>{paletteOpen ? <span className="highlight-palette">{presets.map((color) => <button key={color} style={{ background: color }} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseHighlight(color)} aria-label={`${color} 선택`}/>)}<input type="color" value={highlightColor} onChange={(event) => chooseHighlight(event.target.value)} title="새 색상 저장"/></span> : null}</span>
+      <label className="text-color-button" title="글자색"><Palette size={13}/><input type="color" defaultValue="#e7eaee" onChange={(event) => command("foreColor", event.target.value)}/></label>
+      <button onClick={() => { if (!conceptTarget) onRemove(); else void concepts?.breakTarget(conceptTarget).then((allowed) => { if (allowed) onRemove(); }); }} title="삭제"><Trash2 size={13}/></button>
+    </div> : null}
     {!readOnly && context ? <div className="constituent-context-menu" style={{ left: context.x, top: context.y }}><button onMouseDown={(event) => { event.preventDefault(); restoreSelection(); }} onClick={() => { if (conceptTarget && editor.current) void concepts?.createSelectionAnchor(conceptTarget, editor.current); setContext(undefined); }}><strong>개념연결</strong><span>선택한 텍스트를 개념 앵커로 만들기</span></button><button onClick={() => void createConstituent()}><strong>“{context.text}”</strong><span>{taxon?.name ?? "상위 분류"}의 constituent로 추가</span></button></div> : null}
   </div>;
 }
@@ -477,7 +507,6 @@ function TaxonomyIndicator({ taxonId, taxonomy }: { taxonId: string; taxonomy: T
 }
 
 function resolveLineages(taxonId: string, taxonomy: TaxonomyData) { const byId = new Map(taxonomy.nodes.map((node) => [node.id, node])); const parents = new Map<string, string[]>(); for (const edge of taxonomy.edges) parents.set(edge.childId, [...(parents.get(edge.childId) ?? []), edge.parentId]); function walk(id: string, visited: Set<string>): { id: string; name: string }[][] { const node = byId.get(id); if (!node || visited.has(id)) return []; const nextVisited = new Set(visited).add(id); const parentIds = parents.get(id) ?? []; if (!parentIds.length) return [[{ id: node.id, name: node.name }]]; return parentIds.flatMap((parentId) => walk(parentId, nextVisited).map((path) => [...path, { id: node.id, name: node.name }])); } return walk(taxonId, new Set()); }
-function sanitizeRichHtml(html: string) { if (typeof document === "undefined") return html; const template = document.createElement("template"); template.innerHTML = html; const allowed = new Set(["B", "STRONG", "I", "EM", "SPAN", "BR"]); for (const element of [...template.content.querySelectorAll("*")]) { if (!allowed.has(element.tagName)) { element.replaceWith(...element.childNodes); continue; } const color = (element as HTMLElement).style.color; const background = (element as HTMLElement).style.backgroundColor; for (const attribute of [...element.attributes]) element.removeAttribute(attribute.name); if (color) (element as HTMLElement).style.color = color; if (background) (element as HTMLElement).style.backgroundColor = background; } return template.innerHTML; }
 function escapeHtml(value: string) { return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 function placeCaretAtEnd(element: HTMLElement) { const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); }
 function caretOffset(element: HTMLElement) {

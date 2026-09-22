@@ -379,6 +379,8 @@ h1 { font-weight: 750; letter-spacing: -.035em; }
 .hierarchy-row:hover .hierarchy-actions, .hierarchy-row:focus-within .hierarchy-actions { opacity: 1; }
 .hierarchy-actions button { border: 0; background: transparent; color: #8b929c; padding: 5px; border-radius: 5px; display: grid; place-items: center; }
 .hierarchy-actions button:hover, .hierarchy-actions button.active { background: #e7eef8; color: #326fbf; }
+.character-spacing-select { width: 48px; border: 0; border-radius: 5px; padding: 2px; background: transparent; color: #8b929c; font-size: 11px; }
+.character-spacing-select:hover, .character-spacing-select:focus { background: #e7eef8; color: #326fbf; outline: none; }
 .format-split { position: relative; display: inline-flex; }
 .format-split > button:first-child { border-radius: 5px 0 0 5px; }
 .format-split > button:nth-child(2) { padding-left: 1px; padding-right: 3px; border-radius: 0 5px 5px 0; }
@@ -518,6 +520,7 @@ html, body { background: var(--paper); color: var(--ink); }
 .hierarchy-row input:focus { border-bottom-color: #608fcf; }
 .hierarchy-row input::placeholder { color: #69717b; }
 .hierarchy-actions button:hover, .hierarchy-actions button.active { background: #263950; color: #91bdf7; }
+.character-spacing-select:hover, .character-spacing-select:focus { background: #263950; color: #91bdf7; }
 .field-add-actions { min-height: 34px; margin: 8px 0 0 23px; }
 .add-line, .taxonomy-picker-button { height: 32px; margin: 0; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; display: inline-flex; align-items: center; gap: 6px; color: #9099a5; font-size: 13px; }
 .add-line:hover { background: #22282e; color: #c7cdd4; }

@@ -1,5 +1,6 @@
-import { AlignmentType, Document, ImageRun, Packer, Paragraph, TextRun } from "docx";
+import { AlignmentType, Document, ImageRun, Packer, Paragraph, ShadingType, TextRun } from "docx";
 import type { PdfCard, PdfField } from "@/lib/export/pdf";
+import { cssColorToHex, parseInlineRuns } from "@/lib/rich-text";
 
 export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
   const children: Paragraph[] = [];
@@ -31,8 +32,22 @@ function fieldParagraphs(field: PdfField) {
 function imageType(buffer: Buffer): "png" | "jpg" | "gif" | "bmp" | null { if (buffer[0] === 0x89 && buffer[1] === 0x50) return "png"; if (buffer[0] === 0xff && buffer[1] === 0xd8) return "jpg"; if (buffer.subarray(0, 3).toString() === "GIF") return "gif"; if (buffer.subarray(0, 2).toString() === "BM") return "bmp"; return null; }
 
 function richRuns(line: import("@/lib/export/pdf").PdfLine) {
-  if (!line.html) return [new TextRun({ text: line.text, bold: line.bold, italics: line.italic, size: (line.size ?? 10) * 2, color: line.color?.replace("#", ""), font: "Noto Sans KR" })];
-  const state = { bold: Boolean(line.bold), italic: Boolean(line.italic), strike: false, underline: false, color: line.color?.replace("#", "") }; const runs: TextRun[] = [];
-  for (const token of line.html.replace(/<br\s*\/?\s*>/gi, "\n").split(/(<[^>]+>)/).filter(Boolean)) { if (token.startsWith("<")) { const closing = /^<\//.test(token); const tag = token.match(/^<\/?\s*([a-z0-9]+)/i)?.[1]?.toLowerCase(); if (tag === "b" || tag === "strong") state.bold = !closing || Boolean(line.bold); if (tag === "i" || tag === "em") state.italic = !closing || Boolean(line.italic); if (tag === "s" || tag === "strike" || tag === "del") state.strike = !closing; if (tag === "u") state.underline = !closing; if (tag === "span") state.color = closing ? line.color?.replace("#", "") : token.match(/color\s*:\s*#([0-9a-f]{6})/i)?.[1] ?? state.color; continue; } const text = token.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"); if (text) runs.push(new TextRun({ text, bold: state.bold, italics: state.italic, strike: state.strike, underline: state.underline ? {} : undefined, color: state.color, size: (line.size ?? 10) * 2, font: "Noto Sans KR" })); }
-  return runs.length ? runs : [new TextRun(line.text)];
+  const runs = line.runs ?? parseInlineRuns(line.html, line.text);
+  return runs.map((run) => {
+    const highlight = cssColorToHex(run.highlight);
+    return new TextRun({
+      text: run.text,
+      bold: run.bold || line.bold,
+      italics: run.italic || line.italic,
+      strike: run.strike,
+      underline: run.underline ? {} : undefined,
+      superScript: run.superscript,
+      subScript: run.subscript,
+      characterSpacing: run.characterSpacing === "tight" ? -6 : run.characterSpacing === "wide" ? 16 : 0,
+      color: cssColorToHex(run.color) ?? cssColorToHex(line.color),
+      shading: highlight ? { type: ShadingType.CLEAR, fill: highlight, color: "auto" } : undefined,
+      size: (line.size ?? 10) * 2,
+      font: "Noto Sans KR",
+    });
+  });
 }

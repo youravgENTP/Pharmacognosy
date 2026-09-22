@@ -1,141 +1,135 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- private media is streamed through the authenticated media route */
 
-import { Check, ChevronDown, ChevronRight, Link2, MoreHorizontal, Pencil, Plus, Search, Trash2, Unlink, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowLeft, ArrowUp, Atom, ChevronDown, ChevronRight, ImageIcon, ImagePlus, Link2, MoreHorizontal, Pencil, Plus, Search, Trash2, Unlink, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { includesSearch, normalizeSearch } from "@/lib/search";
 
 type NodeKind = "pathway" | "class" | "subclass";
 type Taxon = { id: string; name: string; kind: NodeKind; description: string | null };
 type Edge = { parentId: string; childId: string };
 type Constituent = { id: string; name: string; aliases: string[] };
+type Membership = { constituentId: string; taxonId: string };
+type MediaLink = { id: string; mediaAssetId: string; position: number; caption: string | null };
+type TreeData = { nodes: Taxon[]; edges: Edge[]; constituents: Constituent[]; memberships: Membership[]; taxonMedia: (MediaLink & { taxonId: string })[]; constituentMedia: (MediaLink & { constituentId: string })[] };
 type InlineEditor = { type: "add"; parentId: string | null } | { type: "edit"; nodeId: string } | null;
+type SearchVisibility = { taxa: Set<string>; compounds: Set<string>; expanded: Set<string> } | null;
 const labels: Record<NodeKind, string> = { pathway: "생합성 경로", class: "성분군", subclass: "하위 성분군" };
+const emptyData: TreeData = { nodes: [], edges: [], constituents: [], memberships: [], taxonMedia: [], constituentMedia: [] };
 
 export function ConstituentTreeManager({ initialSelected }: { initialSelected?: string }) {
-  const [nodes, setNodes] = useState<Taxon[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
-  const [selected, setSelected] = useState<string>();
+  const [data, setData] = useState<TreeData>(emptyData);
+  const [selectedTaxon, setSelectedTaxon] = useState<string>();
+  const [selectedConstituent, setSelectedConstituent] = useState<string>();
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editor, setEditor] = useState<InlineEditor>(null);
   const [manageId, setManageId] = useState<string>();
 
-  async function load(preferredSelection?: string) {
+  async function load(preferredTaxon?: string, preferredConstituent?: string) {
     const response = await fetch("/api/constituent-taxa");
-    const data = await response.json() as { nodes: Taxon[]; edges: Edge[] };
-    setNodes(data.nodes ?? []);
-    setEdges(data.edges ?? []);
+    if (!response.ok) return;
+    const next = await response.json() as TreeData;
+    setData({ ...emptyData, ...next });
     setExpanded((current) => {
       if (current.size) return current;
-      const next = new Set(data.nodes.filter((node) => node.kind === "pathway").map((node) => node.id));
-      const target = preferredSelection ?? initialSelected;
-      if (target) { const visit = (id: string, seen = new Set<string>()) => { if (seen.has(id)) return; seen.add(id); for (const edge of data.edges.filter((item) => item.childId === id)) { next.add(edge.parentId); visit(edge.parentId, seen); } }; visit(target); }
-      return next;
+      const value = new Set(next.nodes.filter((node) => node.kind === "pathway").map((node) => node.id));
+      const target = preferredTaxon ?? initialSelected;
+      if (target) addAncestors(target, next.edges, value);
+      return value;
     });
-    setSelected((current) => preferredSelection ?? current ?? (initialSelected && data.nodes.some((node) => node.id === initialSelected) ? initialSelected : undefined) ?? data.nodes.find((node) => node.kind === "pathway")?.id);
+    setSelectedTaxon((current) => preferredTaxon ?? current ?? (initialSelected && next.nodes.some((node) => node.id === initialSelected) ? initialSelected : undefined) ?? next.nodes.find((node) => node.kind === "pathway")?.id);
+    if (preferredConstituent !== undefined) setSelectedConstituent(preferredConstituent || undefined);
   }
-  // Initial query selection is intentionally captured once when the explorer mounts.
+  // Initial route selection is intentionally captured only at mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void load(); }, []);
 
-  const roots = useMemo(() => nodes.filter((node) => !edges.some((edge) => edge.childId === node.id && nodes.some((candidate) => candidate.id === edge.parentId))), [nodes, edges]);
-  const selectedNode = nodes.find((node) => node.id === selected);
-  const matched = query.trim() ? nodes.filter((node) => node.name.toLowerCase().includes(query.trim().toLowerCase())) : [];
+  const search = useMemo(() => calculateVisibleTree(data, query), [data, query]);
+  const roots = data.nodes.filter((node) => !data.edges.some((edge) => edge.childId === node.id && data.nodes.some((candidate) => candidate.id === edge.parentId))).filter((node) => !search || search.taxa.has(node.id));
+  const selectedNode = data.nodes.find((node) => node.id === selectedTaxon);
+  const selectedCompound = data.constituents.find((item) => item.id === selectedConstituent);
 
+  function selectTaxon(id: string) { setSelectedTaxon(id); setSelectedConstituent(undefined); }
   async function create(name: string, kind: NodeKind, parentId: string | null) {
     const response = await fetch("/api/constituent-taxa", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, kind, parentId: parentId || undefined }) });
-    if (!response.ok) { window.alert("항목을 추가하지 못했습니다."); return; }
-    const created = await response.json() as Taxon;
-    if (parentId) setExpanded((current) => new Set(current).add(parentId));
-    setEditor(null);
-    await load(created.id);
+    if (!response.ok) return window.alert("항목을 추가하지 못했습니다.");
+    const created = await response.json() as Taxon; if (parentId) setExpanded((current) => new Set(current).add(parentId)); setEditor(null); await load(created.id, "");
   }
-  async function update(node: Taxon, name: string, kind: NodeKind) {
-    const response = await fetch(`/api/constituent-taxa/${node.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, kind }) });
-    if (!response.ok) { window.alert("항목을 수정하지 못했습니다."); return; }
-    setEditor(null);
-    await load(node.id);
-  }
-  async function remove(node: Taxon) {
-    if (!window.confirm(`“${node.name}”을 삭제할까요? 하위 연결은 해제되지만 하위 항목 자체는 남습니다.`)) return;
-    await fetch(`/api/constituent-taxa/${node.id}`, { method: "DELETE" });
-    setManageId(undefined);
-    if (selected === node.id) setSelected(undefined);
-    await load();
-  }
-  async function addParent(nodeId: string, parentId: string) {
-    if (!parentId) return;
-    const response = await fetch(`/api/constituent-taxa/${nodeId}/parents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parentId }) });
-    if (!response.ok) { window.alert((await response.json()).error); return; }
-    setExpanded((current) => new Set(current).add(parentId));
-    await load(nodeId);
-  }
-  async function unlink(nodeId: string, parentId: string) {
-    await fetch(`/api/constituent-taxa/${nodeId}/parents`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parentId }) });
-    await load(nodeId);
-  }
-  const actions = { setSelected, setEditor, setManageId, remove, addParent, unlink };
+  async function update(node: Taxon, name: string, kind: NodeKind) { const response = await fetch(`/api/constituent-taxa/${node.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, kind }) }); if (!response.ok) return window.alert("항목을 수정하지 못했습니다."); setEditor(null); await load(node.id, ""); }
+  async function remove(node: Taxon) { if (!window.confirm(`“${node.name}”을 삭제할까요? 하위 연결과 constituent membership은 해제되지만 하위 분류와 constituent 자체는 남습니다.`)) return; const response = await fetch(`/api/constituent-taxa/${node.id}`, { method: "DELETE" }); if (!response.ok) return window.alert("삭제하지 못했습니다."); setManageId(undefined); if (selectedTaxon === node.id) setSelectedTaxon(undefined); await load(undefined, ""); }
+  async function addParent(nodeId: string, parentId: string) { if (!parentId) return; const response = await fetch(`/api/constituent-taxa/${nodeId}/parents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parentId }) }); if (!response.ok) return window.alert((await response.json()).error); setExpanded((current) => new Set(current).add(parentId)); await load(nodeId, ""); }
+  async function unlink(nodeId: string, parentId: string) { await fetch(`/api/constituent-taxa/${nodeId}/parents`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parentId }) }); await load(nodeId, ""); }
+  const actions: TreeActions = { selectTaxon, selectConstituent: (id, taxonId) => { setSelectedTaxon(taxonId); setSelectedConstituent(id); }, setEditor, setManageId, remove, addParent, unlink };
 
   return <div className="taxonomy-layout explorer-layout">
     <section className="panel taxonomy-main">
-      <div className="taxonomy-toolbar"><div className="search-wrap taxonomy-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="경로, 성분군 검색"/></div><button className="taxonomy-root-add" onClick={() => setEditor({ type: "add", parentId: null })}><Plus size={15}/> 최상위 항목</button></div>
+      <div className="taxonomy-toolbar"><div className="search-wrap taxonomy-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="경로, 성분군, 성분명 검색"/></div><button className="taxonomy-root-add" onClick={() => setEditor({ type: "add", parentId: null })}><Plus size={15}/> 최상위 항목</button></div>
       {editor?.type === "add" && editor.parentId === null ? <InlineTaxonForm mode="add" onSubmit={(name, kind) => create(name, kind, null)} onCancel={() => setEditor(null)}/> : null}
-      <div className="taxonomy-tree">{query.trim() ? matched.map((node) => <FlatTaxonRow key={node.id} node={node} selected={selected} setSelected={setSelected}/>) : roots.map((node) => <TreeBranch key={node.id} node={node} nodes={nodes} edges={edges} depth={0} path={new Set()} selected={selected} expanded={expanded} setExpanded={setExpanded} editor={editor} manageId={manageId} actions={actions} onCreate={create} onUpdate={update}/>)}</div>
+      <div className="taxonomy-tree">{roots.map((node) => <TreeBranch key={node.id} node={node} data={data} search={search} depth={0} path={new Set()} selectedTaxon={selectedTaxon} selectedConstituent={selectedConstituent} expanded={expanded} setExpanded={setExpanded} editor={editor} manageId={manageId} actions={actions} onCreate={create} onUpdate={update}/>)}</div>
+      {query.trim() && !roots.length ? <p className="taxonomy-no-results">일치하는 분류 또는 constituent가 없습니다.</p> : null}
     </section>
-    <ConstituentExplorer node={selectedNode}/>
+    {selectedCompound ? <ConstituentDetail constituent={selectedCompound} data={data} onBack={() => setSelectedConstituent(undefined)} onReload={() => load(selectedTaxon, selectedCompound.id)}/> : <TaxonExplorer node={selectedNode} data={data} onSelectConstituent={setSelectedConstituent} onReload={() => load(selectedTaxon, "")}/>}
   </div>;
 }
 
-type TreeActions = { setSelected: (id: string) => void; setEditor: (value: InlineEditor) => void; setManageId: (id: string | undefined) => void; remove: (node: Taxon) => Promise<void>; addParent: (nodeId: string, parentId: string) => Promise<void>; unlink: (nodeId: string, parentId: string) => Promise<void> };
+type TreeActions = { selectTaxon: (id: string) => void; selectConstituent: (id: string, taxonId: string) => void; setEditor: (value: InlineEditor) => void; setManageId: (id: string | undefined) => void; remove: (node: Taxon) => Promise<void>; addParent: (nodeId: string, parentId: string) => Promise<void>; unlink: (nodeId: string, parentId: string) => Promise<void> };
 
-function TreeBranch({ node, nodes, edges, depth, path, selected, expanded, setExpanded, editor, manageId, actions, onCreate, onUpdate }: { node: Taxon; nodes: Taxon[]; edges: Edge[]; depth: number; path: Set<string>; selected?: string; expanded: Set<string>; setExpanded: (value: Set<string>) => void; editor: InlineEditor; manageId?: string; actions: TreeActions; onCreate: (name: string, kind: NodeKind, parentId: string | null) => Promise<void>; onUpdate: (node: Taxon, name: string, kind: NodeKind) => Promise<void> }) {
+function TreeBranch({ node, data, search, depth, path, selectedTaxon, selectedConstituent, expanded, setExpanded, editor, manageId, actions, onCreate, onUpdate }: { node: Taxon; data: TreeData; search: SearchVisibility; depth: number; path: Set<string>; selectedTaxon?: string; selectedConstituent?: string; expanded: Set<string>; setExpanded: (value: Set<string>) => void; editor: InlineEditor; manageId?: string; actions: TreeActions; onCreate: (name: string, kind: NodeKind, parentId: string | null) => Promise<void>; onUpdate: (node: Taxon, name: string, kind: NodeKind) => Promise<void> }) {
   if (path.has(node.id)) return null;
-  const children = edges.filter((edge) => edge.parentId === node.id).map((edge) => nodes.find((item) => item.id === edge.childId)).filter(Boolean) as Taxon[];
-  const open = expanded.has(node.id);
+  const children = data.edges.filter((edge) => edge.parentId === node.id).map((edge) => data.nodes.find((item) => item.id === edge.childId)).filter((item): item is Taxon => Boolean(item)).filter((item) => !search || search.taxa.has(item.id));
+  const leaves = data.memberships.filter((membership) => membership.taxonId === node.id && (!search || search.compounds.has(membership.constituentId))).map((membership) => data.constituents.find((item) => item.id === membership.constituentId)).filter((item): item is Constituent => Boolean(item));
+  const open = search ? search.expanded.has(node.id) || children.length > 0 || leaves.length > 0 : expanded.has(node.id);
   const nextPath = new Set(path).add(node.id);
-  const parents = edges.filter((edge) => edge.childId === node.id).map((edge) => nodes.find((item) => item.id === edge.parentId)).filter(Boolean) as Taxon[];
+  const parents = data.edges.filter((edge) => edge.childId === node.id).map((edge) => data.nodes.find((item) => item.id === edge.parentId)).filter((item): item is Taxon => Boolean(item));
+  const imageCount = data.taxonMedia.filter((media) => media.taxonId === node.id).length;
   return <div className="taxonomy-branch">
-    {editor?.type === "edit" && editor.nodeId === node.id ? <InlineTaxonForm mode="edit" initial={node} onSubmit={(name, kind) => onUpdate(node, name, kind)} onCancel={() => actions.setEditor(null)} depth={depth}/> : <div className={`taxon-row ${selected === node.id ? "selected" : ""}`} style={{ paddingLeft: 8 + depth * 22 }}>{depth > 0 ? <span className="taxonomy-branch-elbow" style={{ left: 20 + (depth - 1) * 22 }}/> : null}<button className="taxon-toggle" onClick={() => { const next = new Set(expanded); if (open) next.delete(node.id); else next.add(node.id); setExpanded(next); }}>{children.length ? (open ? <ChevronDown size={16}/> : <ChevronRight size={16}/>) : <span/>}</button><button className="taxon-label" onClick={() => actions.setSelected(node.id)}><span>{node.name}</span><small>{labels[node.kind]}</small></button><button className="taxon-more" onClick={() => actions.setManageId(manageId === node.id ? undefined : node.id)} aria-label={`${node.name} 관리`}><MoreHorizontal size={17}/></button></div>}
-    {manageId === node.id ? <InlineManage node={node} nodes={nodes} parents={parents} edges={edges} depth={depth} onAddChild={() => { actions.setEditor({ type: "add", parentId: node.id }); actions.setManageId(undefined); }} onEdit={() => { actions.setEditor({ type: "edit", nodeId: node.id }); actions.setManageId(undefined); }} onDelete={() => void actions.remove(node)} onAddParent={(parentId) => void actions.addParent(node.id, parentId)} onUnlink={(parentId) => void actions.unlink(node.id, parentId)} onClose={() => actions.setManageId(undefined)}/> : null}
+    {editor?.type === "edit" && editor.nodeId === node.id ? <InlineTaxonForm mode="edit" initial={node} onSubmit={(name, kind) => onUpdate(node, name, kind)} onCancel={() => actions.setEditor(null)} depth={depth}/> : <div className={`taxon-row ${selectedTaxon === node.id && !selectedConstituent ? "selected" : ""}`} style={{ paddingLeft: 8 + depth * 22 }}>{depth > 0 ? <span className="taxonomy-branch-elbow" style={{ left: 20 + (depth - 1) * 22 }}/> : null}<button className="taxon-toggle" onClick={() => { const next = new Set(expanded); if (expanded.has(node.id)) next.delete(node.id); else next.add(node.id); setExpanded(next); }}>{children.length || leaves.length ? (open ? <ChevronDown size={16}/> : <ChevronRight size={16}/>) : <span/>}</button><button className="taxon-label" onClick={() => actions.selectTaxon(node.id)}><span>{node.name}</span><small>{labels[node.kind]}{imageCount ? <><ImageIcon size={10}/> {imageCount}</> : null}</small></button><button className="taxon-more" onClick={() => actions.setManageId(manageId === node.id ? undefined : node.id)} aria-label={`${node.name} 관리`}><MoreHorizontal size={17}/></button></div>}
+    {manageId === node.id ? <InlineManage node={node} nodes={data.nodes} parents={parents} edges={data.edges} depth={depth} onAddChild={() => { actions.setEditor({ type: "add", parentId: node.id }); actions.setManageId(undefined); }} onEdit={() => { actions.setEditor({ type: "edit", nodeId: node.id }); actions.setManageId(undefined); }} onDelete={() => void actions.remove(node)} onAddParent={(parentId) => void actions.addParent(node.id, parentId)} onUnlink={(parentId) => void actions.unlink(node.id, parentId)} onClose={() => actions.setManageId(undefined)}/> : null}
     {editor?.type === "add" && editor.parentId === node.id ? <InlineTaxonForm mode="add" parent={node} onSubmit={(name, kind) => onCreate(name, kind, node.id)} onCancel={() => actions.setEditor(null)} depth={depth + 1}/> : null}
-    {open && children.length ? <div className="taxonomy-children"><span className="taxonomy-depth-guide" style={{ left: 20 + depth * 22 }}/>{children.map((child) => <TreeBranch key={`${node.id}-${child.id}`} node={child} nodes={nodes} edges={edges} depth={depth + 1} path={nextPath} selected={selected} expanded={expanded} setExpanded={setExpanded} editor={editor} manageId={manageId} actions={actions} onCreate={onCreate} onUpdate={onUpdate}/>)}</div> : null}
+    {open && (children.length || leaves.length) ? <div className="taxonomy-children"><span className="taxonomy-depth-guide" style={{ left: 20 + depth * 22 }}/>{children.map((child) => <TreeBranch key={`${node.id}-${child.id}`} node={child} data={data} search={search} depth={depth + 1} path={nextPath} selectedTaxon={selectedTaxon} selectedConstituent={selectedConstituent} expanded={expanded} setExpanded={setExpanded} editor={editor} manageId={manageId} actions={actions} onCreate={onCreate} onUpdate={onUpdate}/>)}{leaves.map((leaf) => <ConstituentLeaf key={`${node.id}-${leaf.id}`} item={leaf} depth={depth + 1} selected={selectedConstituent === leaf.id} imageCount={data.constituentMedia.filter((media) => media.constituentId === leaf.id).length} onClick={() => actions.selectConstituent(leaf.id, node.id)}/>)}</div> : null}
   </div>;
 }
 
-function InlineTaxonForm({ mode, initial, parent, depth = 0, onSubmit, onCancel }: { mode: "add" | "edit"; initial?: Taxon; parent?: Taxon; depth?: number; onSubmit: (name: string, kind: NodeKind) => void; onCancel: () => void }) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [kind, setKind] = useState<NodeKind>(initial?.kind ?? (parent ? (parent.kind === "pathway" ? "class" : "subclass") : "pathway"));
-  const kinds: NodeKind[] = parent ? ["class", "subclass"] : ["pathway", "class", "subclass"];
-  return <form className="taxon-inline-form" style={{ marginLeft: 34 + depth * 22 }} onSubmit={(event) => { event.preventDefault(); if (name.trim()) onSubmit(name.trim(), kind); }}><input value={name} onChange={(event) => setName(event.target.value)} placeholder={mode === "add" ? "새 분류 이름" : "분류 이름"} autoFocus/><select value={kind} onChange={(event) => setKind(event.target.value as NodeKind)}>{kinds.map((value) => <option value={value} key={value}>{labels[value]}</option>)}</select><button className="inline-primary">{mode === "add" ? "추가" : "저장"}</button><button type="button" onClick={onCancel}>취소</button></form>;
+function ConstituentLeaf({ item, depth, selected, imageCount, onClick }: { item: Constituent; depth: number; selected: boolean; imageCount: number; onClick: () => void }) { return <div className={`taxon-row constituent-leaf ${selected ? "selected" : ""}`} style={{ paddingLeft: 8 + depth * 22 }}><span className="taxonomy-branch-elbow" style={{ left: 20 + (depth - 1) * 22 }}/><span className="taxon-toggle"><Atom size={13}/></span><button className="taxon-label" onClick={onClick}><span>{item.name}</span><small>{item.aliases.join(" · ") || "개별 성분"}{imageCount ? <><ImageIcon size={10}/> {imageCount}</> : null}</small></button></div>; }
+
+function InlineTaxonForm({ mode, initial, parent, depth = 0, onSubmit, onCancel }: { mode: "add" | "edit"; initial?: Taxon; parent?: Taxon; depth?: number; onSubmit: (name: string, kind: NodeKind) => void; onCancel: () => void }) { const [name, setName] = useState(initial?.name ?? ""); const [kind, setKind] = useState<NodeKind>(initial?.kind ?? (parent ? (parent.kind === "pathway" ? "class" : "subclass") : "pathway")); const kinds: NodeKind[] = parent ? ["class", "subclass"] : ["pathway", "class", "subclass"]; return <form className="taxon-inline-form" style={{ marginLeft: 34 + depth * 22 }} onSubmit={(event) => { event.preventDefault(); if (name.trim()) onSubmit(name.trim(), kind); }}><input value={name} onChange={(event) => setName(event.target.value)} placeholder={mode === "add" ? "새 분류 이름" : "분류 이름"} autoFocus/><select value={kind} onChange={(event) => setKind(event.target.value as NodeKind)}>{kinds.map((value) => <option value={value} key={value}>{labels[value]}</option>)}</select><button className="inline-primary">{mode === "add" ? "추가" : "저장"}</button><button type="button" onClick={onCancel}>취소</button></form>; }
+
+function InlineManage({ node, nodes, parents, edges, depth, onAddChild, onEdit, onDelete, onAddParent, onUnlink, onClose }: { node: Taxon; nodes: Taxon[]; parents: Taxon[]; edges: Edge[]; depth: number; onAddChild: () => void; onEdit: () => void; onDelete: () => void; onAddParent: (id: string) => void; onUnlink: (id: string) => void; onClose: () => void }) { const candidates = nodes.filter((candidate) => candidate.id !== node.id && !edges.some((edge) => edge.childId === node.id && edge.parentId === candidate.id)); return <div className="taxon-inline-manage" style={{ marginLeft: 34 + depth * 22 }}><div className="inline-manage-actions"><button onClick={onAddChild}><Plus size={13}/> 하위 분류 추가</button><button onClick={onEdit}><Pencil size={13}/> 수정</button><button className="danger" onClick={onDelete}><Trash2 size={13}/> 삭제</button><button className="inline-manage-close" onClick={onClose}><X size={14}/></button></div><div className="inline-parent-editor"><span><Link2 size={13}/> 상위 분류</span>{parents.map((parent) => <span className="parent-chip" key={parent.id}>{parent.name}<button onClick={() => onUnlink(parent.id)} title="상위 연결 해제"><Unlink size={12}/></button></span>)}<select value="" onChange={(event) => onAddParent(event.target.value)}><option value="">+ 상위 분류 연결</option>{candidates.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></div></div>; }
+
+function TaxonExplorer({ node, data, onSelectConstituent, onReload }: { node?: Taxon; data: TreeData; onSelectConstituent: (id: string) => void; onReload: () => Promise<void> | void }) {
+  const [includeDescendants, setIncludeDescendants] = useState(true); const [query, setQuery] = useState(""); const [description, setDescription] = useState(node?.description ?? ""); const [newName, setNewName] = useState("");
+  useEffect(() => setDescription(node?.description ?? ""), [node]);
+  const taxonIds = useMemo(() => node ? (includeDescendants ? descendantsOf(node.id, data.edges) : new Set([node.id])) : new Set<string>(), [node, includeDescendants, data.edges]);
+  const rows = data.constituents.filter((item) => data.memberships.some((membership) => membership.constituentId === item.id && taxonIds.has(membership.taxonId))).filter((item) => includesSearch(query, [item.name, ...item.aliases]));
+  if (!node) return <aside className="panel constituent-explorer empty-explorer">분류를 선택하면 상세 정보와 연결된 constituent를 관리할 수 있습니다.</aside>;
+  const currentNode = node;
+  async function saveDescription() { const response = await fetch(`/api/constituent-taxa/${currentNode.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: description.trim() || null }) }); if (response.ok) await onReload(); }
+  async function createConstituent() { const name = newName.trim(); if (!name) return; const response = await fetch("/api/constituents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, taxonId: currentNode.id }) }); const body = await response.json(); if (!response.ok) return window.alert(body.error ?? "추가하지 못했습니다."); setNewName(""); await onReload(); onSelectConstituent(body.id); }
+  return <aside className="panel constituent-explorer"><header><div><span>{labels[node.kind]}</span><h2>{node.name}</h2></div><strong>{rows.length}</strong></header><div className="taxon-description"><textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="분류 설명"/><button onClick={() => void saveDescription()}>설명 저장</button></div><ImageManager ownerType="taxon" ownerId={node.id} media={data.taxonMedia.filter((item) => item.taxonId === node.id)} onReload={onReload}/><div className="constituent-scope" role="group" aria-label="조회 범위"><button className={includeDescendants ? "active" : ""} onClick={() => setIncludeDescendants(true)}>하위 분류 포함</button><button className={!includeDescendants ? "active" : ""} onClick={() => setIncludeDescendants(false)}>직접 연결만</button></div><div className="constituent-create"><input value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createConstituent(); }} placeholder="새 constituent 이름"/><button onClick={() => void createConstituent()}><Plus size={13}/> 추가</button></div><div className="search-wrap constituent-search"><Search size={16}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="이름 또는 alias 검색"/></div><div className="constituent-list">{rows.length ? rows.map((item) => <button key={item.id} onClick={() => onSelectConstituent(item.id)}><span>{item.name}</span>{item.aliases.length ? <small>{item.aliases.join(" · ")}</small> : null}</button>) : <p className="muted">연결된 constituent가 없습니다.</p>}</div></aside>;
 }
 
-function InlineManage({ node, nodes, parents, edges, depth, onAddChild, onEdit, onDelete, onAddParent, onUnlink, onClose }: { node: Taxon; nodes: Taxon[]; parents: Taxon[]; edges: Edge[]; depth: number; onAddChild: () => void; onEdit: () => void; onDelete: () => void; onAddParent: (id: string) => void; onUnlink: (id: string) => void; onClose: () => void }) {
-  const candidates = nodes.filter((candidate) => candidate.id !== node.id && !edges.some((edge) => edge.childId === node.id && edge.parentId === candidate.id));
-  return <div className="taxon-inline-manage" style={{ marginLeft: 34 + depth * 22 }}><div className="inline-manage-actions"><button onClick={onAddChild}><Plus size={13}/> 하위 분류 추가</button><button onClick={onEdit}><Pencil size={13}/> 수정</button><button className="danger" onClick={onDelete}><Trash2 size={13}/> 삭제</button><button className="inline-manage-close" onClick={onClose}><X size={14}/></button></div><div className="inline-parent-editor"><span><Link2 size={13}/> 상위 분류</span>{parents.map((parent) => <span className="parent-chip" key={parent.id}>{parent.name}<button onClick={() => onUnlink(parent.id)} title="상위 연결 해제"><Unlink size={12}/></button></span>)}<select value="" onChange={(event) => onAddParent(event.target.value)}><option value="">+ 상위 분류 연결</option>{candidates.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></div></div>;
+function ConstituentDetail({ constituent, data, onBack, onReload }: { constituent: Constituent; data: TreeData; onBack: () => void; onReload: () => Promise<void> | void }) {
+  const [name, setName] = useState(constituent.name); const [aliases, setAliases] = useState(constituent.aliases.join(", ")); const [taxonId, setTaxonId] = useState("");
+  useEffect(() => { setName(constituent.name); setAliases(constituent.aliases.join(", ")); }, [constituent]);
+  const memberships = data.memberships.filter((item) => item.constituentId === constituent.id);
+  async function save() { const values = aliases.split(",").map((value) => value.trim()).filter(Boolean); const response = await fetch(`/api/constituents/${constituent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), aliases: [...new Set(values)] }) }); const body = await response.json(); if (!response.ok) return window.alert(body.error ?? "저장하지 못했습니다."); await onReload(); }
+  async function addMembership() { if (!taxonId) return; const response = await fetch(`/api/constituents/${constituent.id}/memberships`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taxonId }) }); if (response.ok) { setTaxonId(""); await onReload(); } }
+  async function removeMembership(id: string) { await fetch(`/api/constituents/${constituent.id}/memberships`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taxonId: id }) }); await onReload(); }
+  async function remove() { if (!window.confirm(`“${constituent.name}”을 삭제할까요? 모든 taxonomy membership과 이미지 연결이 제거됩니다. 생약에서 참조 중이면 삭제가 차단됩니다.`)) return; const response = await fetch(`/api/constituents/${constituent.id}`, { method: "DELETE" }); if (!response.ok) { const body = await response.json(); return window.alert(body.error ?? "삭제하지 못했습니다."); } onBack(); await onReload(); }
+  return <aside className="panel constituent-explorer constituent-detail"><button className="detail-back" onClick={onBack}><ArrowLeft size={14}/> 분류로 돌아가기</button><header><div><span>개별 성분</span><h2>{constituent.name}</h2></div><Atom size={24}/></header><label>이름<input value={name} onChange={(event) => setName(event.target.value)}/></label><label>Aliases<textarea value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="쉼표로 구분"/></label><button className="detail-save" onClick={() => void save()}>이름·aliases 저장</button><div className="constituent-memberships"><strong>Taxonomy memberships</strong>{memberships.map((membership) => { const node = data.nodes.find((item) => item.id === membership.taxonId); return node ? <span key={node.id}>{node.name}<button onClick={() => void removeMembership(node.id)}><X size={12}/></button></span> : null; })}<select value={taxonId} onChange={(event) => setTaxonId(event.target.value)}><option value="">+ 분류 연결</option>{data.nodes.filter((node) => !memberships.some((item) => item.taxonId === node.id)).map((node) => <option value={node.id} key={node.id}>{node.name}</option>)}</select><button disabled={!taxonId} onClick={() => void addMembership()}>연결</button></div><ImageManager ownerType="constituent" ownerId={constituent.id} media={data.constituentMedia.filter((item) => item.constituentId === constituent.id)} onReload={onReload}/><button className="constituent-delete" onClick={() => void remove()}><Trash2 size={14}/> Constituent 삭제</button></aside>;
 }
 
-function FlatTaxonRow({ node, selected, setSelected }: { node: Taxon; selected?: string; setSelected: (id: string) => void }) { return <div className={`taxon-row ${selected === node.id ? "selected" : ""}`}><span className="taxon-toggle"/><button className="taxon-label" onClick={() => setSelected(node.id)}><span>{node.name}</span><small>{labels[node.kind]}</small></button></div>; }
-
-function ConstituentExplorer({ node }: { node?: Taxon }) {
-  const [includeDescendants, setIncludeDescendants] = useState(true);
-  const [query, setQuery] = useState("");
-  const [rows, setRows] = useState<Constituent[]>([]);
-  const [selected, setSelected] = useState<string>();
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!node) { setRows([]); return; }
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams({ taxonId: node.id, includeDescendants: String(includeDescendants), ...(query.trim() ? { q: query.trim() } : {}) });
-        const response = await fetch(`/api/constituents?${params}`, { signal: controller.signal });
-        const data = await response.json();
-        setRows(data.constituents ?? []);
-      } catch (error) { if ((error as Error).name !== "AbortError") setRows([]); }
-      finally { if (!controller.signal.aborted) setLoading(false); }
-    }, 180);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [node, includeDescendants, query]);
-  if (!node) return <aside className="panel constituent-explorer empty-explorer">분류를 선택하면 연결된 constituent를 볼 수 있습니다.</aside>;
-  return <aside className="panel constituent-explorer"><header><div><span>{labels[node.kind]}</span><h2>{node.name}</h2></div><strong>{rows.length}</strong></header><div className="constituent-scope" role="group" aria-label="조회 범위"><button className={includeDescendants ? "active" : ""} onClick={() => setIncludeDescendants(true)}>하위 분류 포함</button><button className={!includeDescendants ? "active" : ""} onClick={() => setIncludeDescendants(false)}>직접 연결만</button></div><div className="search-wrap constituent-search"><Search size={16}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Constituent 검색"/></div><div className="constituent-list">{loading ? <p className="muted">불러오는 중…</p> : rows.length ? rows.map((item) => <button className={selected === item.id ? "selected" : ""} key={item.id} onClick={() => setSelected(item.id)}><span>{item.name}</span>{item.aliases.length ? <small>{item.aliases.join(" · ")}</small> : null}{selected === item.id ? <Check size={15}/> : null}</button>) : <p className="muted">연결된 constituent가 없습니다.</p>}</div></aside>;
+function ImageManager({ ownerType, ownerId, media, onReload }: { ownerType: "taxon" | "constituent"; ownerId: string; media: MediaLink[]; onReload: () => Promise<void> | void }) {
+  const input = useRef<HTMLInputElement>(null); const [uploading, setUploading] = useState(false); const [preview, setPreview] = useState<MediaLink>(); const base = ownerType === "taxon" ? `/api/constituent-taxa/${ownerId}/media` : `/api/constituents/${ownerId}/media`;
+  async function upload(files: File[]) { const images = files.filter((file) => file.type.startsWith("image/")); if (!images.length) return; setUploading(true); try { for (const file of images) { const dimensions = await imageDimensions(file); const form = new FormData(); form.append("file", file); form.append("width", String(dimensions.width)); form.append("height", String(dimensions.height)); const uploaded = await fetch("/api/media", { method: "POST", body: form }); const asset = await uploaded.json(); if (!uploaded.ok) throw new Error(asset.error ?? "이미지를 업로드하지 못했습니다."); const linked = await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mediaAssetId: asset.id }) }); if (!linked.ok) throw new Error("이미지를 연결하지 못했습니다."); } await onReload(); } catch (error) { window.alert(error instanceof Error ? error.message : "이미지를 업로드하지 못했습니다."); } finally { setUploading(false); if (input.current) input.current.value = ""; } }
+  async function patch(item: MediaLink, values: { caption?: string | null; position?: number }) { await fetch(`${base}/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) }); await onReload(); }
+  async function move(item: MediaLink, direction: -1 | 1) { const index = media.findIndex((value) => value.id === item.id); const other = media[index + direction]; if (!other) return; await Promise.all([fetch(`${base}/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ position: other.position }) }), fetch(`${base}/${other.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ position: item.position }) })]); await onReload(); }
+  async function remove(item: MediaLink) { if (!window.confirm("이 이미지 연결을 제거할까요? 원본 미디어는 Storage 정리 전까지 유지됩니다.")) return; await fetch(`${base}/${item.id}`, { method: "DELETE" }); await onReload(); }
+  return <section className="compound-media"><header><strong>Images</strong><button onClick={() => input.current?.click()} disabled={uploading}><ImagePlus size={13}/> {uploading ? "업로드 중…" : "이미지"}</button><input ref={input} hidden type="file" accept="image/*" multiple onChange={(event) => void upload([...(event.target.files ?? [])])}/></header><div>{media.map((item, index) => <article key={item.id}><button className="compound-thumbnail" onClick={() => setPreview(item)}><img loading="lazy" src={`/api/media/${item.mediaAssetId}/content`} alt={item.caption || "Compound Tree 이미지"}/></button><input defaultValue={item.caption ?? ""} onBlur={(event) => { const value = event.target.value.trim(); if (value !== (item.caption ?? "")) void patch(item, { caption: value || null }); }} placeholder="Caption"/><span><button disabled={!index} onClick={() => void move(item, -1)} title="앞으로"><ArrowUp size={12}/></button><button disabled={index === media.length - 1} onClick={() => void move(item, 1)} title="뒤로"><ArrowDown size={12}/></button><button onClick={() => void remove(item)} title="연결 제거"><Trash2 size={12}/></button></span></article>)}</div>{preview ? <div className="compound-image-preview" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(undefined); }}><figure><button onClick={() => setPreview(undefined)}><X size={18}/></button><img src={`/api/media/${preview.mediaAssetId}/content`} alt={preview.caption || "큰 이미지 미리보기"}/>{preview.caption ? <figcaption>{preview.caption}</figcaption> : null}</figure></div> : null}</section>;
 }
+
+function calculateVisibleTree(data: TreeData, query: string): SearchVisibility { const needle = normalizeSearch(query); if (!needle) return null; const taxa = new Set(data.nodes.filter((node) => includesSearch(needle, [node.name, node.description])).map((node) => node.id)); const compounds = new Set(data.constituents.filter((item) => includesSearch(needle, [item.name, ...item.aliases])).map((item) => item.id)); for (const membership of data.memberships) if (compounds.has(membership.constituentId)) taxa.add(membership.taxonId); const expanded = new Set<string>(); for (const id of [...taxa]) addAncestors(id, data.edges, taxa, expanded); return { taxa, compounds, expanded }; }
+function addAncestors(id: string, edges: Edge[], visible: Set<string>, expanded = visible, path = new Set<string>()) { if (path.has(id)) return; const nextPath = new Set(path).add(id); for (const edge of edges) if (edge.childId === id) { visible.add(edge.parentId); expanded.add(edge.parentId); addAncestors(edge.parentId, edges, visible, expanded, nextPath); } }
+function descendantsOf(rootId: string, edges: Edge[]) { const found = new Set([rootId]); const queue = [rootId]; while (queue.length) { const parent = queue.shift()!; for (const edge of edges) if (edge.parentId === parent && !found.has(edge.childId)) { found.add(edge.childId); queue.push(edge.childId); } } return found; }
+function imageDimensions(file: File) { return new Promise<{ width: number; height: number }>((resolve, reject) => { const image = new Image(); const url = URL.createObjectURL(file); image.onload = () => { URL.revokeObjectURL(url); resolve({ width: image.naturalWidth, height: image.naturalHeight }); }; image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("이미지를 읽을 수 없습니다.")); }; image.src = url; }); }

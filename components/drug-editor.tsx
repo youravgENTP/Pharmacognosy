@@ -21,11 +21,12 @@ type RelatedDrug = { id: string; drugId: string; catalogIndex: number | null; re
 type AvailableDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; name: string; latinName?: string | null };
 type OriginSuggestion = OriginPlant & { drugs: { id: string; name: string }[] };
 type FamilySuggestion = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null };
+type IdentityTerm = { id: string; name: string };
 const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
-type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean };
+type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean };
 export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
-function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: DrugEditorProps) {
+function DrugEditorContent({ id, initial, family, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: DrugEditorProps) {
   const concepts = useConceptEngine();
   const [draft, setDraft] = useState(initial);
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
@@ -38,6 +39,7 @@ function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDr
   const [relatedDrugs, setRelatedDrugs] = useState(initialRelatedDrugs);
   const [similarDrugs, setSimilarDrugs] = useState(initialSimilarDrugs);
   const [availableDrugs, setAvailableDrugs] = useState(initialAvailableDrugs);
+  const [identityTerms, setIdentityTerms] = useState(initialIdentityTerms);
   const first = useRef(true);
   const draftRef = useRef(draft);
   const revision = useRef(0);
@@ -125,6 +127,7 @@ function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDr
         <IndicatorLine label="과"><FamilyEditor drugId={id} initialLabel={family} familyId={draft.familyId} suggestions={identitySuggestions.families} onChange={(familyId) => setField("familyId", familyId)}/></IndicatorLine>
         <IndicatorLine label="연관생약"><RelationshipList drugId={id} items={relatedDrugs} type="연관생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("연관생약")}/></IndicatorLine>
         <IndicatorLine label="유사생약"><RelationshipList drugId={id} items={similarDrugs} type="유사생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("유사생약")}/></IndicatorLine>
+        <IndicatorLine label="가공 및 기타 사항"><IdentityTermsEditor drugId={id} terms={identityTerms} onChange={setIdentityTerms}/></IndicatorLine>
       </div>
     </section>
     <div className="profile-sections">{draft.sections.map((section) => {
@@ -145,6 +148,14 @@ function DrugEditorContent({ id, initial, family, relatedDrugs: initialRelatedDr
 }
 
 function IndicatorLine({ label, children }: { label: string; children: React.ReactNode }) { return <div className="identity-line indicator-line"><strong>{label}</strong><span className="identity-colon">:</span>{children}</div>; }
+function IdentityTermsEditor({ drugId, terms, onChange }: { drugId: string; terms: IdentityTerm[]; onChange: (terms: IdentityTerm[]) => void }) {
+  const [adding, setAdding] = useState(false); const [query, setQuery] = useState(""); const [suggestions, setSuggestions] = useState<IdentityTerm[]>([]); const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!adding) return; const controller = new AbortController(); const timer = window.setTimeout(() => fetch(`/api/identity-terms?q=${encodeURIComponent(query.trim())}`, { signal: controller.signal }).then((response) => response.json()).then((rows: IdentityTerm[]) => setSuggestions(rows.filter((row) => !terms.some((term) => term.id === row.id)))).catch(() => undefined), 140); return () => { controller.abort(); window.clearTimeout(timer); }; }, [adding, query, terms]);
+  async function attach(term: IdentityTerm) { if (terms.some((item) => item.id === term.id)) return; setBusy(true); const response = await fetch(`/api/drugs/${drugId}/identity-terms`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ termId: term.id }) }); setBusy(false); if (!response.ok) return window.alert("용어를 추가하지 못했습니다."); onChange([...terms, term]); setQuery(""); setAdding(false); }
+  async function createAndAttach() { const name = query.trim(); if (!name || busy) return; const exact = suggestions.find((term) => term.name.toLocaleLowerCase() === name.toLocaleLowerCase()); if (exact) return attach(exact); setBusy(true); const response = await fetch("/api/identity-terms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }); const term = await response.json(); setBusy(false); if (!response.ok) return window.alert(term.error ?? "용어를 만들지 못했습니다."); await attach(term); }
+  async function remove(term: IdentityTerm) { const response = await fetch(`/api/drugs/${drugId}/identity-terms/${term.id}`, { method: "DELETE" }); if (response.ok) onChange(terms.filter((item) => item.id !== term.id)); }
+  return <div className="identity-term-editor"><div className="identity-term-chips">{terms.map((term) => <span key={term.id}>{term.name}<button onClick={() => void remove(term)} aria-label={`${term.name} 제거`}><X size={12}/></button></span>)}<button className="inline-add" onClick={() => setAdding((value) => !value)}><Plus size={14}/> 추가</button></div>{adding ? <div className="identity-term-combobox"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void createAndAttach(); } if (event.key === "Escape") setAdding(false); }} placeholder="등록된 용어 검색 또는 새 용어 입력" autoFocus disabled={busy}/>{suggestions.length ? <div>{suggestions.map((term) => <button key={term.id} onMouseDown={(event) => event.preventDefault()} onClick={() => void attach(term)}>{term.name}</button>)}</div> : query.trim() ? <small>Enter로 “{query.trim()}” 만들기</small> : null}</div> : null}</div>;
+}
 function RelationshipList({ drugId, items, type, onRemove, onAdd }: { drugId: string; items: RelatedDrug[]; type: RelationshipType; onRemove: (id: string, type: RelationshipType) => void; onAdd: () => void }) {
   const concepts = useConceptEngine();
   return <div className="related-editor relationship-list">{[...items].sort(sortDrug).map((related, index) => { const target: ConceptTarget = { ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: type, relationId: related.id } }; return <span className="relationship-item" key={related.id}><b>{circledNumber(index + 1)}</b><Link {...conceptTargetAttributes(target)} onContextMenu={(event) => concepts?.openMenu(event, target)} href={`/drugs/${related.drugId}`} scroll={false}>({formatDrugIndex(related.catalogIndex, related.referenceIndex)}, {related.name})</Link><button onClick={() => onRemove(related.id, type)} aria-label={`${related.name} 연결 해제`}><X size={13}/></button></span>; })}<button className="inline-add" onClick={onAdd}><Plus size={14}/> 연결</button></div>;

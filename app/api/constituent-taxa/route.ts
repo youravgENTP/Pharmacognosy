@@ -3,13 +3,19 @@ import { and, asc, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { constituentTaxa, constituentTaxonEdges } from "@/lib/db/schema";
+import { constituentMedia, constituentMemberships, constituents, constituentTaxa, constituentTaxonEdges, constituentTaxonMedia } from "@/lib/db/schema";
 
 export async function GET() { const authError = await authorizeApi("user"); if (authError) return authError;
-  const nodes = await db.select().from(constituentTaxa).where(and(ne(constituentTaxa.kind, "compound"), eq(constituentTaxa.hidden, false))).orderBy(asc(constituentTaxa.position), asc(constituentTaxa.name));
+  const [nodes, constituentRows, memberships, taxonMedia, compoundMedia] = await Promise.all([
+    db.select().from(constituentTaxa).where(and(ne(constituentTaxa.kind, "compound"), eq(constituentTaxa.hidden, false))).orderBy(asc(constituentTaxa.position), asc(constituentTaxa.name)),
+    db.select().from(constituents).orderBy(asc(constituents.name)),
+    db.select().from(constituentMemberships),
+    db.select().from(constituentTaxonMedia).orderBy(asc(constituentTaxonMedia.position), asc(constituentTaxonMedia.createdAt)),
+    db.select().from(constituentMedia).orderBy(asc(constituentMedia.position), asc(constituentMedia.createdAt)),
+  ]);
   const visibleIds = new Set(nodes.map((node) => node.id));
   const edges = (await db.select().from(constituentTaxonEdges).orderBy(asc(constituentTaxonEdges.position))).filter((edge) => visibleIds.has(edge.parentId) && visibleIds.has(edge.childId));
-  return NextResponse.json({ nodes, edges });
+  return NextResponse.json({ nodes, edges, constituents: constituentRows, memberships: memberships.filter((row) => visibleIds.has(row.taxonId)), taxonMedia, constituentMedia: compoundMedia });
 }
 
 export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;

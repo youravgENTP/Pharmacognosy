@@ -6,6 +6,7 @@ import { DrugEditor } from "@/components/drug-editor";
 import { StudyContentEditor } from "@/components/study-content-editor";
 import type { ImportanceLevel, OriginPlant, StudyBlock, StudyItem, StudySection } from "@/lib/db/schema";
 import { formatDrugIndex } from "@/lib/drug-index";
+import { includesSearch, normalizeSearch } from "@/lib/search";
 
 type FamilyDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string };
 type Family = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null; summary: StudyItem[]; summaryBlocks: StudyBlock[]; drugs: FamilyDrug[] };
@@ -13,6 +14,7 @@ type Selection = { type: "family"; id: string } | { type: "drug"; id: string };
 type DrugProfile = {
   id: string; koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
   medicinalPart: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[]; family: string | null;
+  identityTerms: { id: string; name: string }[];
   relatedDrugs: { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; name: string }[];
   similarDrugs: { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; name: string }[];
   availableDrugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; name: string; latinName?: string | null }[];
@@ -27,9 +29,15 @@ export function FamiliesManager({ initialFamilies }: { initialFamilies: Family[]
   const [adding, setAdding] = useState(false);
   const selectedFamily = selection?.type === "family" ? families.find((family) => family.id === selection.id) : undefined;
   const visibleFamilies = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
+    const needle = normalizeSearch(query);
     if (!needle) return families;
-    return families.filter((family) => [family.koreanName, family.scientificName, family.acceptedScientificName, ...family.drugs.flatMap((drug) => [drug.koreanName, drug.latinName])].some((value) => value?.toLocaleLowerCase().includes(needle)));
+    return families.flatMap((family) => {
+      const familyMatch = includesSearch(needle, [family.koreanName, family.scientificName, family.acceptedScientificName]);
+      if (familyMatch) return [family];
+      const categoryMatches = new Set(family.drugs.filter((drug) => includesSearch(needle, [drug.categoryName])).map((drug) => drug.categoryId ?? "uncategorized"));
+      const drugs = family.drugs.filter((drug) => categoryMatches.has(drug.categoryId ?? "uncategorized") || includesSearch(needle, [drug.koreanName, drug.latinName, formatDrugIndex(drug.catalogIndex, drug.referenceIndex)]));
+      return drugs.length ? [{ ...family, drugs }] : [];
+    });
   }, [families, query]);
 
   function toggle(setter: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) {
@@ -52,7 +60,7 @@ export function FamiliesManager({ initialFamilies }: { initialFamilies: Family[]
       <div className="families-toolbar"><div className="search-wrap"><Search size={16}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="과 또는 생약 검색"/></div><button onClick={() => setAdding((value) => !value)}><Plus size={15}/> Family</button></div>
       {adding ? <NewFamilyForm onCreate={createFamily} onCancel={() => setAdding(false)}/> : null}
       <div className="families-tree">{visibleFamilies.map((family) => {
-        const familyOpen = expandedFamilies.has(family.id);
+        const familyOpen = query.trim() ? true : expandedFamilies.has(family.id);
         const grouped = groupByCategory(family.drugs);
         return <div className="family-branch" key={family.id}>
           <div className={`family-tree-row level-family ${selection?.type === "family" && selection.id === family.id ? "selected" : ""}`}>
@@ -60,7 +68,7 @@ export function FamiliesManager({ initialFamilies }: { initialFamilies: Family[]
             <button className="family-entity" onClick={() => setSelection({ type: "family", id: family.id })}><span>{family.koreanName}<em>{family.scientificName}</em></span><small>{family.drugs.length}</small></button>
           </div>
           {familyOpen ? <div className="family-tree-children">{grouped.map((category) => {
-            const key = `${family.id}:${category.id}`; const categoryOpen = expandedCategories.has(key);
+            const key = `${family.id}:${category.id}`; const categoryOpen = query.trim() ? true : expandedCategories.has(key);
             return <div className="family-category-branch" key={key}>
               <div className="family-tree-row level-category"><span className="family-elbow"/><button className="family-chevron" onClick={() => toggle(setExpandedCategories, key)}>{categoryOpen ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}</button><button className="family-entity" onClick={() => toggle(setExpandedCategories, key)}><span>{category.name}</span><small>{category.drugs.length}</small></button></div>
               {categoryOpen ? <div className="family-drug-children">{category.drugs.map((drug) => <div className={`family-tree-row level-drug ${selection?.type === "drug" && selection.id === drug.id ? "selected" : ""}`} key={drug.id}><span className="family-elbow"/><span className="family-leaf-space"/><button className="family-entity" onClick={() => setSelection({ type: "drug", id: drug.id })}><span><b>{formatDrugIndex(drug.catalogIndex, drug.referenceIndex)}</b>{drug.koreanName}<em>{drug.latinName}</em></span></button></div>)}</div> : null}
@@ -115,5 +123,5 @@ function DrugDetail({ id }: { id: string }) {
   useEffect(() => { const controller = new AbortController(); setDrug(undefined); setError(false); fetch(`/api/drugs/${id}`, { signal: controller.signal }).then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setDrug).catch((reason) => { if (reason.name !== "AbortError") setError(true); }); return () => controller.abort(); }, [id]);
   if (error) return <div className="panel family-empty">생약 카드를 불러오지 못했습니다.</div>;
   if (!drug) return <div className="panel family-empty">불러오는 중…</div>;
-  return <DrugEditor key={drug.id} id={drug.id} family={drug.family} relatedDrugs={drug.relatedDrugs} similarDrugs={drug.similarDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, familyId: drug.familyId, importance: drug.importance, sections: drug.sections }}/>;
+  return <DrugEditor key={drug.id} id={drug.id} family={drug.family} identityTerms={drug.identityTerms} relatedDrugs={drug.relatedDrugs} similarDrugs={drug.similarDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, familyId: drug.familyId, importance: drug.importance, sections: drug.sections }}/>;
 }

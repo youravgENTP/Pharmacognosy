@@ -123,6 +123,19 @@ export const crudeDrugs = pgTable("crude_drugs", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("crude_drugs_category_idx").on(t.categoryId), uniqueIndex("crude_drugs_korean_name_idx").on(t.koreanName)]);
 
+export const drugIdentityTerms = pgTable("drug_identity_terms", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("drug_identity_terms_name_idx").on(t.name)]);
+
+export const crudeDrugIdentityTerms = pgTable("crude_drug_identity_terms", {
+  crudeDrugId: uuid("crude_drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
+  termId: uuid("term_id").notNull().references(() => drugIdentityTerms.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.crudeDrugId, t.termId] }), index("crude_drug_identity_terms_drug_idx").on(t.crudeDrugId)]);
+
 export const userDrugMnemonics = pgTable("user_drug_mnemonics", {
   id: uuid("id").defaultRandom().primaryKey(),
   drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
@@ -208,6 +221,24 @@ export const constituentMemberships = pgTable("constituent_memberships", {
   constituentId: uuid("constituent_id").notNull().references(() => constituents.id, { onDelete: "cascade" }),
   taxonId: uuid("taxon_id").notNull().references(() => constituentTaxa.id, { onDelete: "cascade" }),
 }, (t) => [primaryKey({ columns: [t.constituentId, t.taxonId] })]);
+
+export const constituentTaxonMedia = pgTable("constituent_taxon_media", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taxonId: uuid("taxon_id").notNull().references(() => constituentTaxa.id, { onDelete: "cascade" }),
+  mediaAssetId: uuid("media_asset_id").notNull().references(() => mediaAssets.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
+  caption: text("caption"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("constituent_taxon_media_asset_idx").on(t.taxonId, t.mediaAssetId), index("constituent_taxon_media_taxon_idx").on(t.taxonId)]);
+
+export const constituentMedia = pgTable("constituent_media", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  constituentId: uuid("constituent_id").notNull().references(() => constituents.id, { onDelete: "cascade" }),
+  mediaAssetId: uuid("media_asset_id").notNull().references(() => mediaAssets.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
+  caption: text("caption"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("constituent_media_asset_idx").on(t.constituentId, t.mediaAssetId), index("constituent_media_constituent_idx").on(t.constituentId)]);
 
 export const crudeDrugConstituents = pgTable("crude_drug_constituents", {
   crudeDrugId: uuid("crude_drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
@@ -308,6 +339,12 @@ export const crudeDrugRelations = relations(crudeDrugs, ({ one, many }) => ({
   family: one(families, { fields: [crudeDrugs.familyId], references: [families.id] }),
   collectionMembers: many(collectionMembers),
   mnemonics: many(userDrugMnemonics),
+  identityTerms: many(crudeDrugIdentityTerms),
+}));
+export const drugIdentityTermRelations = relations(drugIdentityTerms, ({ many }) => ({ drugs: many(crudeDrugIdentityTerms) }));
+export const crudeDrugIdentityTermRelations = relations(crudeDrugIdentityTerms, ({ one }) => ({
+  drug: one(crudeDrugs, { fields: [crudeDrugIdentityTerms.crudeDrugId], references: [crudeDrugs.id] }),
+  term: one(drugIdentityTerms, { fields: [crudeDrugIdentityTerms.termId], references: [drugIdentityTerms.id] }),
 }));
 export const collectionRelations = relations(collections, ({ many }) => ({ members: many(collectionMembers), revisions: many(collectionRevisions) }));
 export const collectionRevisionRelations = relations(collectionRevisions, ({ one }) => ({

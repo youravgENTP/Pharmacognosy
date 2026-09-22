@@ -637,6 +637,61 @@ html, body { background: var(--paper); color: var(--ink); }
 .taxonomy-layout.explorer-layout { grid-template-columns: minmax(520px, 1fr) minmax(300px, 360px); }
 @media (max-width: 980px) { .taxonomy-layout.explorer-layout { grid-template-columns: 1fr; } }
 
+/* Compound taxonomy leaves, media, and shared identity terms */
+.taxonomy-no-results { margin: 36px 8px; color: #7f8994; text-align: center; }
+.taxon-label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.taxon-label small { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.constituent-leaf .taxon-toggle { color: #79a8e8; }
+.constituent-leaf .taxon-label > span { color: #cfd9e7; font-weight: 650; }
+.constituent-leaf .taxon-label small { max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
+.taxon-description { margin-top: 15px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 7px; }
+.taxon-description textarea { min-width: 0; min-height: 55px; resize: vertical; border: 1px solid #303740; border-radius: 7px; padding: 8px 9px; background: #12161a; color: #dfe4e9; font: inherit; font-size: 12px; }
+.taxon-description button, .constituent-create button, .detail-save { border: 0; border-radius: 7px; padding: 8px 9px; background: #2c67b7; color: white; white-space: nowrap; }
+.constituent-create { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-bottom: 9px; }
+.constituent-create input { min-width: 0; border: 1px solid #303740; border-radius: 7px; padding: 8px 9px; background: #12161a; color: #e4e8ed; }
+.constituent-create button { display: inline-flex; align-items: center; gap: 4px; }
+.constituent-detail { overflow-y: auto; }
+.detail-back { width: fit-content; margin-bottom: 14px; border: 0; padding: 3px 0; background: transparent; color: #8faed5; display: inline-flex; align-items: center; gap: 5px; }
+.constituent-detail > label { margin-top: 13px; color: #8e98a4; display: grid; gap: 6px; font-size: 11px; font-weight: 700; }
+.constituent-detail > label input, .constituent-detail > label textarea, .constituent-memberships select { width: 100%; min-width: 0; border: 1px solid #343b44; border-radius: 7px; padding: 8px 9px; background: #111519; color: #e7eaee; font: inherit; }
+.constituent-detail > label textarea { min-height: 66px; resize: vertical; }
+.detail-save { margin-top: 9px; }
+.constituent-memberships { margin-top: 18px; padding-top: 14px; border-top: 1px solid #2d333a; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.constituent-memberships > strong { flex-basis: 100%; margin-bottom: 3px; color: #aeb6c0; font-size: 12px; }
+.constituent-memberships > span { border-radius: 99px; padding: 5px 5px 5px 9px; background: #213650; color: #a7c9f7; display: inline-flex; align-items: center; gap: 3px; font-size: 11px; }
+.constituent-memberships > span button { border: 0; padding: 2px; background: transparent; color: inherit; display: grid; place-items: center; }
+.constituent-memberships select { flex: 1 1 150px; width: auto; padding: 6px 8px; font-size: 11px; }
+.constituent-memberships > button { border: 0; border-radius: 6px; padding: 7px 9px; background: #29313a; color: #cbd1d8; }
+.constituent-delete { margin-top: 20px; border: 1px solid #60383b; border-radius: 7px; padding: 8px 10px; background: #2b1c1e; color: #e98b91; display: inline-flex; align-items: center; gap: 6px; }
+.compound-media { margin-top: 15px; padding-top: 13px; border-top: 1px solid #2d333a; }
+.compound-media > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.compound-media > header strong { color: #aeb6c0; font-size: 12px; }
+.compound-media > header button { border: 1px solid #39434e; border-radius: 7px; padding: 6px 8px; background: #22282e; color: #a9c5e8; display: inline-flex; align-items: center; gap: 5px; }
+.compound-media > div:not(.compound-image-preview) { margin-top: 8px; display: grid; gap: 7px; }
+.compound-media article { min-width: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 7px; }
+.compound-thumbnail { width: 52px; height: 42px; overflow: hidden; border: 1px solid #394149; border-radius: 6px; padding: 0; background: #101316; }
+.compound-thumbnail img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.compound-media article > input { min-width: 0; border: 1px solid transparent; border-bottom-color: #343b44; padding: 6px 3px; background: transparent; color: #cdd3da; }
+.compound-media article > span { display: flex; }
+.compound-media article > span button { width: 25px; height: 27px; border: 0; border-radius: 5px; padding: 0; background: transparent; color: #7e8995; display: grid; place-items: center; }
+.compound-media article > span button:hover:not(:disabled) { background: #282f36; color: #dce2e8; }
+.compound-image-preview { position: fixed; inset: 0; z-index: 190; margin: 0 !important; padding: 28px; background: rgba(4,6,8,.82); display: grid; place-items: center; }
+.compound-image-preview figure { position: relative; max-width: min(940px, 100%); max-height: 100%; margin: 0; border: 1px solid #3a424b; border-radius: 12px; padding: 12px; background: #15191d; box-shadow: 0 28px 90px rgba(0,0,0,.65); }
+.compound-image-preview figure > button { position: absolute; right: 17px; top: 17px; width: 34px; height: 34px; border: 0; border-radius: 99px; background: rgba(12,15,18,.8); color: white; display: grid; place-items: center; }
+.compound-image-preview img { display: block; max-width: 100%; max-height: calc(100vh - 115px); border-radius: 7px; object-fit: contain; }
+.compound-image-preview figcaption { padding: 9px 3px 1px; color: #aeb6c0; font-size: 12px; }
+.identity-term-editor { position: relative; min-width: 0; }
+.identity-term-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.identity-term-chips > span { border: 1px solid #3a4d65; border-radius: 99px; padding: 5px 5px 5px 10px; background: #1c2d42; color: #a9caf5; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.identity-term-chips > span button { border: 0; padding: 2px; background: transparent; color: inherit; display: grid; place-items: center; }
+.identity-term-combobox { position: relative; width: min(420px, 100%); margin-top: 7px; }
+.identity-term-combobox > input { width: 100%; border: 1px solid #3b4652; border-radius: 7px; padding: 8px 9px; background: #111519; color: #e7eaee; }
+.identity-term-combobox > div { position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; right: 0; max-height: 210px; overflow-y: auto; border: 1px solid #3a424c; border-radius: 8px; padding: 4px; background: #111519; box-shadow: 0 14px 38px rgba(0,0,0,.5); }
+.identity-term-combobox > div button { width: 100%; border: 0; border-radius: 5px; padding: 8px; background: transparent; color: #dce1e7; text-align: left; }
+.identity-term-combobox > div button:hover { background: #223247; }
+.identity-term-combobox > small { display: block; padding: 6px 2px; color: #7f8994; }
+@media (max-width: 650px) { .taxon-description { grid-template-columns: 1fr; } .compound-media article { grid-template-columns: 44px minmax(0, 1fr); } .compound-media article > span { grid-column: 2; } }
+
 /* Botanical Families explorer */
 .families-page { max-width: 1680px; }
 .families-layout { display: grid; grid-template-columns: minmax(310px, 390px) minmax(0, 1fr); gap: 18px; align-items: start; }

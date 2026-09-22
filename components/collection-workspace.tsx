@@ -23,17 +23,80 @@ export function CollectionWorkspace({ initial }: { initial: CollectionData }) {
 }
 
 function WorkspaceBody({ initial, sourceId, setSourceId, sourceOpen, setSourceOpen, focusAnchor }: { initial: CollectionData; sourceId?: string; setSourceId: (id?: string) => void; sourceOpen: boolean; setSourceOpen: (value: boolean) => void; focusAnchor?: string }) {
-  const [document, setDocument] = useState(initial.document); const [revision, setRevision] = useState(initial.revision); const [name, setName] = useState(initial.name); const [status, setStatus] = useState<"saved" | "dirty" | "saving" | "error">("saved"); const [sourceMode, setSourceMode] = useState(false); const [paneWidth, setPaneWidth] = useState(42); const [conflictsOpen, setConflictsOpen] = useState(false); const timer = useRef<number | undefined>(undefined); const first = useRef(true); const documentRef = useRef(document); const revisionRef = useRef(revision); const saveVersion = useRef(0); const concepts = useConceptEngine(); documentRef.current = document; revisionRef.current = revision;
+  const [document, setDocument] = useState(initial.document); const [revision, setRevision] = useState(initial.revision); const [name, setName] = useState(initial.name); const [status, setStatus] = useState<"saved" | "dirty" | "saving" | "error">("saved"); const [sourceMode, setSourceMode] = useState(false); const [paneWidth, setPaneWidth] = useState(42); const [conflictsOpen, setConflictsOpen] = useState(false); const timer = useRef<number | undefined>(undefined); const first = useRef(true); const dirtyRef = useRef(false); const documentRef = useRef(document); const revisionRef = useRef(revision); const saveVersion = useRef(0); const lastManualSnapshot = useRef<string | undefined>(undefined); const concepts = useConceptEngine(); documentRef.current = document; revisionRef.current = revision;
   useEffect(() => { const stored = Number(localStorage.getItem("collection-source-pane-width")); if (stored >= 25 && stored <= 65) setPaneWidth(stored); }, []);
   useEffect(() => { window.document.body.classList.toggle("source-review-active", sourceMode); return () => window.document.body.classList.remove("source-review-active"); }, [sourceMode]);
-  useEffect(() => { if (first.current) { first.current = false; return; } const version = ++saveVersion.current; setStatus("dirty"); window.clearTimeout(timer.current); timer.current = window.setTimeout(async () => { const snapshot = documentRef.current; setStatus("saving"); let response = await saveCollectionDocument(initial.id, snapshot, revisionRef.current); if (response.status === 409) { const current = await fetch(`/api/collections/${initial.id}`).then((result) => result.json()); revisionRef.current = current.revision; response = await saveCollectionDocument(initial.id, documentRef.current, current.revision); } if (response.ok) { const body = await response.json(); revisionRef.current = body.revision; setRevision(body.revision); if (version === saveVersion.current && snapshot === documentRef.current) setStatus("saved"); else setDocument((current) => ({ ...current })); } else setStatus("error"); }, 700); return () => window.clearTimeout(timer.current); }, [document, initial.id]);
+  const persistLiveDocument = useCallback(async () => {
+    window.clearTimeout(timer.current);
+    if (!dirtyRef.current) return { ok: true, revision: revisionRef.current, wrote: false };
+    let snapshot = documentRef.current;
+    let version = saveVersion.current;
+    setStatus("saving");
+    try {
+      let response = await saveCollectionDocument(initial.id, snapshot, revisionRef.current);
+      if (response.status === 409) {
+        const currentResponse = await fetch(`/api/collections/${initial.id}`);
+        if (!currentResponse.ok) throw new Error("Collection refresh failed");
+        const current = await currentResponse.json() as { revision: number };
+        revisionRef.current = current.revision;
+        snapshot = documentRef.current;
+        version = saveVersion.current;
+        response = await saveCollectionDocument(initial.id, snapshot, current.revision);
+      }
+      if (!response.ok) throw new Error("Collection save failed");
+      const body = await response.json() as { revision: number };
+      revisionRef.current = body.revision;
+      setRevision(body.revision);
+      const unchanged = version === saveVersion.current && snapshot === documentRef.current;
+      dirtyRef.current = !unchanged;
+      setStatus(unchanged ? "saved" : "dirty");
+      return { ok: true, revision: body.revision, wrote: true };
+    } catch {
+      setStatus("error");
+      return { ok: false, revision: revisionRef.current, wrote: false };
+    }
+  }, [initial.id]);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    dirtyRef.current = true;
+    saveVersion.current += 1;
+    setStatus("dirty");
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => { void persistLiveDocument(); }, 700);
+    return () => window.clearTimeout(timer.current);
+  }, [document, persistLiveDocument]);
+  const saveExplicitly = useCallback(async () => {
+    window.clearTimeout(timer.current);
+    let live = await persistLiveDocument();
+    if (!live.ok) return;
+    if (dirtyRef.current) live = await persistLiveDocument();
+    if (!live.ok || dirtyRef.current) { setStatus("error"); return; }
+    const snapshotKey = JSON.stringify(documentRef.current);
+    if (snapshotKey === lastManualSnapshot.current) { setStatus(dirtyRef.current ? "dirty" : "saved"); return; }
+    setStatus("saving");
+    try {
+      const response = await fetch(`/api/collections/${initial.id}/revisions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: live.revision }) });
+      if (!response.ok) throw new Error("Revision snapshot failed");
+      lastManualSnapshot.current = snapshotKey;
+      setStatus(dirtyRef.current ? "dirty" : "saved");
+    } catch { setStatus("error"); }
+  }, [initial.id, persistLiveDocument]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      void saveExplicitly();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [saveExplicitly]);
   async function rename(value: string) { setName(value); if (value.trim()) await fetch(`/api/collections/${initial.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: value }) }); }
   const unresolved = concepts?.graph.anchors.filter((anchor) => (anchor.status === "broken" || anchor.status === "updated") && concepts.graph.connections.some((edge) => edge.anchorAId === anchor.id ? !edge.historicalA : edge.anchorBId === anchor.id ? !edge.historicalB : false)) ?? [];
-  function beginResize(event: React.PointerEvent) { const startX = event.clientX; const start = paneWidth; const move = (pointer: PointerEvent) => { const total = window.innerWidth - 76; const width = Math.max(25, Math.min(65, start + (pointer.clientX - startX) / total * 100)); setPaneWidth(width); }; const end = () => { localStorage.setItem("collection-source-pane-width", String(paneWidth)); window.removeEventListener("pointermove", move); }; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true }); }
+  function beginResize(event: React.PointerEvent) { const startX = event.clientX; const start = paneWidth; let latest = start; const move = (pointer: PointerEvent) => { const total = window.innerWidth - 76; latest = Math.max(25, Math.min(65, start + (pointer.clientX - startX) / total * 100)); setPaneWidth(latest); }; const end = () => { localStorage.setItem("collection-source-pane-width", String(latest)); window.removeEventListener("pointermove", move); }; window.addEventListener("pointermove", move); window.addEventListener("pointerup", end, { once: true }); }
   useEffect(() => { if (!focusAnchor || !sourceOpen) return; const timeout = window.setTimeout(() => window.document.querySelector<HTMLElement>(`.concept-anchor-box.selected, [data-concept-owner-id="${sourceId}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 450); return () => window.clearTimeout(timeout); }, [focusAnchor, sourceId, sourceOpen]);
   return <div className={`collection-workspace ${sourceMode ? "source-review-mode" : ""}`}>
     <header className="collection-workspace-header"><Link href="/collections"><ChevronLeft size={18}/> Collections</Link><input value={name} onChange={(event) => void rename(event.target.value)} aria-label="컬렉션 이름"/><div><label><input type="checkbox" checked={sourceMode} onChange={(event) => setSourceMode(event.target.checked)}/> Source 데이터 카드 보기</label>{unresolved.length ? <button className="conflict-button" onClick={() => setConflictsOpen(true)}><AlertTriangle size={15}/> {unresolved.length}</button> : null}<span className={`save-status ${status}`}><i className="dot"/>{status === "saved" ? "Saved" : status === "saving" ? "Saving" : status === "error" ? "Error" : "Unsaved"}</span></div></header>
-    <main className="collection-panes">{sourceOpen ? <><section className="source-pane" style={{ width: `${paneWidth}%` }}><SourcePane selectedId={sourceId} onSelect={setSourceId} onClose={() => setSourceOpen(false)}/></section><button className="pane-divider" onPointerDown={beginResize} aria-label="소스 패널 너비 조절"/></> : <button className="source-pane-reveal" onClick={() => setSourceOpen(true)}>Source 열기</button>}<section className="collection-document-pane"><CollectionBlockEditor collectionId={initial.id} document={document} onChange={setDocument}/></section></main>
+    <main className={`collection-panes ${sourceOpen ? "source-open" : "source-closed"}`}>{sourceOpen ? <><section className="source-pane" style={{ width: `${paneWidth}%` }}><SourcePane selectedId={sourceId} onSelect={setSourceId} onClose={() => setSourceOpen(false)}/></section><button className="pane-divider" onPointerDown={beginResize} aria-label="소스 패널 너비 조절"/></> : <button className="source-pane-reveal" onClick={() => setSourceOpen(true)}>Source 열기</button>}<section className="collection-document-pane"><CollectionBlockEditor collectionId={initial.id} document={document} onChange={setDocument}/></section></main>
     {conflictsOpen ? <ConflictDialog anchors={unresolved} allAnchors={concepts?.graph.anchors ?? []} connections={concepts?.graph.connections ?? []} onClose={() => setConflictsOpen(false)} onReload={() => concepts?.reload()}/> : null}
   </div>;
 }

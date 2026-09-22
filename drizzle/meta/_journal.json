@@ -71,6 +71,13 @@
       "when": 1790040202430,
       "tag": "0009_outstanding_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790043017707,
+      "tag": "0010_daily_joystick",
+      "breakpoints": true
     }
   ]
 }

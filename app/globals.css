@@ -964,11 +964,12 @@ html, body { background: var(--paper); color: var(--ink); }
 .collection-workspace-header label { color: #8f99a5; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; }
 .collection-workspace-header .save-status { color: #7f8994; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; }
 .conflict-button { border: 1px solid #704f2d; border-radius: 7px; padding: 6px 8px; background: #34291e; color: #e0aa68; display: inline-flex; align-items: center; gap: 5px; }
-.collection-panes { min-height: calc(100vh - 60px); display: flex; align-items: stretch; }
+.collection-panes { position: relative; min-height: calc(100vh - 60px); display: flex; align-items: stretch; }
 .source-pane { min-width: 25%; max-width: 65%; height: calc(100vh - 60px); position: sticky; top: 60px; overflow: hidden; background: #12161a; }
 .pane-divider { width: 7px; flex: 0 0 7px; padding: 0; border: 0; border-right: 1px solid #323941; border-left: 1px solid #242a30; background: #1a1f24; cursor: col-resize; }
 .pane-divider:hover { background: #315782; }
-.source-pane-reveal { position: sticky; z-index: 15; top: 75px; align-self: flex-start; margin: 14px 0 0 12px; padding: 7px 10px; border: 1px solid #39434d; border-radius: 7px; background: #1d2329; color: #9ba6b2; }
+.source-pane-reveal { position: fixed; z-index: 15; top: 75px; left: 88px; padding: 7px 10px; border: 1px solid #39434d; border-radius: 7px; background: #1d2329; color: #9ba6b2; box-shadow: 0 5px 16px rgba(0,0,0,.28); }
+.collection-panes.source-closed .collection-document-pane { width: 100%; }
 .collection-document-pane { flex: 1; min-width: 0; padding: 30px clamp(20px,4vw,68px) 100px; overflow: visible; }
 .source-pane-inner { height: 100%; display: flex; flex-direction: column; }
 .source-pane-inner > header { min-height: 47px; padding: 0 13px; border-bottom: 1px solid #2b3138; display: flex; align-items: center; justify-content: space-between; }
@@ -1054,6 +1055,8 @@ html, body { background: var(--paper); color: var(--ink); }
 .sheet-toolbar { position: relative; z-index: 11; width: 100%; min-width: 0; padding: 5px; border-bottom: 1px solid #343c45; border-radius: 7px 7px 0 0; background: #1b2026; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .sheet-tool-group { min-width: 0; padding-right: 4px; border-right: 1px solid #343c45; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
 .sheet-tool-group:last-child { border-right: 0; }
+.sheet-zoom-tools { margin-left: auto; }
+.sheet-zoom-tools button:nth-child(2) { min-width: 46px; font-variant-numeric: tabular-nums; }
 .sheet-toolbar button, .sheet-toolbar label { height: 27px; padding: 0 7px; border: 0; border-radius: 4px; background: transparent; color: #95a0ab; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 10px; white-space: nowrap; }
 .sheet-toolbar button:hover:not(:disabled), .sheet-toolbar button.active { background: #2b4057; color: #b8d8ff; }
 .sheet-toolbar button:disabled { opacity: .32; cursor: default; }

@@ -227,6 +227,19 @@ export const collections = pgTable("collections", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const collectionRevisions = pgTable("collection_revisions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  collectionId: uuid("collection_id").notNull().references(() => collections.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull(),
+  document: jsonb("document").$type<CollectionDocument>().notNull(),
+  savedByUserId: text("saved_by_user_id").notNull().references(() => user.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("collection_revisions_collection_idx").on(t.collectionId),
+  index("collection_revisions_collection_created_idx").on(t.collectionId, t.createdAt),
+  uniqueIndex("collection_revisions_collection_revision_idx").on(t.collectionId, t.revision),
+]);
+
 export const conceptAnchors = pgTable("concept_anchors", {
   id: uuid("id").defaultRandom().primaryKey(),
   ownerType: text("owner_type").$type<ConceptOwnerType>().notNull(),
@@ -296,7 +309,11 @@ export const crudeDrugRelations = relations(crudeDrugs, ({ one, many }) => ({
   collectionMembers: many(collectionMembers),
   mnemonics: many(userDrugMnemonics),
 }));
-export const collectionRelations = relations(collections, ({ many }) => ({ members: many(collectionMembers) }));
+export const collectionRelations = relations(collections, ({ many }) => ({ members: many(collectionMembers), revisions: many(collectionRevisions) }));
+export const collectionRevisionRelations = relations(collectionRevisions, ({ one }) => ({
+  collection: one(collections, { fields: [collectionRevisions.collectionId], references: [collections.id] }),
+  savedBy: one(user, { fields: [collectionRevisions.savedByUserId], references: [user.id] }),
+}));
 export const conceptAnchorRelations = relations(conceptAnchors, ({ many }) => ({ connectionsA: many(conceptConnections, { relationName: "anchorA" }), connectionsB: many(conceptConnections, { relationName: "anchorB" }) }));
 export const conceptConnectionRelations = relations(conceptConnections, ({ one }) => ({ anchorA: one(conceptAnchors, { fields: [conceptConnections.anchorAId], references: [conceptAnchors.id], relationName: "anchorA" }), anchorB: one(conceptAnchors, { fields: [conceptConnections.anchorBId], references: [conceptAnchors.id], relationName: "anchorB" }) }));
 export const memberRelations = relations(collectionMembers, ({ one }) => ({

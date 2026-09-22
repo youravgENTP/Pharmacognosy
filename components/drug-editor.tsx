@@ -8,6 +8,7 @@ import { StudyContentEditor } from "@/components/study-content-editor";
 import { DrugMnemonicVersions } from "@/components/drug-mnemonic-versions";
 import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
 import { ConceptBoundary, conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
+import { taxonomyIndent } from "@/lib/constituent-taxonomy";
 
 type DrugDraft = {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
@@ -245,7 +246,7 @@ function PickerBranch({ node, nodes, edges, depth, path, expanded, setExpanded, 
   if (path.has(node.id)) return null;
   const children = edges.filter((edge) => edge.parentId === node.id).map((edge) => nodes.find((item) => item.id === edge.childId)).filter(Boolean) as Taxon[];
   const open = expanded.has(node.id); const nextPath = new Set(path).add(node.id);
-  return <div><div className="picker-row" style={{ paddingLeft: 10 + depth * 22 }}><button className="picker-toggle" onClick={() => { const next = new Set(expanded); if (open) next.delete(node.id); else next.add(node.id); setExpanded(next); }}>{children.length ? (open ? <ChevronDown size={16}/> : <ChevronRight size={16}/>) : <span/>}</button><PickerRow node={node} onChoose={onChoose}/></div>{open ? children.map((child) => <PickerBranch key={`${node.id}-${child.id}`} node={child} nodes={nodes} edges={edges} depth={depth + 1} path={nextPath} expanded={expanded} setExpanded={setExpanded} onChoose={onChoose}/>) : null}</div>;
+  return <div><div className="picker-row" style={{ paddingLeft: 10 + taxonomyIndent(depth) }}><button className="picker-toggle" onClick={() => { const next = new Set(expanded); if (open) next.delete(node.id); else next.add(node.id); setExpanded(next); }}>{children.length ? (open ? <ChevronDown size={16}/> : <ChevronRight size={16}/>) : <span/>}</button><PickerRow node={node} onChoose={onChoose}/></div>{open ? children.map((child) => <PickerBranch key={`${node.id}-${child.id}`} node={child} nodes={nodes} edges={edges} depth={depth + 1} path={nextPath} expanded={expanded} setExpanded={setExpanded} onChoose={onChoose}/>) : null}</div>;
 }
 function PickerRow({ node, onChoose }: { node: Taxon; onChoose: (node: Taxon) => void }) { return <button className="picker-label" onClick={() => onChoose(node)}><span>{node.name}</span><small>{kindLabel(node.kind)}</small></button>; }
 function kindLabel(kind: string) { return { pathway: "생합성 경로", class: "성분군", subclass: "하위 성분군", compound: "개별 성분" }[kind] ?? kind; }

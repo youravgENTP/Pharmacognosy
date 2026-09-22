@@ -121,6 +121,8 @@ h2, h3, p { margin-top: 0; }
 .taxonomy-toolbar .taxonomy-search { flex: 1; margin: 0; }
 .taxonomy-root-add { height: 42px; border: 1px solid #343b44; border-radius: 8px; padding: 0 12px; background: #20252b; color: #aeb7c2; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .taxonomy-root-add:hover { border-color: #577ba9; color: #8ebafb; }
+.taxonomy-operation-error { margin: -3px 0 12px; border: 1px solid #7a3737; border-radius: 8px; padding: 8px 10px; background: #2a1717; color: #ffaaaa; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+.taxonomy-operation-error button { border: 0; padding: 3px; background: transparent; color: inherit; display: grid; place-items: center; }
 .taxonomy-branch { min-width: 0; }
 .taxonomy-children { position: relative; }
 .taxonomy-depth-guide { position: absolute; top: 0; bottom: 4px; width: 1px; background: #343b44; pointer-events: none; }

@@ -1240,3 +1240,352 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
   -webkit-text-fill-color: #171b22;
   box-shadow: 0 0 0 1000px #ffffff inset;
 }
+
+/* Two-mode theme tokens. Night is the compatibility default; Day is Soft Sage. */
+:root,
+:root[data-theme="night"] {
+  color-scheme: dark;
+  --app-bg: #0f1215;
+  --sidebar-bg: #181c20;
+  --surface: #181c20;
+  --surface-muted: #14181c;
+  --surface-raised: #171b1f;
+  --card-bg: #171b1f;
+  --input-bg: #14181c;
+  --border: #2d333a;
+  --border-strong: #343b44;
+  --text-primary: #f2f4f7;
+  --text-secondary: #9ba3ae;
+  --text-muted: #7f8994;
+  --user-content-text: #e7eaee;
+  --accent: #6ea7f5;
+  --accent-hover: #91bdf7;
+  --accent-soft: #213650;
+  --selected-bg: #213650;
+  --hover-bg: #22282e;
+  --field-title: #f2f4f7;
+  --focus-ring: rgba(87,144,224,.18);
+  --table-bg: #12161a;
+  --table-header: #1c2228;
+  --table-grid: #2d343b;
+  --overlay: rgba(4,6,8,.76);
+  --shadow: rgba(0,0,0,.58);
+  --legacy-highlight: #594f24;
+  --ink: var(--text-primary);
+  --muted: var(--text-secondary);
+  --paper: var(--app-bg);
+  --panel: var(--surface);
+  --line: var(--border);
+  --green: var(--accent);
+  --green-soft: var(--accent-soft);
+  --sidebar: var(--sidebar-bg);
+}
+
+:root[data-theme="day"] {
+  color-scheme: light;
+  --app-bg: #f6f8f4;
+  --sidebar-bg: #eef4ec;
+  --surface: #ffffff;
+  --surface-muted: #f7f9f6;
+  --surface-raised: #ffffff;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --border: #d8e2d5;
+  --border-strong: #c4d2c1;
+  --text-primary: #223026;
+  --text-secondary: #667268;
+  --text-muted: #6f7a72;
+  --user-content-text: #202124;
+  --accent: #5f8a70;
+  --accent-hover: #4e745e;
+  --accent-soft: #e7f0e9;
+  --selected-bg: #edf5ef;
+  --hover-bg: #f0f5f0;
+  --field-title: #4f735d;
+  --focus-ring: rgba(95,138,112,.18);
+  --table-bg: #ffffff;
+  --table-header: #f2f6f1;
+  --table-grid: #d8e2d5;
+  --overlay: rgba(35,48,38,.24);
+  --shadow: rgba(48,68,54,.14);
+  --legacy-highlight: #fff0a8;
+  --sidebar-text: #304438;
+}
+
+.theme-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.theme-options > button { position: relative; min-height: 92px; padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-muted); color: var(--text-secondary); display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; align-items: start; gap: 10px; text-align: left; }
+.theme-options > button:hover { border-color: var(--accent); background: var(--hover-bg); }
+.theme-options > button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-hover); box-shadow: 0 0 0 2px var(--focus-ring); }
+.theme-options span { display: grid; gap: 5px; }
+.theme-options strong { color: var(--text-primary); }
+.theme-options small { color: var(--text-secondary); line-height: 1.4; }
+@media (max-width: 560px) { .theme-options { grid-template-columns: 1fr; } }
+
+/* Soft Sage theme application. Kept together so component code has no color branches. */
+:root[data-theme="day"] html,
+:root[data-theme="day"] body,
+:root[data-theme="day"] .content,
+:root[data-theme="day"] .collection-workspace { background: var(--app-bg); color: var(--text-primary); }
+:root[data-theme="day"] .content { border-left-color: var(--border); }
+:root[data-theme="day"] .sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--border); }
+:root[data-theme="day"] .brand-text,
+:root[data-theme="day"] .sidebar-user-copy strong { color: #294034; }
+:root[data-theme="day"] .brand .collapse-button,
+:root[data-theme="day"] .collapsed .brand .collapse-button { border-color: var(--border-strong); background: #e4ede2; color: #587061; }
+:root[data-theme="day"] .nav-link,
+:root[data-theme="day"] .collapse-button,
+:root[data-theme="day"] .sidebar-user-copy span,
+:root[data-theme="day"] .sidebar-user-actions a,
+:root[data-theme="day"] .sidebar-user-actions button { color: #667a6c; }
+:root[data-theme="day"] .nav-link:hover,
+:root[data-theme="day"] .sidebar-user-actions a:hover,
+:root[data-theme="day"] .sidebar-user-actions button:hover { background: #e2ece1; color: #355742; }
+:root[data-theme="day"] .nav-link.active { background: #dce9de; color: #3f6c50; }
+:root[data-theme="day"] .sidebar-account { border-color: var(--border); }
+:root[data-theme="day"] .sidebar-avatar { background: #dce9de; color: #466f55; }
+
+:root[data-theme="day"] .panel,
+:root[data-theme="day"] .section-card,
+:root[data-theme="day"] .word-card,
+:root[data-theme="day"] .preview-row,
+:root[data-theme="day"] .category-container,
+:root[data-theme="day"] .taxonomy-main,
+:root[data-theme="day"] .taxonomy-side .panel,
+:root[data-theme="day"] .profile-modal-card,
+:root[data-theme="day"] .drug-profile,
+:root[data-theme="day"] .family-card,
+:root[data-theme="day"] .reference-create-modal,
+:root[data-theme="day"] .export-dialog,
+:root[data-theme="day"] .constituent-picker,
+:root[data-theme="day"] .conflict-dialog { background: var(--card-bg); color: var(--text-primary); border-color: var(--border); box-shadow: 0 18px 55px var(--shadow); }
+:root[data-theme="day"] .modal-backdrop,
+:root[data-theme="day"] .constituent-picker-backdrop,
+:root[data-theme="day"] .export-dialog-backdrop,
+:root[data-theme="day"] .conflict-backdrop { background: var(--overlay); }
+
+:root[data-theme="day"] .search,
+:root[data-theme="day"] .code-input,
+:root[data-theme="day"] .plain-input,
+:root[data-theme="day"] .field input,
+:root[data-theme="day"] .field textarea,
+:root[data-theme="day"] .field select,
+:root[data-theme="day"] .add-field-row select,
+:root[data-theme="day"] .taxon-inline-form input,
+:root[data-theme="day"] .taxon-inline-form select,
+:root[data-theme="day"] .inline-parent-editor select,
+:root[data-theme="day"] .taxon-description textarea,
+:root[data-theme="day"] .constituent-create input,
+:root[data-theme="day"] .constituent-detail > label input,
+:root[data-theme="day"] .constituent-detail > label textarea,
+:root[data-theme="day"] .constituent-memberships select,
+:root[data-theme="day"] .identity-term-combobox > input,
+:root[data-theme="day"] .export-dialog select,
+:root[data-theme="day"] .data-export-list-tools select,
+:root[data-theme="day"] .data-export-options select,
+:root[data-theme="day"] .reference-create-modal input,
+:root[data-theme="day"] .shortcut-row input,
+:root[data-theme="day"] .shortcut-new input,
+:root[data-theme="day"] .shortcut-row label span,
+:root[data-theme="day"] .shortcut-new label span,
+:root[data-theme="day"] .settings-fields-list input,
+:root[data-theme="day"] .settings-fields-list select,
+:root[data-theme="day"] .settings-new-field input,
+:root[data-theme="day"] .settings-new-field select,
+:root[data-theme="day"] .media-library select { background: var(--input-bg); border-color: var(--border-strong); color: var(--user-content-text); }
+:root[data-theme="day"] .search:focus,
+:root[data-theme="day"] input:focus,
+:root[data-theme="day"] textarea:focus,
+:root[data-theme="day"] select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+
+:root[data-theme="day"] .button { background: var(--accent); border-color: var(--accent); }
+:root[data-theme="day"] .button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+:root[data-theme="day"] .button.secondary { background: var(--surface); color: var(--accent-hover); border-color: var(--border-strong); }
+:root[data-theme="day"] .button.ghost { background: transparent; color: var(--text-secondary); }
+:root[data-theme="day"] .icon-button:hover { background: var(--hover-bg); }
+:root[data-theme="day"] .chip,
+:root[data-theme="day"] .badge,
+:root[data-theme="day"] .taxon-kind,
+:root[data-theme="day"] .profile-chip,
+:root[data-theme="day"] .parent-chip,
+:root[data-theme="day"] .constituent-memberships > span { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="day"] .tab { background: var(--surface); }
+:root[data-theme="day"] .tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+:root[data-theme="day"] .category-header { background: rgba(246,248,244,.94); border-bottom-color: var(--accent); }
+:root[data-theme="day"] .category-container,
+:root[data-theme="day"] .group-drug-row { background: var(--surface); border-color: var(--border); }
+:root[data-theme="day"] .importance-group + .importance-group,
+:root[data-theme="day"] .group-drug-row { border-color: var(--border); }
+:root[data-theme="day"] .importance-group-header { background: var(--surface-muted); color: var(--text-primary); }
+:root[data-theme="day"] .group-drug-row:hover { background: var(--hover-bg); }
+:root[data-theme="day"] .group-drug-row .drug-row-main { color: var(--text-primary); }
+:root[data-theme="day"] .group-drug-row .drug-row-main b,
+:root[data-theme="day"] .group-drug-row small { color: var(--text-muted); }
+
+:root[data-theme="day"] .count,
+:root[data-theme="day"] .muted,
+:root[data-theme="day"] .taxon-label small,
+:root[data-theme="day"] .constituent-list > button small,
+:root[data-theme="day"] .family-entity em,
+:root[data-theme="day"] .family-entity small,
+:root[data-theme="day"] .family-summary-title span,
+:root[data-theme="day"] .data-export-summary span,
+:root[data-theme="day"] .data-export-quick small,
+:root[data-theme="day"] .data-export-drugs > label > b,
+:root[data-theme="day"] .data-export-drugs small,
+:root[data-theme="day"] .data-export-options p,
+:root[data-theme="day"] .data-export-options > small,
+:root[data-theme="day"] .settings-section-heading p,
+:root[data-theme="day"] .settings-definition-list span,
+:root[data-theme="day"] .field-kind,
+:root[data-theme="day"] .storage-usage span,
+:root[data-theme="day"] .storage-metrics span,
+:root[data-theme="day"] .storage-actions small,
+:root[data-theme="day"] .media-row small,
+:root[data-theme="day"] .media-row em { color: var(--text-muted); }
+
+:root[data-theme="day"] .profile-identity,
+:root[data-theme="day"] .profile-toolbar { background: rgba(255,255,255,.97); border-color: var(--border); }
+:root[data-theme="day"] .profile-korean-name,
+:root[data-theme="day"] .identity-line input,
+:root[data-theme="day"] .profile-field-title input,
+:root[data-theme="day"] .profile-field-title h2 { color: var(--field-title); }
+:root[data-theme="day"] .profile-latin-name,
+:root[data-theme="day"] .identity-line > span:not(.identity-colon) { color: var(--user-content-text); }
+:root[data-theme="day"] .profile-field { border-color: var(--border); }
+:root[data-theme="day"] .rich-study-input,
+:root[data-theme="day"] .plain-field-editor,
+:root[data-theme="day"] .hierarchy-row input,
+:root[data-theme="day"] .indicator-field .identity-line input,
+:root[data-theme="day"] .collection-rich-block > [contenteditable],
+:root[data-theme="day"] .collection-workspace-header > input,
+:root[data-theme="day"] .sheet-cell,
+:root[data-theme="day"] .sheet-cell-editor,
+:root[data-theme="day"] .sheet-formula-bar input,
+:root[data-theme="day"] .sheet-formula-bar textarea { color: var(--user-content-text); caret-color: var(--user-content-text); }
+:root[data-theme="day"] .hierarchy-marker { color: var(--text-secondary); }
+:root[data-theme="day"] .hierarchy-row:focus-within { background: #f7faf7; }
+:root[data-theme="day"] .hierarchy-actions button:hover,
+:root[data-theme="day"] .hierarchy-actions button.active,
+:root[data-theme="day"] .character-spacing-select:hover,
+:root[data-theme="day"] .character-spacing-select:focus,
+:root[data-theme="day"] .add-line:hover,
+:root[data-theme="day"] .taxonomy-picker-button:hover { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="day"] .add-line,
+:root[data-theme="day"] .taxonomy-picker-button,
+:root[data-theme="day"] .image-insert-row { color: var(--text-secondary); }
+
+:root[data-theme="day"] .taxon-row:hover,
+:root[data-theme="day"] .family-tree-row:hover,
+:root[data-theme="day"] .picker-row:hover,
+:root[data-theme="day"] .constituent-list > button:hover { background: var(--hover-bg); }
+:root[data-theme="day"] .taxon-row.selected,
+:root[data-theme="day"] .family-tree-row.selected,
+:root[data-theme="day"] .constituent-list > button.selected,
+:root[data-theme="day"] .constituent-scope button.active { background: var(--selected-bg); color: var(--accent-hover); }
+:root[data-theme="day"] .taxon-label,
+:root[data-theme="day"] .family-entity,
+:root[data-theme="day"] .picker-label,
+:root[data-theme="day"] .constituent-list > button { color: var(--text-primary); }
+:root[data-theme="day"] .taxonomy-depth-guide,
+:root[data-theme="day"] .taxonomy-branch-elbow,
+:root[data-theme="day"] .family-tree-children,
+:root[data-theme="day"] .family-drug-children,
+:root[data-theme="day"] .family-elbow { border-color: var(--border); background-color: var(--border); }
+:root[data-theme="day"] .taxonomy-root-add,
+:root[data-theme="day"] .families-toolbar > button,
+:root[data-theme="day"] .taxon-inline-form button,
+:root[data-theme="day"] .new-family-form button { background: var(--surface-muted); border-color: var(--border-strong); color: var(--text-secondary); }
+:root[data-theme="day"] .taxon-inline-form,
+:root[data-theme="day"] .taxon-inline-manage,
+:root[data-theme="day"] .new-family-form,
+:root[data-theme="day"] .constituent-scope { background: var(--surface-muted); border-color: var(--border); }
+:root[data-theme="day"] .constituent-explorer > header strong { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="day"] .constituent-list { border-color: var(--border); }
+:root[data-theme="day"] .family-card-header { border-color: var(--border); }
+:root[data-theme="day"] .family-card-names > input,
+:root[data-theme="day"] .family-card-names label input { color: var(--user-content-text); border-color: var(--border); }
+
+:root[data-theme="day"] .filter-button,
+:root[data-theme="day"] .data-export-summary button,
+:root[data-theme="day"] .data-export-quick button,
+:root[data-theme="day"] .storage-actions > button,
+:root[data-theme="day"] .storage-actions > div { background: var(--surface); border-color: var(--border-strong); color: var(--text-secondary); }
+:root[data-theme="day"] .filter-button:hover,
+:root[data-theme="day"] .filter-button.active,
+:root[data-theme="day"] .data-export-quick button:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
+:root[data-theme="day"] .filter-popover,
+:root[data-theme="day"] .identity-term-combobox > div,
+:root[data-theme="day"] .taxonomy-lineage-popover,
+:root[data-theme="day"] .source-results,
+:root[data-theme="day"] .block-split-menu,
+:root[data-theme="day"] .constituent-context-menu,
+:root[data-theme="day"] .concept-context-menu { background: var(--surface); border-color: var(--border-strong); box-shadow: 0 12px 35px var(--shadow); }
+:root[data-theme="day"] .filter-popover strong,
+:root[data-theme="day"] .filter-popover button,
+:root[data-theme="day"] .identity-term-combobox > div button,
+:root[data-theme="day"] .taxonomy-lineage-path strong,
+:root[data-theme="day"] .constituent-context-menu button,
+:root[data-theme="day"] .concept-context-menu button { color: var(--text-primary); }
+:root[data-theme="day"] .filter-popover button:hover,
+:root[data-theme="day"] .identity-term-combobox > div button:hover,
+:root[data-theme="day"] .constituent-context-menu button:hover,
+:root[data-theme="day"] .concept-context-menu button:hover { background: var(--hover-bg); color: var(--accent-hover); }
+:root[data-theme="day"] .data-export-drugs { border-color: var(--border); background: var(--surface); }
+:root[data-theme="day"] .data-export-drugs > label { border-color: var(--border); }
+:root[data-theme="day"] .data-export-drugs > label:hover { background: var(--hover-bg); }
+:root[data-theme="day"] .data-export-drugs > label.selected { background: var(--selected-bg); }
+:root[data-theme="day"] .data-export-drugs strong { color: var(--text-primary); }
+:root[data-theme="day"] .data-export-submit { background: var(--accent); }
+
+:root[data-theme="day"] .collection-workspace-header { background: rgba(255,255,255,.96); border-color: var(--border); }
+:root[data-theme="day"] .source-pane,
+:root[data-theme="day"] .block-command-bar,
+:root[data-theme="day"] .block-split-menu,
+:root[data-theme="day"] .rich-block-toolbar,
+:root[data-theme="day"] .collection-text-block > select { background: var(--surface); border-color: var(--border); }
+:root[data-theme="day"] .source-search > input { background: var(--input-bg); border-color: var(--border-strong); color: var(--user-content-text); }
+:root[data-theme="day"] .source-results button { color: var(--text-primary); border-color: var(--border); }
+:root[data-theme="day"] .source-results button:hover,
+:root[data-theme="day"] .block-command-bar button:hover { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="day"] .pane-divider { background: #e5ece3; border-color: var(--border); }
+:root[data-theme="day"] .collection-block:hover { border-color: var(--border-strong); }
+:root[data-theme="day"] .collection-block.selected { border-color: var(--accent); background: var(--selected-bg); }
+:root[data-theme="day"] .collection-image-drop,
+:root[data-theme="day"] .collection-empty-document { border-color: var(--border-strong); color: var(--text-secondary); }
+
+:root[data-theme="day"] .spreadsheet-shell { background: var(--table-bg); border-color: var(--table-grid); }
+:root[data-theme="day"] .sheet-toolbar,
+:root[data-theme="day"] .sheet-formula-bar { background: var(--surface-muted); border-color: var(--table-grid); }
+:root[data-theme="day"] .sheet-tool-group { border-color: var(--table-grid); }
+:root[data-theme="day"] .sheet-toolbar button,
+:root[data-theme="day"] .sheet-toolbar label { color: var(--text-secondary); }
+:root[data-theme="day"] .sheet-toolbar button:hover:not(:disabled),
+:root[data-theme="day"] .sheet-toolbar button.active { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="day"] .sheet-corner,
+:root[data-theme="day"] .sheet-column-header,
+:root[data-theme="day"] .sheet-row-header { background: var(--table-header); color: var(--text-secondary); border-color: var(--table-grid); }
+:root[data-theme="day"] .sheet-cell { background-color: var(--table-bg); border-color: var(--table-grid); }
+:root[data-theme="day"] .sheet-cell.selected { background-color: var(--selected-bg) !important; }
+:root[data-theme="day"] .sheet-cell.active { outline-color: var(--accent); }
+
+:root[data-theme="day"] .settings-nav a { color: var(--text-secondary); }
+:root[data-theme="day"] .settings-nav a:hover,
+:root[data-theme="day"] .settings-nav a.active { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="day"] .shortcut-table,
+:root[data-theme="day"] .shortcut-head,
+:root[data-theme="day"] .shortcut-row,
+:root[data-theme="day"] .settings-definition-list,
+:root[data-theme="day"] .settings-definition-list > div,
+:root[data-theme="day"] .settings-fields-list > div,
+:root[data-theme="day"] .media-library,
+:root[data-theme="day"] .media-row,
+:root[data-theme="day"] .storage-metrics > div { border-color: var(--border); }
+:root[data-theme="day"] .shortcut-head { background: var(--surface-muted); color: var(--text-secondary); }
+
+:root[data-theme="day"] .concept-anchor-box { background-color: rgba(95,138,112,.13); }
+:root[data-theme="day"] .concept-anchor-box.hovered,
+:root[data-theme="day"] .concept-anchor-box.selected { background-color: rgba(95,138,112,.22); outline-color: rgba(79,115,93,.58); }
+:root[data-theme="day"] .connection-handle::after { border-color: #f7fbf8; background: var(--accent); }
+:root[data-theme="day"] .concept-line-visible { opacity: .32; }
+:root[data-theme="day"] .concept-line-group.related .concept-line-visible { opacity: .72; }

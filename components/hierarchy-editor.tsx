@@ -420,7 +420,7 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
       style={{
         fontWeight: item.bold ? 750 : undefined,
         fontStyle: item.italic ? "italic" : undefined,
-        background: item.highlight ? "#594f24" : undefined,
+        background: item.highlight ? "var(--legacy-highlight)" : undefined,
       }}
       onCompositionStart={readOnly ? undefined : () => {
         composing.current = true;

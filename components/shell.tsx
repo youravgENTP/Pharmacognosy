@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "./sidebar";
 import type { CurrentUser } from "@/lib/auth/current-user";
+import { BackupCatchUp } from "@/components/backup-catch-up";
 
 export function Shell({ children, user }: { children: React.ReactNode; user: CurrentUser }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -13,5 +14,5 @@ export function Shell({ children, user }: { children: React.ReactNode; user: Cur
     window.addEventListener("sidebar-toggle", listener);
     return () => window.removeEventListener("sidebar-toggle", listener);
   }, []);
-  return <div className="shell"><Sidebar user={user}/><main className={`content ${collapsed ? "sidebar-collapsed" : ""}`}>{children}</main></div>;
+  return <div className="shell"><Sidebar user={user}/><main className={`content ${collapsed ? "sidebar-collapsed" : ""}`}>{children}</main><BackupCatchUp admin={user.role === "admin"}/></div>;
 }

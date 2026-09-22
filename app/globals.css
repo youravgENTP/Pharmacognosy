@@ -1284,7 +1284,7 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] {
   color-scheme: light;
   --app-bg: #f6f8f4;
-  --sidebar-bg: #eef4ec;
+  --sidebar-bg: #234f3b;
   --surface: #ffffff;
   --surface-muted: #f7f9f6;
   --surface-raised: #ffffff;
@@ -1309,7 +1309,7 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
   --overlay: rgba(35,48,38,.24);
   --shadow: rgba(48,68,54,.14);
   --legacy-highlight: #fff0a8;
-  --sidebar-text: #304438;
+  --sidebar-text: #f4f8f5;
 }
 
 .theme-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -1329,20 +1329,21 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .content { border-left-color: var(--border); }
 :root[data-theme="day"] .sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--border); }
 :root[data-theme="day"] .brand-text,
-:root[data-theme="day"] .sidebar-user-copy strong { color: #294034; }
+:root[data-theme="day"] .sidebar-user-copy strong { color: #f7faf8; }
 :root[data-theme="day"] .brand .collapse-button,
-:root[data-theme="day"] .collapsed .brand .collapse-button { border-color: var(--border-strong); background: #e4ede2; color: #587061; }
+:root[data-theme="day"] .collapsed .brand .collapse-button { border-color: rgba(255,255,255,.24); background: rgba(255,255,255,.16); color: #f4f8f5; }
 :root[data-theme="day"] .nav-link,
 :root[data-theme="day"] .collapse-button,
 :root[data-theme="day"] .sidebar-user-copy span,
 :root[data-theme="day"] .sidebar-user-actions a,
-:root[data-theme="day"] .sidebar-user-actions button { color: #667a6c; }
+:root[data-theme="day"] .sidebar-user-actions button { color: #d7e5dc; }
 :root[data-theme="day"] .nav-link:hover,
 :root[data-theme="day"] .sidebar-user-actions a:hover,
-:root[data-theme="day"] .sidebar-user-actions button:hover { background: #e2ece1; color: #355742; }
-:root[data-theme="day"] .nav-link.active { background: #dce9de; color: #3f6c50; }
-:root[data-theme="day"] .sidebar-account { border-color: var(--border); }
-:root[data-theme="day"] .sidebar-avatar { background: #dce9de; color: #466f55; }
+:root[data-theme="day"] .sidebar-user-actions button:hover { background: rgba(255,255,255,.12); color: #fff; }
+:root[data-theme="day"] .nav-link.active { background: rgba(213,236,220,.2); color: #fff; }
+:root[data-theme="day"] .sidebar-account { border-color: rgba(255,255,255,.16); }
+:root[data-theme="day"] .sidebar-avatar { background: rgba(220,239,226,.18); color: #f1f8f3; }
+:root[data-theme="day"] h1 { color: #194a34; }
 
 :root[data-theme="day"] .panel,
 :root[data-theme="day"] .section-card,
@@ -1589,3 +1590,75 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .connection-handle::after { border-color: #f7fbf8; background: var(--accent); }
 :root[data-theme="day"] .concept-line-visible { opacity: .32; }
 :root[data-theme="day"] .concept-line-group.related .concept-line-visible { opacity: .72; }
+
+/* Day-mode legacy control cleanup and compact Identification actions. */
+:root[data-theme="day"] .origin-add,
+:root[data-theme="day"] .inline-add {
+  width: fit-content;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid #cbdcca;
+  border-radius: 7px;
+  background: #e8f1e9;
+  color: #28563e;
+  font-size: 12px;
+  font-weight: 700;
+}
+:root[data-theme="day"] .origin-add:hover,
+:root[data-theme="day"] .inline-add:hover { border-color: #a9c3ad; background: #dcebdd; color: #194a34; }
+:root[data-theme="day"] .study-image-toolbar { border-color: var(--border-strong); background: rgba(255,255,255,.96); box-shadow: 0 6px 18px var(--shadow); }
+:root[data-theme="day"] .study-image-toolbar > span { border-color: var(--border); }
+:root[data-theme="day"] .study-image-toolbar button { color: var(--text-secondary); }
+:root[data-theme="day"] .study-image-toolbar button:hover,
+:root[data-theme="day"] .study-image-toolbar button.active { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="day"] .study-image-block img { border-color: var(--border); background: var(--surface-muted); }
+:root[data-theme="day"] .image-insert-row > button:hover,
+:root[data-theme="day"] .taxon-more:hover,
+:root[data-theme="day"] .inline-manage-actions button:hover { background: var(--hover-bg); color: var(--accent-hover); }
+:root[data-theme="day"] .image-drop-overlay { border-color: var(--accent); background: rgba(232,241,233,.94); color: #28563e; }
+:root[data-theme="day"] .taxonomy-operation-error { border-color: #e3b7b1; background: #fff1ef; color: #983b32; }
+:root[data-theme="day"] .inline-manage-actions button,
+:root[data-theme="day"] .export-dialog footer button,
+:root[data-theme="day"] .conflict-dialog article button { background: var(--surface-muted); border-color: var(--border-strong); color: var(--text-secondary); }
+:root[data-theme="day"] .inline-parent-editor { border-color: var(--border); }
+:root[data-theme="day"] .export-dialog p,
+:root[data-theme="day"] .conflict-dialog p,
+:root[data-theme="day"] .conflict-dialog footer,
+:root[data-theme="day"] .constituent-context-menu span { color: var(--text-muted); }
+:root[data-theme="day"] .export-dialog > header > button,
+:root[data-theme="day"] .conflict-dialog > header button,
+:root[data-theme="day"] .taxon-more { color: var(--text-secondary); }
+:root[data-theme="day"] .conflict-dialog article,
+:root[data-theme="day"] .conflict-dialog footer { border-color: var(--border); }
+
+/* Local backup and selective restore. */
+.backup-policy-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
+.backup-policy-grid label { min-width: 0; display: grid; grid-template-columns: minmax(130px, 1fr) minmax(120px, 170px); align-items: center; gap: 12px; color: var(--text-secondary); font-size: 13px; }
+.backup-policy-grid input:not([type="checkbox"]), .backup-policy-grid select, .restore-preview header input { width: 100%; min-width: 0; border: 1px solid var(--border-strong); border-radius: 7px; padding: 8px 9px; background: var(--input-bg); color: var(--user-content-text); }
+.backup-policy-grid input[type="checkbox"] { justify-self: end; }
+.backup-status-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.backup-status-grid > span { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 4px; color: var(--text-muted); font-size: 11px; }
+.backup-status-grid strong { color: var(--text-primary); font-size: 12px; overflow-wrap: anywhere; }
+.backup-status-grid .overdue { color: #c06a2e; }
+.backup-actions { margin-top: 14px; display: flex; justify-content: flex-end; gap: 8px; }
+.backup-live-status { margin: 12px 0 0; color: var(--text-secondary); font-size: 13px; }
+.restore-file-button { margin-top: 14px; }
+.restore-preview { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.restore-preview > header, .restore-preview > footer { padding: 12px; background: var(--surface-muted); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.restore-preview > header > span { display: grid; gap: 3px; }
+.restore-preview > header small { color: var(--text-muted); }
+.restore-preview > header input { max-width: 240px; }
+.restore-drug-list { max-height: 520px; overflow: auto; }
+.restore-drug-list article { padding: 12px; border-top: 1px solid var(--border); }
+.restore-drug-list article:first-child { border-top: 0; }
+.restore-drug-list article > label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+.restore-drug-list article > label small { color: var(--text-muted); }
+.restore-drug-list article.unavailable { opacity: .58; }
+.restore-fields { margin: 10px 0 0 25px; display: flex; flex-wrap: wrap; gap: 6px; }
+.restore-fields label { padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); color: var(--text-secondary); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.restore-drug-list article > p { margin: 9px 0 0 25px; color: #b07232; font-size: 12px; }
+.restore-preview > footer > span { color: var(--text-secondary); font-size: 13px; }
+.backup-overdue-banner { position: fixed; z-index: 180; right: 20px; bottom: 20px; width: min(390px, calc(100vw - 40px)); padding: 13px 14px; border: 1px solid #d8954f; border-radius: 10px; background: #fff8eb; color: #69451f; box-shadow: 0 14px 40px rgba(50,35,20,.2); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.backup-overdue-banner span { display: grid; gap: 3px; font-size: 12px; }
+.backup-overdue-banner a { flex: 0 0 auto; color: #81501e; font-size: 12px; font-weight: 800; text-decoration: underline; }
+@media (max-width: 760px) { .backup-policy-grid { grid-template-columns: 1fr; } .backup-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .restore-preview > header { align-items: stretch; flex-direction: column; } .restore-preview > header input { max-width: none; } }

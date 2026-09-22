@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test": "tsx --test lib/*.test.ts lib/**/*.test.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -25,6 +26,7 @@
     "docx": "^9.7.1",
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "next": "^15.5.2",
     "pdfkit": "^0.20.2",

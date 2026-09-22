@@ -215,6 +215,9 @@ h2, h3, p { margin-top: 0; }
 .user-row > div { min-width: 0; display: grid; gap: 4px; }
 .user-row span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .user-row select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.user-actions { display: flex !important; grid-auto-flow: column; align-items: center; justify-content: flex-end; gap: 8px; }
+.password-reset-form { margin: 0 0 12px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.password-reset-form .form-error, .password-reset-form .form-success, .password-reset-form .user-actions { grid-column: 1 / -1; }
 @media (max-width: 760px) { .auth-shell { padding: 16px; align-items: start; } .auth-card { margin-top: 5vh; padding: 24px 20px; } .sidebar-account { grid-template-columns: 36px; padding-inline: 4px; justify-content: center; } .sidebar-user-copy, .sidebar-user-actions { display: none; } .invite-form { grid-template-columns: 1fr; } .profile-details div { grid-template-columns: 1fr; gap: 3px; } }
 
 /* StudyOS visual system */

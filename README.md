@@ -23,16 +23,14 @@ JSON Import 형식은 앱의 Import 페이지에 v1 예제가 포함되어 있�
 
 ## Authentication
 
-Herb Overflow uses Better Auth with PostgreSQL/Drizzle and is invite-only. Set `DATABASE_URL`, a high-entropy `BETTER_AUTH_SECRET` (at least 32 characters), `BETTER_AUTH_URL`, `RESEND_API_KEY`, `AUTH_EMAIL_FROM`, and `INITIAL_ADMIN_EMAIL` in `.env.local`. Apply the auth migration with `npm run db:migrate`.
-
-In Resend, verify the domain used by `AUTH_EMAIL_FROM`, create an API key with send access, and use the verified sender address. Verification links expire after 24 hours; password-reset links expire after 1 hour. Password resets revoke all existing sessions.
+Herb Overflow uses Better Auth with PostgreSQL/Drizzle and is invite-only. Set `DATABASE_URL`, a high-entropy `BETTER_AUTH_SECRET` (at least 32 characters), `BETTER_AUTH_URL`, and `INITIAL_ADMIN_EMAIL` in `.env.local`. Apply the auth migration with `npm run db:migrate`.
 
 To establish the owner account:
 
 1. Run `npm run auth:bootstrap-admin`. If the account does not exist, this creates a one-use, 7-day bootstrap invitation only for `INITIAL_ADMIN_EMAIL`.
-2. Sign up with exactly that email and verify it.
+2. Sign up with exactly that email.
 3. Run `npm run auth:bootstrap-admin` again to assign `admin` idempotently, then remove `INITIAL_ADMIN_EMAIL` from the deployed environment.
 
 Admins create later invitations in **Settings → Users**. Each invitation is normalized to lowercase, expires after 7 days, is consumed at signup, and creates an `editor` profile. For local development, run `npm install`, `npm run db:migrate`, perform the admin bootstrap above, then `npm run dev`.
 
-For local development without Resend, `AUTH_DEV_BYPASS_EMAIL=true` disables verification email only while `NODE_ENV` is not `production`. This flag is ignored for production security and must never be enabled in a deployed environment.
+Password recovery is handled by an administrator in **Settings → Users**. Resetting a password revokes all of that user's existing sessions.

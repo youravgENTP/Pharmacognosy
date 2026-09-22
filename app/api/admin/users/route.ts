@@ -8,7 +8,7 @@ import { user, userProfiles } from "@/lib/db/schema";
 
 export async function GET() {
   const denied = await authorizeApi("admin"); if (denied) return denied;
-  const users = await db.select({ id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, createdAt: user.createdAt, role: userProfiles.role }).from(user).innerJoin(userProfiles, eq(userProfiles.userId, user.id)).orderBy(asc(user.name));
+  const users = await db.select({ id: user.id, name: user.name, email: user.email, createdAt: user.createdAt, role: userProfiles.role }).from(user).innerJoin(userProfiles, eq(userProfiles.userId, user.id)).orderBy(asc(user.name));
   return NextResponse.json(users);
 }
 

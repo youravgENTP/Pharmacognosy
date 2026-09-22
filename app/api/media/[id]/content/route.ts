@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { mediaAssets } from "@/lib/db/schema";
+import { isDatabaseMedia, readDatabaseMedia } from "@/lib/media/database";
 import { isLocalMedia, readLocalMedia } from "@/lib/media/local";
 import { uuidSchema } from "@/lib/validators";
 
@@ -16,6 +17,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!asset) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (isLocalMedia(asset.blobPathname)) {
     const content = await readLocalMedia(asset.blobPathname).catch(() => null);
+    if (!content) return NextResponse.json({ error: "File not found" }, { status: 404 });
+    return new Response(content, { headers: { "Content-Type": asset.mimeType, "Content-Length": String(asset.sizeBytes), "Cache-Control": "private, max-age=3600" } });
+  }
+  if (isDatabaseMedia(asset.blobPathname)) {
+    const content = readDatabaseMedia(asset.blobUrl);
     if (!content) return NextResponse.json({ error: "File not found" }, { status: 404 });
     return new Response(content, { headers: { "Content-Type": asset.mimeType, "Content-Length": String(asset.sizeBytes), "Cache-Control": "private, max-age=3600" } });
   }

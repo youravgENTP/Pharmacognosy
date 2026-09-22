@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { mediaAssets } from "@/lib/db/schema";
 import { IMAGE_STORAGE_QUOTA_BYTES, MAX_IMAGE_UPLOAD_BYTES } from "@/lib/media/config";
+import { writeDatabaseMedia } from "@/lib/media/database";
 import { canUseLocalMedia, deleteLocalMedia, writeLocalMedia } from "@/lib/media/local";
 import { getMediaReferences } from "@/lib/media/references";
 
@@ -12,7 +13,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) { const authError = await authorizeApi("user"); if (authError) return authError;
   const sort = new URL(request.url).searchParams.get("sort") === "newest" ? "newest" : "size";
-  const assets = await db.select().from(mediaAssets).orderBy(sort === "newest" ? desc(mediaAssets.createdAt) : desc(mediaAssets.sizeBytes), asc(mediaAssets.originalFilename));
+  const assets = await db.select({ id: mediaAssets.id, originalFilename: mediaAssets.originalFilename, sizeBytes: mediaAssets.sizeBytes, mimeType: mediaAssets.mimeType, width: mediaAssets.width, height: mediaAssets.height, createdAt: mediaAssets.createdAt, updatedAt: mediaAssets.updatedAt }).from(mediaAssets).orderBy(sort === "newest" ? desc(mediaAssets.createdAt) : desc(mediaAssets.sizeBytes), asc(mediaAssets.originalFilename));
   const references = await getMediaReferences();
   const totalBytes = assets.reduce((sum, asset) => sum + asset.sizeBytes, 0);
   return NextResponse.json({
@@ -23,7 +24,6 @@ export async function GET(request: Request) { const authError = await authorizeA
 
 export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const blobConfigured = Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
-  if (!blobConfigured && !canUseLocalMedia()) return NextResponse.json({ error: "Vercel Blob 환경변수가 설정되지 않았습니다." }, { status: 503 });
   const form = await request.formData();
   const file = form.get("file");
   const width = Number(form.get("width")); const height = Number(form.get("height"));
@@ -32,13 +32,15 @@ export async function POST(request: Request) { const authError = await authorize
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-") || "image";
   const stored = blobConfigured
     ? await put(`study-images/${crypto.randomUUID()}-${safeName}`, file, { access: "private", addRandomSuffix: false, contentType: file.type })
-    : await writeLocalMedia(file, safeName);
+    : canUseLocalMedia()
+      ? await writeLocalMedia(file, safeName)
+      : await writeDatabaseMedia(file, safeName);
   try {
-    const [asset] = await db.insert(mediaAssets).values({ blobUrl: stored.url, blobPathname: stored.pathname, originalFilename: file.name, sizeBytes: file.size, mimeType: file.type, width, height }).returning();
+    const [asset] = await db.insert(mediaAssets).values({ blobUrl: stored.url, blobPathname: stored.pathname, originalFilename: file.name, sizeBytes: file.size, mimeType: file.type, width, height }).returning({ id: mediaAssets.id, originalFilename: mediaAssets.originalFilename, sizeBytes: mediaAssets.sizeBytes, mimeType: mediaAssets.mimeType, width: mediaAssets.width, height: mediaAssets.height, createdAt: mediaAssets.createdAt });
     return NextResponse.json({ ...asset, contentUrl: `/api/media/${asset.id}/content` }, { status: 201 });
   } catch (error) {
     if (blobConfigured) await del(stored.url).catch(() => undefined);
-    else await deleteLocalMedia(stored.pathname).catch(() => undefined);
+    else if (canUseLocalMedia()) await deleteLocalMedia(stored.pathname).catch(() => undefined);
     throw error;
   }
 }

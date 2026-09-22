@@ -33,4 +33,4 @@ To establish the owner account:
 
 Admins create later invitations in **Settings → Users**. Each invitation is normalized to lowercase, expires after 7 days, is consumed at signup, and creates an `editor` profile. For local development, run `npm install`, `npm run db:migrate`, perform the admin bootstrap above, then `npm run dev`.
 
-Password recovery is handled by an administrator in **Settings → Users**. Resetting a password revokes all of that user's existing sessions.
+Password recovery is handled by an administrator in **Settings → Users**. Resetting a password revokes all of that user's existing sessions. If every administrator is locked out, run `npm run auth:reset-password -- user@example.com` in a trusted terminal, then enter and confirm the new password at the hidden prompts. The command resolves the account by normalized email, hashes the new password through Better Auth, and revokes every existing session for that user.

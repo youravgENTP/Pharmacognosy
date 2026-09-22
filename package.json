@@ -14,6 +14,7 @@
     "db:migrate:taxonomy": "tsx scripts/migrate-constituent-taxonomy.ts",
     "db:migrate:families": "tsx scripts/migrate-botanical-families.ts",
     "auth:bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
+    "auth:reset-password": "tsx scripts/reset-user-password.ts",
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

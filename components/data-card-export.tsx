@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Download, FileText, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { formatDrugIndex } from "@/lib/drug-index";
 import { sortExportDrugs, type ExportSortMode as SortMode } from "@/lib/export/drug-order";
 
@@ -19,6 +19,7 @@ export function DataCardExport({ drugs, initialDrugId }: { drugs: Drug[]; initia
   const [columns, setColumns] = useState<1 | 2>(2);
   const [mnemonicMode, setMnemonicMode] = useState<MnemonicMode>("preferred");
   const [busy, setBusy] = useState(false);
+  const exportLock = useRef(false);
   const [error, setError] = useState<string>();
   const categories = useMemo(() => {
     const map = new Map<string, { id: string; name: string; position: number; drugIds: string[] }>();
@@ -35,20 +36,23 @@ export function DataCardExport({ drugs, initialDrugId }: { drugs: Drug[]; initia
   function add(ids: string[]) { setSelected((current) => new Set([...current, ...ids])); }
   async function exportCards() {
     const drugIds = sorted.filter((drug) => selected.has(drug.id)).map((drug) => drug.id);
-    if (!drugIds.length || busy) return;
+    if (!drugIds.length || exportLock.current) return;
+    exportLock.current = true;
     setBusy(true); setError(undefined);
     try {
       const response = await fetch("/api/export/drugs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ drugIds, format, columns, mnemonicMode }) });
       if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(typeof body.error === "string" ? body.error : "파일을 생성하지 못했습니다."); }
       const blob = await response.blob();
       if (!blob.size) throw new Error("생성된 파일이 비어 있습니다.");
+      const expectedType = format === "docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf";
+      if (blob.type !== expectedType) throw new Error(`${format.toUpperCase()} 응답 형식이 올바르지 않습니다.`);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url; anchor.download = `HerbOverflow-DataCards.${format}`; anchor.style.display = "none";
       document.body.appendChild(anchor); anchor.click();
-      window.setTimeout(() => { URL.revokeObjectURL(url); anchor.remove(); }, 1500);
+      window.setTimeout(() => { URL.revokeObjectURL(url); anchor.remove(); }, 30_000);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "파일을 생성하지 못했습니다."); }
-    finally { setBusy(false); }
+    finally { exportLock.current = false; setBusy(false); }
   }
 
   return <div className="data-export-layout">

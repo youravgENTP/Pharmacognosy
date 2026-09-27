@@ -1,43 +1,33 @@
 import "server-only";
 import { getDrugProfile } from "@/lib/data/drug";
 import { selectMnemonicVersions, type MnemonicExportMode } from "@/lib/data/mnemonics";
-import type { StudyItem } from "@/lib/db/schema";
-import { hierarchyMarker, plainText, richTextRuns, studyImages, type PdfField, type PdfCard } from "@/lib/export/common";
+import type { PdfCard } from "@/lib/export/common";
 import { readMediaAsset } from "@/lib/media/read";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { fieldDefinitions } from "@/lib/db/schema";
-import { exportImageBuffer } from "@/lib/export/images";
+import { prepareDrugExportCard } from "@/lib/export/prepare-drug";
+import { logDataCardExportError, logDataCardExportWarning } from "@/lib/export/errors";
 
 export type DrugExportOptions = { mnemonicMode: MnemonicExportMode; mnemonicUserId?: string };
 
 export async function loadDrugExportCards(ids: string[], viewingUserId: string, options: DrugExportOptions): Promise<PdfCard[]> {
   const cards: PdfCard[] = [];
-  const activeFieldIds = new Set((await db.select({ id: fieldDefinitions.id }).from(fieldDefinitions).where(eq(fieldDefinitions.active, true))).map((field) => field.id));
+  let activeFieldIds: Set<string>;
+  try { activeFieldIds = new Set((await db.select({ id: fieldDefinitions.id }).from(fieldDefinitions).where(eq(fieldDefinitions.active, true))).map((field) => field.id)); }
+  catch (error) { logDataCardExportError("field definition load failed", error); throw error; }
   for (const id of ids) {
-    const drug = await getDrugProfile(id); if (!drug) continue;
-    const fields: PdfField[] = [];
-    if (drug.scientificName) fields.push({ title: "학명", lines: [{ text: drug.scientificName, italic: true }] });
-    if (drug.medicinalPart) fields.push({ title: "약용부위", lines: [{ text: drug.medicinalPart }] });
-    const originLines = (drug.origins.length ? drug.origins.map((origin) => [origin.nameKo, origin.scientificName].filter(Boolean).join(" · ")) : [drug.origin]).filter((value): value is string => Boolean(value?.trim()));
-    if (originLines.length) fields.push({ title: "기원", lines: originLines.map((text) => ({ text })) });
-    if (drug.family) fields.push({ title: "과", lines: [{ text: drug.family }] });
-    if (drug.relatedDrugs.length) fields.push({ title: "연관생약", lines: drug.relatedDrugs.map((item) => ({ text: item.name })) });
-    if (drug.similarDrugs.length) fields.push({ title: "유사생약", lines: drug.similarDrugs.map((item) => ({ text: item.name })) });
-    if (drug.identityTerms.length) fields.push({ title: "가공 및 기타 사항", lines: [{ text: drug.identityTerms.map((term) => term.name).join(" · ") }] });
-    for (const section of drug.sections.filter((section) => section.title !== "암기법" && (!section.fieldDefinitionId || activeFieldIds.has(section.fieldDefinitionId)))) fields.push(await studyField(section.title, section.items, section.blocks ?? []));
-    const mnemonics = await selectMnemonicVersions(id, viewingUserId, options.mnemonicMode, options.mnemonicUserId);
-    for (const mnemonic of mnemonics) fields.push(await studyField(mnemonics.length > 1 ? `암기법 · ${mnemonic.userName}` : "암기법", mnemonic.items, mnemonic.blocks));
-    cards.push({ title: drug.koreanName, subtitle: [drug.latinName, drug.importance].filter(Boolean).join(" · "), fields: fields.filter((field) => field.lines.length || field.images?.length) });
+    let drug: Awaited<ReturnType<typeof getDrugProfile>>;
+    try { drug = await getDrugProfile(id); }
+    catch (error) { logDataCardExportError("load profile failed", error, { drugId: id }); throw error; }
+    if (!drug) continue;
+    let mnemonics: Awaited<ReturnType<typeof selectMnemonicVersions>>;
+    try { mnemonics = await selectMnemonicVersions(id, viewingUserId, options.mnemonicMode, options.mnemonicUserId); }
+    catch (error) { logDataCardExportError("mnemonic load failed", error, { drugId: id, mnemonicMode: options.mnemonicMode }); throw error; }
+    cards.push(await prepareDrugExportCard(id, drug, activeFieldIds, mnemonics, async (mediaAssetId) => {
+      const media = await readMediaAsset(mediaAssetId);
+      return media?.buffer ? { buffer: Buffer.from(media.buffer), mimeType: media.asset.mimeType, width: media.asset.width, height: media.asset.height } : null;
+    }, ({ error, ...context }) => logDataCardExportWarning("image skipped", error, context)));
   }
   return cards;
-}
-
-async function studyField(title: string, items: StudyItem[], blocks: import("@/lib/db/schema").StudyBlock[]): Promise<PdfField> {
-  const lines: PdfField["lines"] = [];
-  const visit = (rows: StudyItem[], depth: number) => rows.forEach((item, index) => { const content = plainText(item.html, item.text).trim(); if (content) { const marker = `${hierarchyMarker(depth, index)} `; const html = item.html ? `${marker}${item.html}` : undefined; lines.push({ text: `${marker}${content}`, html, runs: richTextRuns(html, `${marker}${content}`), indent: depth * 13, bold: item.bold, italic: item.italic, gapAfter: 2 }); } visit(item.children ?? [], depth + 1); });
-  const itemBlocks = (blocks ?? []).filter((block): block is Extract<import("@/lib/db/schema").StudyBlock, { type: "items" }> => block.type === "items");
-  if (itemBlocks.length) for (const block of itemBlocks) visit(block.items, 0); else visit(items, 0);
-  const images = (await Promise.all(studyImages(blocks).map(async (image) => { const media = await readMediaAsset(image.mediaAssetId).catch(() => null); return media?.buffer ? { buffer: await exportImageBuffer(Buffer.from(media.buffer), media.asset.mimeType), width: media.asset.width, height: media.asset.height } : null; }))).filter((value): value is NonNullable<typeof value> => Boolean(value));
-  return { title, lines, images };
 }

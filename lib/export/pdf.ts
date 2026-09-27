@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import PDFDocument from "pdfkit";
 import type { InlineTextRun } from "@/lib/rich-text";
@@ -9,26 +10,45 @@ export type PdfTable = { rows: number; columns: number; cells: Record<string, { 
 export type PdfField = { title: string; lines: PdfLine[]; images?: PdfImage[]; table?: PdfTable };
 export type PdfCard = { title: string; subtitle?: string; fields: PdfField[] };
 
-const regularFont = path.join(process.cwd(), "node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-korean-400-normal.woff");
-const boldFont = path.join(process.cwd(), "node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-korean-700-normal.woff");
+// next.config.ts explicitly traces these files into the Vercel server function.
+const fontPackageRoot = path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans-kr", "files");
+const regularFont = requiredFont("noto-sans-kr-korean-400-normal.woff");
+const boldFont = requiredFont("noto-sans-kr-korean-700-normal.woff");
+const circledNumberSubsets = [98, 101, 102, 104, 105, 107, 108] as const;
+
+function requiredFont(filename: string) {
+  const resolved = path.join(fontPackageRoot, filename);
+  if (!existsSync(resolved)) throw new Error(`Required Korean PDF font is missing: ${filename}`);
+  return resolved;
+}
 
 export async function createCardsPdf(cards: PdfCard[], columns: 1 | 2) {
   const doc = new PDFDocument({ size: "A4", margin: 42, bufferPages: true, info: { Title: "Herb Overflow Export", Creator: "Herb Overflow" } });
-  doc.registerFont("Noto", regularFont); doc.registerFont("NotoBold", boldFont); doc.font("Noto");
   const chunks: Buffer[] = []; doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
   const done = new Promise<Buffer>((resolve, reject) => { doc.on("end", () => resolve(Buffer.concat(chunks))); doc.on("error", reject); });
-  const flow = new PdfColumnFlow(doc, columns);
-  for (const [cardIndex, card] of cards.entries()) {
-    const headerHeight = flow.textHeight(card.title, 19, true) + (card.subtitle ? flow.textHeight(card.subtitle, 9, false) : 0) + 13;
-    const firstHeight = card.fields[0] ? flow.fieldHeight(card.fields[0]) : 0;
-    flow.ensure(Math.min(flow.capacity, headerHeight + firstHeight));
-    if (cardIndex) flow.gap(12);
-    flow.text(card.title, { size: 19, bold: true, color: "#14243a", gapAfter: 2 });
-    if (card.subtitle) flow.text(card.subtitle, { size: 9, color: "#5d6b7b", gapAfter: 8 });
-    for (const field of card.fields) flow.field(field);
+  try {
+    doc.registerFont("Noto", regularFont); doc.registerFont("NotoBold", boldFont); doc.font("Noto");
+    for (const subset of circledNumberSubsets) {
+      doc.registerFont(`NotoCircled${subset}`, requiredFont(`noto-sans-kr-${subset}-400-normal.woff`));
+      doc.registerFont(`NotoCircled${subset}Bold`, requiredFont(`noto-sans-kr-${subset}-700-normal.woff`));
+    }
+    const flow = new PdfColumnFlow(doc, columns);
+    for (const [cardIndex, card] of cards.entries()) {
+      const headerHeight = flow.textHeight(card.title, 19, true) + (card.subtitle ? flow.textHeight(card.subtitle, 9, false) : 0) + 13;
+      const firstHeight = card.fields[0] ? flow.fieldHeight(card.fields[0]) : 0;
+      flow.ensure(Math.min(flow.capacity, headerHeight + firstHeight));
+      if (cardIndex) flow.gap(12);
+      flow.text(card.title, { size: 19, bold: true, color: "#14243a", gapAfter: 2 });
+      if (card.subtitle) flow.text(card.subtitle, { size: 9, color: "#5d6b7b", gapAfter: 8 });
+      for (const field of card.fields) flow.field(field);
+    }
+    const range = doc.bufferedPageRange();
+    for (let index = 0; index < range.count; index++) { doc.switchToPage(index); doc.font("Noto").fontSize(8).fillColor("#7d8792").text(`${index + 1} / ${range.count}`, 42, doc.page.height - 54, { width: doc.page.width - 84, align: "right", lineBreak: false }); }
+  } catch (error) {
+    doc.end();
+    await done.catch(() => undefined);
+    throw error;
   }
-  const range = doc.bufferedPageRange();
-  for (let index = 0; index < range.count; index++) { doc.switchToPage(index); doc.font("Noto").fontSize(8).fillColor("#7d8792").text(`${index + 1} / ${range.count}`, 42, doc.page.height - 54, { width: doc.page.width - 84, align: "right", lineBreak: false }); }
   doc.end(); return done;
 }
 
@@ -50,11 +70,13 @@ class PdfColumnFlow {
     const size = line.size ?? 10, indent = line.indent ?? 0;
     const height = this.textHeight(text, size, line.bold, indent);
     this.ensure(height + (line.gapAfter ?? 2));
-    if (line.runs?.length) {
+    const sourceRuns = line.runs ?? (containsCircledNumber(text) ? [{ text }] : undefined);
+    const runs = sourceRuns?.filter((run) => run.text.length).flatMap((run) => splitFontSegments(run.text, Boolean(run.bold || line.bold)).map((segment) => ({ ...run, ...segment })));
+    if (runs?.length) {
       this.doc.x = this.x + indent;
-      for (const [index, run] of line.runs.entries()) {
+      for (const [index, run] of runs.entries()) {
         const runSize = run.superscript || run.subscript ? size * .72 : size;
-        this.doc.font(run.bold || line.bold ? "NotoBold" : "Noto").fontSize(runSize);
+        this.doc.font(run.font).fontSize(runSize);
         const highlight = cssColorToHex(run.highlight);
         if (highlight && !run.text.includes("\n")) {
           const available = this.x + this.width - this.doc.x;
@@ -69,18 +91,18 @@ class PdfColumnFlow {
           strike: run.strike,
           baseline: run.superscript ? size * .32 : run.subscript ? -size * .18 : undefined,
           characterSpacing: run.characterSpacing === "tight" ? -.3 : run.characterSpacing === "wide" ? .8 : 0,
-          continued: index < line.runs.length - 1,
+          continued: index < runs.length - 1 && !run.text.includes("\n"),
         });
       }
     } else this.doc.font(line.bold ? "NotoBold" : "Noto").fontSize(size).fillColor(line.color ?? "#1c2733").text(text || " ", this.x + indent, this.doc.y, { width: this.width - indent, lineGap: 2, oblique: line.italic });
     this.doc.y += line.gapAfter ?? 2;
   }
-  fieldHeight(field: PdfField) { let value = field.title ? this.textHeight(field.title, 12, true) + 7 : 0; for (const line of field.lines) value += this.textHeight(line.text, line.size ?? 10, line.bold, line.indent ?? 0) + (line.gapAfter ?? 2); for (const image of field.images ?? []) value += Math.min(220, image.height * Math.min(1, (this.width - 8) / image.width)) + (image.caption ? 18 : 8); if (field.table) value += this.tableLayout(field.table).heights.reduce((sum, height) => sum + height, 0); return value + 9; }
+  fieldHeight(field: PdfField) { let value = field.title ? this.textHeight(field.title, 12, true) + 7 : 0; for (const line of field.lines) value += this.textHeight(line.text, line.size ?? 10, line.bold, line.indent ?? 0) + (line.gapAfter ?? 2); for (const image of field.images ?? []) if (validImage(image)) value += Math.min(220, image.height * Math.min(1, (this.width - 8) / image.width)) + (image.caption ? 18 : 8); if (field.table) value += this.tableLayout(field.table).heights.reduce((sum, height) => sum + height, 0); return value + 9; }
   field(field: PdfField) {
     const estimated = this.fieldHeight(field); this.ensure(Math.min(estimated, this.capacity));
     if (field.title) this.text(field.title, { size: 12, bold: true, color: "#215f9d", gapAfter: 5 });
     for (const line of field.lines) this.text(line.text, line);
-    for (const image of field.images ?? []) { const width = Math.min(this.width - 8, image.width); const height = image.height * width / image.width; this.ensure(Math.min(height + 22, this.capacity)); try { this.doc.image(image.buffer, this.x, this.doc.y, { fit: [width, Math.min(240, this.bottom - this.doc.y)] }); this.doc.y += Math.min(height, 240) + 4; if (image.caption) this.text(image.caption, { size: 8, color: "#687584" }); } catch { this.text("[이미지를 불러오지 못했습니다]", { size: 8, color: "#9a4d4d" }); } }
+    for (const image of field.images ?? []) { if (!validImage(image)) { console.warn("[DataCardExport] PDF image skipped: invalid geometry"); continue; } const width = Math.min(this.width - 8, image.width); const height = image.height * width / image.width; this.ensure(Math.min(height + 22, this.capacity)); try { this.doc.image(image.buffer, this.x, this.doc.y, { fit: [width, Math.min(240, this.bottom - this.doc.y)] }); this.doc.y += Math.min(height, 240) + 4; if (image.caption) this.text(image.caption, { size: 8, color: "#687584" }); } catch (error) { console.warn("[DataCardExport] PDF image rendering failed", { message: error instanceof Error ? error.message : String(error) }); this.text("[이미지를 불러오지 못했습니다]", { size: 8, color: "#9a4d4d" }); } }
     if (field.table) this.table(field.table);
     this.gap(7);
   }
@@ -153,4 +175,26 @@ class PdfColumnFlow {
       this.doc.y = y + heights[row];
     }
   }
+}
+
+function validImage(image: PdfImage) { return image.buffer.length > 0 && Number.isFinite(image.width) && Number.isFinite(image.height) && image.width > 0 && image.height > 0; }
+
+function containsCircledNumber(text: string) { return /[\u2460-\u2473]/u.test(text); }
+
+function splitFontSegments(text: string, bold: boolean) {
+  const result: { text: string; font: string }[] = [];
+  for (const character of text) {
+    const font = circledNumberFont(character, bold);
+    const previous = result.at(-1);
+    if (previous?.font === font) previous.text += character;
+    else result.push({ text: character, font });
+  }
+  return result;
+}
+
+function circledNumberFont(character: string, bold: boolean) {
+  const index = character.codePointAt(0)! - 0x2460;
+  if (index < 0 || index >= 20) return bold ? "NotoBold" : "Noto";
+  const subset = index <= 1 ? 108 : index === 2 ? 107 : index === 3 ? 105 : index === 4 ? 104 : index === 5 ? 102 : index === 6 ? 101 : 98;
+  return `NotoCircled${subset}${bold ? "Bold" : ""}`;
 }

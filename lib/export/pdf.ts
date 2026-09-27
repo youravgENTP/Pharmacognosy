@@ -23,7 +23,10 @@ function requiredFont(filename: string) {
 }
 
 export async function createCardsPdf(cards: PdfCard[], columns: 1 | 2) {
-  const doc = new PDFDocument({ size: "A4", margin: 42, bufferPages: true, info: { Title: "Herb Overflow Export", Creator: "Herb Overflow" } });
+  // Supplying the initial font prevents PDFKit from lazily requiring its
+  // built-in Helvetica module, which is not reliably traced into Vercel
+  // server functions. The same bundled Korean font is used for all output.
+  const doc = new PDFDocument({ size: "A4", margin: 42, bufferPages: true, font: regularFont, info: { Title: "Herb Overflow Export", Creator: "Herb Overflow" } });
   const chunks: Buffer[] = []; doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
   const done = new Promise<Buffer>((resolve, reject) => { doc.on("end", () => resolve(Buffer.concat(chunks))); doc.on("error", reject); });
   try {

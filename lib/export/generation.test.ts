@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import Module from "node:module";
 import test from "node:test";
 import sharp from "sharp";
 import JSZip from "jszip";
@@ -39,4 +40,19 @@ test("actual DOCX generation supports Korean rich hierarchy and PNG/JPEG images"
 test("empty PDF still finalizes to a valid document", async () => {
   const buffer = await createCardsPdf([], 1);
   assert.equal(buffer.subarray(0, 4).toString(), "%PDF");
+});
+
+test("PDF generation does not depend on PDFKit's untraced Helvetica module", async () => {
+  const moduleWithLoad = Module as typeof Module & { _load: (request: string, parent: unknown, isMain: boolean) => unknown };
+  const originalLoad = moduleWithLoad._load;
+  moduleWithLoad._load = function (request, parent, isMain) {
+    if (request === "#standard-fonts/Helvetica") throw new Error("Helvetica module must not be loaded");
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    const buffer = await createCardsPdf([], 1);
+    assert.equal(buffer.subarray(0, 4).toString(), "%PDF");
+  } finally {
+    moduleWithLoad._load = originalLoad;
+  }
 });

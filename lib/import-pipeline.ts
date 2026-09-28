@@ -21,7 +21,7 @@ export type PreparedImportDrug = {
   warnings: ImportIssue[];
   preview: {
     fieldsAdded: string[]; fieldsUpdated: string[]; fieldsPreserved: string[];
-    familyAction: string; relationshipAction: string; mnemonicAction: string; identityAction: string;
+    familyAction: string; relationshipAction: string; mnemonicAction: string; identityAction: string; richTextCount: number;
   };
 };
 export type PreparedImport = { payload: PharmacognosyImportV1; drugs: PreparedImportDrug[]; canCommit: boolean };
@@ -43,7 +43,7 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
   const familyByScientificName = new Map((context.families ?? []).map((family) => [normalizeKey(family.scientificName), family]));
 
   const drugs = normalized.payload.drugs.map((input, index): PreparedImportDrug => {
-    const errors: ImportIssue[] = [];
+    const errors: ImportIssue[] = normalized.issues[index].map((issue) => ({ code: issue.code, field: issue.path, message: issue.message }));
     const warnings: ImportIssue[] = [];
     const sectionGroups = new Map<string, ResolvedImportSection>();
     for (const section of input.sections ?? []) {
@@ -98,7 +98,7 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
     const identityAction = input.identityTerms ? `${input.identityTerms.length}개 식별 용어 교체` : "변경 없음";
     return {
       input, existing, sections, relationships, corrections: normalized.corrections[index], errors, warnings,
-      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction },
+      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction, richTextCount: sections.reduce((sum, section) => sum + countRichItems(section.items), 0) + countRichItems(input.mnemonic?.items ?? []) },
     };
   });
   return { payload: normalized.payload, drugs, canCommit: drugs.every((drug) => !drug.errors.length) };
@@ -116,7 +116,19 @@ export function hierarchyDepth(items: ImportItem[]): number {
 }
 
 export function importItemsWithIds(items: ImportItem[], id = () => crypto.randomUUID()): StudyItem[] {
-  return items.map((item) => ({ id: id(), text: item.text, ...(item.children ? { children: importItemsWithIds(item.children, id) } : {}) }));
+  return items.map((item) => ({
+    id: id(),
+    text: item.text,
+    ...(item.html !== undefined ? { html: item.html } : {}),
+    ...(item.bold !== undefined ? { bold: item.bold } : {}),
+    ...(item.italic !== undefined ? { italic: item.italic } : {}),
+    ...(item.highlight !== undefined ? { highlight: item.highlight } : {}),
+    ...(item.children ? { children: importItemsWithIds(item.children, id) } : {}),
+  }));
+}
+
+function countRichItems(items: ImportItem[]): number {
+  return items.reduce((sum, item) => sum + (item.html === undefined ? 0 : 1) + countRichItems(item.children ?? []), 0);
 }
 
 export function mergeImportedSections(existing: StudySection[], incoming: ResolvedImportSection[], fields: ImportFieldDefinition[], includeMnemonic = false, id = () => crypto.randomUUID()) {

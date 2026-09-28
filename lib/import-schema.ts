@@ -1,9 +1,20 @@
 import { z } from "zod";
 
-export type ImportItem = { text: string; children?: ImportItem[] };
+export type ImportItem = {
+  text: string;
+  html?: string;
+  bold?: boolean;
+  italic?: boolean;
+  highlight?: boolean;
+  children?: ImportItem[];
+};
 
 export const importItemSchema: z.ZodType<ImportItem> = z.lazy(() => z.object({
   text: z.string().trim().min(1),
+  html: z.string().max(20000).optional(),
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  highlight: z.boolean().optional(),
   children: z.array(importItemSchema).optional(),
 })) as z.ZodType<ImportItem>;
 

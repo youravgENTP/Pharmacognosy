@@ -13,6 +13,11 @@ const fields: ImportFieldDefinition[] = [
   { id: ids.mnemonic, name: "암기법", inputMode: "hierarchy4", position: 90, active: true },
 ];
 const existing: ImportExistingDrug = { id: "20000000-0000-4000-8000-000000000001", koreanName: "진피", latinName: "Existing Latin", origin: "existing origin", origins: [], scientificName: "Existing species", medicinalPart: "existing part", categoryId: null, familyId: "30000000-0000-4000-8000-000000000001", importance: "중요", sections: [section("성분", ids.component, "old component"), section("약리", ids.pharmacology, "old pharmacology")] };
+const categorizedExisting: ImportExistingDrug = { ...existing, categoryId: "40000000-0000-4000-8000-000000000001" };
+const categoryRows = [
+  { id: "40000000-0000-4000-8000-000000000001", name: "과실류" },
+  { id: "40000000-0000-4000-8000-000000000002", name: "종자류" },
+];
 
 function section(title: string, fieldDefinitionId: string, text: string): StudySection { return { id: `${fieldDefinitionId}-section`, fieldDefinitionId, title, items: [{ id: `${fieldDefinitionId}-item`, text }] }; }
 function payload(drugs: unknown[]) { return pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs }); }
@@ -122,4 +127,48 @@ test("preview identifies updated and preserved fields for a real merge", () => {
   const prepared = prepare([{ koreanName: "진피", category: "과실류", sections: [{ field: "성분", items: [{ text: "new" }] }] }], { existingDrugs: [existing] });
   assert.deepEqual(prepared.drugs[0].preview.fieldsUpdated, ["성분"]);
   assert.deepEqual(prepared.drugs[0].preview.fieldsPreserved, ["약리"]);
+});
+
+test("existing drug with omitted category preserves category and omits categoryId from its patch", () => {
+  const input = payload([{ koreanName: "진피", sections: [{ field: "성분", items: [{ text: "new" }] }] }]).drugs[0];
+  const prepared = prepareImport({ schema: "pharmacognosy.import", version: 1, drugs: [input] }, { fields, existingDrugs: [categorizedExisting], categories: categoryRows });
+  const patch = scalarMergePatch(prepared.drugs[0].input, { familyId: categorizedExisting.familyId });
+  assert.equal(prepared.drugs[0].errors.length, 0);
+  assert.equal(prepared.drugs[0].preview.categoryAction, "기존 분류 유지");
+  assert.equal(Object.hasOwn(patch, "categoryId"), false);
+});
+
+test("existing drug with supplied category updates categoryId", () => {
+  const input = payload([{ koreanName: "진피", category: "종자류" }]).drugs[0];
+  const prepared = prepareImport({ schema: "pharmacognosy.import", version: 1, drugs: [input] }, { fields, existingDrugs: [categorizedExisting], categories: categoryRows });
+  const patch = scalarMergePatch(input, { categoryId: categoryRows[1].id });
+  assert.equal(patch.categoryId, categoryRows[1].id);
+  assert.equal(prepared.drugs[0].preview.categoryAction, "분류 변경 · 과실류 → 종자류");
+});
+
+test("new drug with supplied category remains valid", () => {
+  const prepared = prepare([{ koreanName: "신규", category: "종자류" }], { categories: categoryRows });
+  assert.equal(prepared.canCommit, true);
+  assert.equal(prepared.drugs[0].preview.categoryAction, "신규 분류 · 종자류");
+});
+
+test("new drug with omitted category gets a blocking validation error", () => {
+  const prepared = prepare([{ koreanName: "신규" }]);
+  assert.equal(prepared.canCommit, false);
+  assert.equal(prepared.drugs[0].errors.find((error) => error.code === "missing-category")?.message, "신규 생약은 category가 필요합니다.");
+});
+
+test("existing drug with omitted category and importance preserves both values", () => {
+  const input = payload([{ koreanName: "진피" }]).drugs[0];
+  const patch = scalarMergePatch(input, {});
+  assert.equal(Object.hasOwn(patch, "categoryId"), false);
+  assert.equal(Object.hasOwn(patch, "importance"), false);
+  assert.equal(categorizedExisting.categoryId, categoryRows[0].id);
+  assert.equal(categorizedExisting.importance, "중요");
+});
+
+test("category is never inferred from Latin name or scientific fields", () => {
+  const prepared = prepare([{ koreanName: "신규", latinName: "Test Semen", scientificName: "Plantus semen" }]);
+  assert.equal(prepared.drugs[0].input.category, undefined);
+  assert.ok(prepared.drugs[0].errors.some((error) => error.code === "missing-category"));
 });

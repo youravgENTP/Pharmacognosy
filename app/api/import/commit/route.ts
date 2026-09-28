@@ -30,7 +30,7 @@ export async function POST(request: Request) {
         tx.select().from(fieldDefinitions), tx.select().from(crudeDrugs), tx.select().from(families),
         tx.select({ drugId: userDrugMnemonics.drugId }).from(userDrugMnemonics).where(eq(userDrugMnemonics.userId, current.id)), tx.select().from(categories),
       ]);
-      const prepared = prepareImport(parsed.data.payload, { fields, existingDrugs, families: familyRows, mnemonicDrugIds: new Set(mnemonicRows.map((row) => row.drugId)) });
+      const prepared = prepareImport(parsed.data.payload, { fields, existingDrugs, categories: categoryRows, families: familyRows, mnemonicDrugIds: new Set(mnemonicRows.map((row) => row.drugId)) });
       if (!prepared.canCommit) throw new ImportBlockedError(prepared.drugs.filter((drug) => drug.errors.length).map((drug) => ({ koreanName: drug.input.koreanName, errors: drug.errors })));
 
       const categoryByName = new Map(categoryRows.map((category) => [normalizeKey(category.name), category]));
@@ -42,8 +42,8 @@ export async function POST(request: Request) {
       for (const drug of prepared.drugs) {
         const existing = drug.existing;
         if (existing && parsed.data.existingStrategy === "skip") { skipped++; continue; }
-        let category = categoryByName.get(normalizeKey(drug.input.category));
-        if (!category) {
+        let category = drug.input.category ? categoryByName.get(normalizeKey(drug.input.category)) : undefined;
+        if (drug.input.category && !category) {
           [category] = await tx.insert(categories).values({ name: drug.input.category, slug: `import-${crypto.randomUUID()}`, position: categoryByName.size + 1 }).returning();
           categoryByName.set(normalizeKey(category.name), category);
         }
@@ -57,13 +57,13 @@ export async function POST(request: Request) {
           familyId = family.id;
         }
         const sections = mergeImportedSections(existing?.sections ?? [], drug.sections, fields, Boolean(drug.input.mnemonic));
-        const scalars = scalarMergePatch(drug.input, { categoryId: category.id, familyId });
+        const scalars = scalarMergePatch(drug.input, { categoryId: category?.id, familyId });
         let saved: typeof existingDrugs[number];
         if (existing) {
           [saved] = await tx.update(crudeDrugs).set({ ...scalars, ...(Object.hasOwn(drug.input, "sections") || drug.input.mnemonic ? { sections } : {}), updatedAt: new Date() }).where(eq(crudeDrugs.id, existing.id)).returning();
           updated++;
         } else {
-          [saved] = await tx.insert(crudeDrugs).values({ koreanName: drug.input.koreanName, categoryId: category.id, importance: drug.input.importance ?? "중간", sections, ...(Object.hasOwn(drug.input, "latinName") ? { latinName: drug.input.latinName } : {}), ...(Object.hasOwn(drug.input, "origin") ? { origin: drug.input.origin } : {}), ...(Object.hasOwn(drug.input, "origins") ? { origins: drug.input.origins } : {}), ...(Object.hasOwn(drug.input, "scientificName") ? { scientificName: drug.input.scientificName } : {}), ...(Object.hasOwn(drug.input, "medicinalPart") ? { medicinalPart: drug.input.medicinalPart } : {}), ...(drug.input.family ? { familyId: familyId ?? null } : {}) }).returning();
+          [saved] = await tx.insert(crudeDrugs).values({ koreanName: drug.input.koreanName, categoryId: category!.id, importance: drug.input.importance ?? "중간", sections, ...(Object.hasOwn(drug.input, "latinName") ? { latinName: drug.input.latinName } : {}), ...(Object.hasOwn(drug.input, "origin") ? { origin: drug.input.origin } : {}), ...(Object.hasOwn(drug.input, "origins") ? { origins: drug.input.origins } : {}), ...(Object.hasOwn(drug.input, "scientificName") ? { scientificName: drug.input.scientificName } : {}), ...(Object.hasOwn(drug.input, "medicinalPart") ? { medicinalPart: drug.input.medicinalPart } : {}), ...(drug.input.family ? { familyId: familyId ?? null } : {}) }).returning();
           inserted++;
         }
         drugByName.set(normalizeKey(saved.koreanName), saved);

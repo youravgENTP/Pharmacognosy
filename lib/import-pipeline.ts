@@ -8,6 +8,7 @@ export type ImportExistingDrug = {
   medicinalPart: string | null; categoryId: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[];
 };
 export type ImportFamily = { id: string; koreanName: string; scientificName: string };
+export type ImportCategory = { id: string; name: string };
 export type ImportIssue = { code: string; message: string; field?: string; sourceDepth?: number; destinationMode?: FieldInputMode };
 export type ResolvedImportSection = { fieldDefinitionId: string; title: string; inputMode: FieldInputMode; position: number; items: ImportItem[]; sourceHeadings: string[] };
 export type PreparedRelationship = { targetKoreanName: string; type: string; notes?: string | null; resolvable: boolean; source: "payload" | "database" | "missing" };
@@ -21,7 +22,7 @@ export type PreparedImportDrug = {
   warnings: ImportIssue[];
   preview: {
     fieldsAdded: string[]; fieldsUpdated: string[]; fieldsPreserved: string[];
-    familyAction: string; relationshipAction: string; mnemonicAction: string; identityAction: string; richTextCount: number;
+    categoryAction: string; familyAction: string; relationshipAction: string; mnemonicAction: string; identityAction: string; richTextCount: number;
   };
 };
 export type PreparedImport = { payload: PharmacognosyImportV1; drugs: PreparedImportDrug[]; canCommit: boolean };
@@ -29,6 +30,7 @@ export type PreparedImport = { payload: PharmacognosyImportV1; drugs: PreparedIm
 export function prepareImport(payload: PharmacognosyImportV1, context: {
   fields: ImportFieldDefinition[];
   existingDrugs: ImportExistingDrug[];
+  categories?: ImportCategory[];
   families?: ImportFamily[];
   mnemonicDrugIds?: Set<string>;
 }) : PreparedImport {
@@ -41,6 +43,8 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
   const payloadNames = new Set(normalized.payload.drugs.map((drug) => normalizeKey(drug.koreanName)));
   const knownNames = new Set([...existingByName.keys(), ...payloadNames]);
   const familyByScientificName = new Map((context.families ?? []).map((family) => [normalizeKey(family.scientificName), family]));
+  const categoryByName = new Map((context.categories ?? []).map((category) => [normalizeKey(category.name), category]));
+  const categoryById = new Map((context.categories ?? []).map((category) => [category.id, category]));
 
   const drugs = normalized.payload.drugs.map((input, index): PreparedImportDrug => {
     const errors: ImportIssue[] = normalized.issues[index].map((issue) => ({ code: issue.code, field: issue.path, message: issue.message }));
@@ -76,6 +80,7 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
       else errors.push(...validateHierarchy("암기법", input.mnemonic.items, mnemonicField.inputMode));
     }
     const existing = existingByName.get(normalizeKey(input.koreanName));
+    if (!existing && input.category === undefined) errors.push({ code: "missing-category", field: "category", message: "신규 생약은 category가 필요합니다." });
     const incomingIds = new Set(sections.map((section) => section.fieldDefinitionId));
     const incomingNames = new Set(sections.map((section) => normalizeKey(section.title)));
     const existingSections = (existing?.sections ?? []).filter((section) => resolveExistingField(section, activeFields)?.name !== "암기법");
@@ -93,12 +98,21 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
       return { ...relationship, resolvable: knownNames.has(key), source };
     });
     const family = input.family ? familyByScientificName.get(normalizeKey(input.family.scientificName)) : undefined;
+    const currentCategory = existing?.categoryId ? categoryById.get(existing.categoryId) : undefined;
+    const suppliedCategory = input.category ? categoryByName.get(normalizeKey(input.category)) : undefined;
+    const categoryAction = !existing
+      ? input.category ? `신규 분류 · ${input.category}` : "분류 필요"
+      : input.category === undefined
+        ? "기존 분류 유지"
+        : suppliedCategory?.id === existing.categoryId || normalizeKey(currentCategory?.name ?? "") === normalizeKey(input.category)
+          ? `기존 분류 사용 · ${input.category}`
+          : `분류 변경 · ${currentCategory?.name ?? "미분류"} → ${input.category}`;
     const familyAction = input.family ? (family ? `기존 과 사용 · ${family.scientificName}` : `새 과 생성 · ${input.family.scientificName}`) : Object.hasOwn(input, "family") ? "과 연결 제거" : existing?.familyId ? "기존 과 유지" : "변경 없음";
     const mnemonicAction = input.mnemonic ? (existing && context.mnemonicDrugIds?.has(existing.id) ? "현재 사용자 암기법 업데이트" : "현재 사용자 암기법 추가") : "변경 없음";
     const identityAction = input.identityTerms ? `${input.identityTerms.length}개 식별 용어 교체` : "변경 없음";
     return {
       input, existing, sections, relationships, corrections: normalized.corrections[index], errors, warnings,
-      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction, richTextCount: sections.reduce((sum, section) => sum + countRichItems(section.items), 0) + countRichItems(input.mnemonic?.items ?? []) },
+      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, categoryAction, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction, richTextCount: sections.reduce((sum, section) => sum + countRichItems(section.items), 0) + countRichItems(input.mnemonic?.items ?? []) },
     };
   });
   return { payload: normalized.payload, drugs, canCommit: drugs.every((drug) => !drug.errors.length) };
@@ -144,8 +158,9 @@ export function mergeImportedSections(existing: StudySection[], incoming: Resolv
   return next.sort((left, right) => (position.get(left.fieldDefinitionId ?? "") ?? 10_000) - (position.get(right.fieldDefinitionId ?? "") ?? 10_000));
 }
 
-export function scalarMergePatch(input: ImportDrug, resolved: { categoryId: string; familyId?: string | null }) {
-  const patch: Record<string, unknown> = { categoryId: resolved.categoryId };
+export function scalarMergePatch(input: ImportDrug, resolved: { categoryId?: string; familyId?: string | null }) {
+  const patch: Record<string, unknown> = {};
+  if (Object.hasOwn(input, "category")) patch.categoryId = resolved.categoryId;
   for (const key of ["latinName", "origin", "origins", "scientificName", "medicinalPart", "importance"] as const) if (Object.hasOwn(input, key)) patch[key] = input[key];
   if (Object.hasOwn(input, "family")) patch.familyId = resolved.familyId ?? null;
   return patch;

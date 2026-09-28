@@ -38,7 +38,7 @@ export const importDrugSchema = z.object({
   scientificName: z.string().trim().nullable().optional(),
   family: z.object({ koreanName: z.string().trim().optional(), scientificName: z.string().trim().min(1) }).nullable().optional(),
   medicinalPart: z.string().trim().nullable().optional(),
-  category: z.string().trim().min(1),
+  category: z.string().trim().min(1).optional(),
   importance: z.enum(["중요", "중간", "비중요"]).optional(),
   sections: z.array(importSectionSchema).optional(),
   relationships: z.array(importRelationshipSchema).optional(),

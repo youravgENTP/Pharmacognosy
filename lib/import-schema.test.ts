@@ -15,6 +15,16 @@ test("existing title-only v1 files remain valid without defaulting omitted merge
   assert.equal(parsed.drugs[0].sections?.[0].title, "성분");
 });
 
+test("existing v1 JSON with category still validates", () => {
+  const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "진피", category: "과실류" }] });
+  assert.equal(parsed.drugs[0].category, "과실류");
+});
+
+test("an existing-drug-style v1 payload may omit category", () => {
+  const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "진피", sections: [{ field: "성분", items: [{ text: "Hesperidin" }] }] }] });
+  assert.equal(Object.hasOwn(parsed.drugs[0], "category"), false);
+});
+
 test("extended v1 accepts origin plants, relationships, identity terms, and mnemonic", () => {
   const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "산약", category: "근류", origins: [{ nameKo: "마", scientificName: "Dioscorea batatas" }, { nameKo: "참마", scientificName: "Dioscorea japonica" }], relationships: [{ targetKoreanName: "참마", type: "연관생약", notes: null }], identityTerms: ["포제"], mnemonic: { items: [{ text: "기억" }] } }] });
   assert.equal(parsed.drugs[0].origins?.length, 2);

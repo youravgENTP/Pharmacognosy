@@ -1285,6 +1285,22 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
   --accent-soft: #213650;
   --selected-bg: #213650;
   --hover-bg: #22282e;
+  --control-bg: #20252b;
+  --control-hover-bg: #2a3138;
+  --control-border: #38404a;
+  --control-text: #d4d8dd;
+  --control-muted: #98a3ae;
+  --control-accent-bg: #1d3048;
+  --control-accent-hover-bg: #233a55;
+  --control-accent-text: #b8d4f7;
+  --control-disabled-bg: #272d34;
+  --control-disabled-text: #66717c;
+  --control-danger-bg: #2b1c1e;
+  --control-danger-border: #60383b;
+  --control-danger-text: #e98b91;
+  --control-warning-bg: #34291e;
+  --control-warning-border: #704f2d;
+  --control-warning-text: #e0aa68;
   --field-title: #f2f4f7;
   --focus-ring: rgba(87,144,224,.18);
   --table-bg: #12161a;
@@ -1323,6 +1339,22 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
   --accent-soft: #e7f0e9;
   --selected-bg: #edf5ef;
   --hover-bg: #f0f5f0;
+  --control-bg: #f7f9f6;
+  --control-hover-bg: #f0f5f0;
+  --control-border: #c4d2c1;
+  --control-text: #223026;
+  --control-muted: #667268;
+  --control-accent-bg: #e7f0e9;
+  --control-accent-hover-bg: #dcebdd;
+  --control-accent-text: #4e745e;
+  --control-disabled-bg: #edf1ec;
+  --control-disabled-text: #9aa59c;
+  --control-danger-bg: #fff1ef;
+  --control-danger-border: #e3b7b1;
+  --control-danger-text: #983b32;
+  --control-warning-bg: #fff6e8;
+  --control-warning-border: #dfbd88;
+  --control-warning-text: #86591e;
   --field-title: #4f735d;
   --focus-ring: rgba(95,138,112,.18);
   --table-bg: #ffffff;
@@ -1663,6 +1695,142 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .taxon-more { color: var(--text-secondary); }
 :root[data-theme="day"] .conflict-dialog article,
 :root[data-theme="day"] .conflict-dialog footer { border-color: var(--border); }
+
+/* Theme-aware controls shared by modals, pickers, exports, and settings. */
+.modal-close,
+.save-status,
+.constituent-picker > header > button,
+.related-picker-list > button,
+.reference-create-modal footer button:not(.primary),
+.export-dialog footer button:not(.primary),
+.conflict-dialog article button,
+.constituent-memberships > button,
+.compound-media > header button,
+.collection-image-block button,
+.storage-actions > button,
+.storage-actions > div {
+  border-color: var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-text);
+}
+
+.modal-close:hover,
+.constituent-picker > header > button:hover,
+.related-picker-list > button:hover,
+.reference-create-modal footer button:not(.primary):hover,
+.export-dialog footer button:not(.primary):hover,
+.conflict-dialog article button:hover,
+.constituent-memberships > button:hover,
+.compound-media > header button:hover,
+.collection-image-block button:hover,
+.storage-actions > button:hover {
+  border-color: var(--accent);
+  background: var(--control-hover-bg);
+  color: var(--text-primary);
+}
+
+.collection-kind-picker > button,
+.field-choice-card,
+.source-pane-reveal {
+  border-color: var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-muted);
+}
+.collection-kind-picker > button:hover,
+.field-choice-card:hover,
+.source-pane-reveal:hover { border-color: var(--accent); background: var(--control-hover-bg); }
+.collection-kind-picker b { color: var(--control-text); }
+.collection-kind-picker > button.active,
+.field-choice-card.selected {
+  border-color: var(--accent);
+  background: var(--control-accent-bg);
+  color: var(--control-accent-text);
+}
+.collection-kind-picker > button.active b { color: var(--control-accent-text); }
+.field-choice-card small,
+.related-picker-list > button > small { color: var(--text-muted); }
+
+.collection-type-badge,
+.collection-workspace-kind,
+.add-field-row > button,
+.reference-add-card {
+  border-color: var(--control-border);
+  color: var(--control-muted);
+}
+.add-field-row > button:hover,
+.reference-add-card:hover {
+  border-color: var(--accent);
+  background: var(--control-accent-bg);
+  color: var(--control-accent-text);
+}
+.identity-term-chips > span {
+  border-color: var(--accent);
+  background: var(--control-accent-bg);
+  color: var(--control-accent-text);
+}
+
+.collection-export-button,
+.data-card-export {
+  border-color: var(--accent);
+  background: var(--control-accent-bg);
+  color: var(--control-accent-text);
+}
+.collection-export-button:hover,
+.data-card-export:hover {
+  background: var(--control-accent-hover-bg);
+  color: var(--text-primary);
+}
+
+.new-field-card { border-color: var(--control-border); color: var(--control-muted); }
+.new-field-card:focus-within { border-color: var(--accent); }
+.new-field-card input { color: var(--user-content-text); }
+.new-field-card select,
+.mnemonic-version-select {
+  border-color: var(--control-border);
+  background: var(--input-bg);
+  color: var(--user-content-text);
+}
+.field-picker-footer button:disabled,
+.data-export-submit:disabled {
+  background: var(--control-disabled-bg);
+  color: var(--control-disabled-text);
+}
+
+.identity-suggestions {
+  border-color: var(--control-border);
+  background: var(--surface);
+  box-shadow: 0 14px 38px var(--shadow);
+}
+.identity-suggestions > button { color: var(--text-primary); }
+.identity-suggestions > button:hover,
+.taxonomy-indicator > button:hover,
+.compound-media article > span button:hover:not(:disabled),
+.field-card-actions button:hover,
+.collection-block > aside button:hover {
+  background: var(--control-hover-bg);
+  color: var(--text-primary);
+}
+.collection-block > aside button:last-child:hover {
+  background: var(--control-danger-bg);
+  color: var(--control-danger-text);
+}
+
+.constituent-delete,
+.storage-actions .danger,
+.button.danger {
+  border-color: var(--control-danger-border);
+  background: var(--control-danger-bg);
+  color: var(--control-danger-text);
+}
+.conflict-button {
+  border-color: var(--control-warning-border);
+  background: var(--control-warning-bg);
+  color: var(--control-warning-text);
+}
+.collection-image-block button.active {
+  background: var(--control-accent-bg);
+  color: var(--control-accent-text);
+}
 
 /* Local backup and selective restore. */
 .backup-policy-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }

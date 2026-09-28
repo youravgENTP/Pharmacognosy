@@ -1,5 +1,5 @@
 import type { ImportDrug, ImportItem, PharmacognosyImportV1 } from "@/lib/import-schema";
-import { parseInlineRuns, sanitizeRichHtml, serializeInlineRuns, type InlineTextRun } from "@/lib/rich-text";
+import { parseInlineRuns, sanitizeRichHtml, serializeInlineRuns, visibleRichText, type InlineTextRun } from "@/lib/rich-text";
 
 export type ImportCorrection = { path: string; original: string; normalized: string; reason: string };
 export type ImportNormalizationIssue = { code: "rich-text-mismatch" | "rich-text-normalization"; path: string; message: string };
@@ -69,7 +69,11 @@ function normalizeDrug(drug: ImportDrug, path: string, corrections: ImportCorrec
     sections: drug.sections?.map((section, sectionIndex) => ({ ...section, items: normalizeItems(section.items, `${path}.sections.${sectionIndex}.items`, corrections, issues) })),
     relationships: drug.relationships?.map((relationship, relationIndex) => ({ ...relationship, type: normalizeRelationshipType(relationship.type), notes: relationship.notes == null ? relationship.notes : corrected(relationship.notes, `${path}.relationships.${relationIndex}.notes`, corrections) })),
     identityTerms: drug.identityTerms?.map((term, termIndex) => corrected(term, `${path}.identityTerms.${termIndex}`, corrections)),
-    mnemonic: drug.mnemonic ? { items: normalizeItems(drug.mnemonic.items, `${path}.mnemonic.items`, corrections, issues) } : undefined,
+    mnemonic: drug.mnemonic ? {
+      ...drug.mnemonic,
+      ...(drug.mnemonic.text ? { text: normalizeMnemonicText(drug.mnemonic.text, `${path}.mnemonic.text`, issues) } : {}),
+      ...(drug.mnemonic.items ? { items: normalizeItems(drug.mnemonic.items, `${path}.mnemonic.items`, corrections, issues) } : {}),
+    } : undefined,
   };
 }
 
@@ -150,6 +154,16 @@ function normalizeRunWhitespace(runs: InlineTextRun[]) {
 
 function normalizeWhitespace(value: string) { return value.normalize("NFC").trim().replace(/\s+/g, " "); }
 function comparableText(value: string) { return normalizeWhitespace(value.replace(/\u00a0/g, " ")); }
+
+function normalizeMnemonicText(value: { text: string; html?: string }, path: string, issues: ImportNormalizationIssue[]) {
+  const text = value.text.normalize("NFC").replace(/\r\n?/g, "\n");
+  if (value.html === undefined) return { text };
+  const html = sanitizeRichHtml(value.html);
+  const formattedText = visibleRichText(html).normalize("NFC").replace(/\r\n?/g, "\n");
+  const comparable = (source: string) => source.replace(/[\t ]+/g, " ").replace(/ *\n */g, "\n").trim();
+  if (comparable(text) !== comparable(formattedText)) issues.push({ code: "rich-text-mismatch", path: `${path}.html`, message: `rich-text mismatch · plain text: “${text}” · formatted text: “${formattedText}”` });
+  return { text, html };
+}
 
 function corrected(value: string, path: string, corrections: ImportCorrection[]) {
   let normalized = value.normalize("NFC").trim().replace(/\s+/g, " ");

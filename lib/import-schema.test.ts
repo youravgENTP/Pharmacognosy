@@ -29,7 +29,7 @@ test("extended v1 accepts origin plants, relationships, identity terms, and mnem
   const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "산약", category: "근류", origins: [{ nameKo: "마", scientificName: "Dioscorea batatas" }, { nameKo: "참마", scientificName: "Dioscorea japonica" }], relationships: [{ targetKoreanName: "참마", type: "연관생약", notes: null }], identityTerms: ["포제"], mnemonic: { items: [{ text: "기억" }] } }] });
   assert.equal(parsed.drugs[0].origins?.length, 2);
   assert.equal(parsed.drugs[0].relationships?.[0].targetKoreanName, "참마");
-  assert.equal(parsed.drugs[0].mnemonic?.items[0].text, "기억");
+  assert.equal(parsed.drugs[0].mnemonic?.items?.[0].text, "기억");
 });
 
 test("extended v1 accepts origins independently", () => {
@@ -44,7 +44,7 @@ test("extended v1 accepts relationships independently", () => {
 
 test("extended v1 accepts a user mnemonic independently", () => {
   const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "진피", category: "과실류", mnemonic: { items: [{ text: "기억" }] } }] });
-  assert.equal(parsed.drugs[0].mnemonic?.items.length, 1);
+  assert.equal(parsed.drugs[0].mnemonic?.items?.length, 1);
 });
 
 test("Import Schema v1 rejects duplicate Korean drug names", () => {

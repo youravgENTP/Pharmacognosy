@@ -2,6 +2,7 @@ import type { ImportanceLevel, StudyBlock, StudyItem, StudySection } from "@/lib
 import { hierarchyMarker, plainText, richTextRuns, studyImages, type PdfCard, type PdfField } from "@/lib/export/common";
 import { exportImageBuffer } from "@/lib/export/images";
 import { formatDrugIndex } from "@/lib/drug-index";
+import { hierarchyMarkerForMode } from "@/lib/hierarchy-marker";
 
 export type ExportDrugProfile = {
   catalogIndex?: number | null;
@@ -42,7 +43,7 @@ export async function prepareDrugExportCard(
   if (drug.similarDrugs.length) fields.push({ title: "유사생약", lines: drug.similarDrugs.map((item) => ({ text: item.name })) });
   if (drug.identityTerms.length) fields.push({ title: "가공 및 기타 사항", lines: [{ text: drug.identityTerms.map((term) => term.name).join(" · ") }] });
   for (const section of drug.sections.filter((section) => section.title !== "암기법" && (!section.fieldDefinitionId || activeFieldIds.has(section.fieldDefinitionId)))) fields.push(await prepareStudyField(drugId, section.title, section.items, section.blocks ?? [], loadMedia, warn));
-  for (const mnemonic of mnemonics) fields.push(await prepareStudyField(drugId, mnemonics.length > 1 ? `암기법 · ${mnemonic.userName}` : "암기법", mnemonic.items, mnemonic.blocks, loadMedia, warn));
+  for (const mnemonic of mnemonics) fields.push(await prepareStudyField(drugId, mnemonics.length > 1 ? `암기법 · ${mnemonic.userName}` : "암기법", mnemonic.items, mnemonic.blocks, loadMedia, warn, true));
   return {
     title: drug.koreanName,
     subtitle: [drug.latinName, drug.importance].filter(Boolean).join(" · "),
@@ -52,9 +53,10 @@ export async function prepareDrugExportCard(
   };
 }
 
-export async function prepareStudyField(drugId: string, title: string, items: StudyItem[], blocks: StudyBlock[], loadMedia: (id: string) => Promise<ExportMedia | null>, warn: (warning: ExportImageWarning) => void): Promise<PdfField> {
+export async function prepareStudyField(drugId: string, title: string, items: StudyItem[], blocks: StudyBlock[], loadMedia: (id: string) => Promise<ExportMedia | null>, warn: (warning: ExportImageWarning) => void, mnemonic = false): Promise<PdfField> {
   const lines: PdfField["lines"] = [];
-  const visit = (rows: StudyItem[], depth: number) => rows.forEach((item, index) => { const content = plainText(item.html, item.text).trim(); if (content) { const marker = `${hierarchyMarker(depth, index)} `; const html = item.html ? `${marker}${item.html}` : undefined; lines.push({ text: `${marker}${content}`, html, runs: richTextRuns(html, `${marker}${content}`), indent: depth * 13, bold: item.bold, italic: item.italic, gapAfter: 2 }); } visit(item.children ?? [], depth + 1); });
+  for (const block of blocks) if (block.type === "text" && block.content.text) lines.push({ text: block.content.text, html: block.content.html, runs: richTextRuns(block.content.html, block.content.text), gapAfter: 5 });
+  const visit = (rows: StudyItem[], depth: number) => rows.forEach((item, index) => { const content = plainText(item.html, item.text).trim(); if (content) { const marker = `${mnemonic ? hierarchyMarkerForMode(depth, index, "hierarchy3") : hierarchyMarker(depth, index)} `; const html = item.html ? `${marker}${item.html}` : undefined; lines.push({ text: `${marker}${content}`, html, runs: richTextRuns(html, `${marker}${content}`), indent: depth * 13, bold: item.bold, italic: item.italic, gapAfter: 2 }); } visit(item.children ?? [], depth + 1); });
   const itemBlocks = blocks.filter((block): block is Extract<StudyBlock, { type: "items" }> => block.type === "items");
   if (itemBlocks.length) for (const block of itemBlocks) visit(block.items, 0); else visit(items, 0);
   const images = (await Promise.all(studyImages(blocks).map(async (image) => {

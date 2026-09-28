@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { StudyContentEditor } from "@/components/study-content-editor";
-import type { FieldInputMode, StudyBlock, StudyItem } from "@/lib/db/schema";
+import type { StudyBlock, StudyItem } from "@/lib/db/schema";
 
 type MnemonicVersion = {
   id: string;
@@ -18,7 +18,7 @@ type MnemonicVersion = {
 type MnemonicContent = { items: StudyItem[]; blocks: StudyBlock[] };
 const NEW_MINE = "__new_mine__";
 
-export function DrugMnemonicVersions({ drugId, mode, onRemove }: { drugId: string; mode: FieldInputMode; onRemove: () => void }) {
+export function DrugMnemonicVersions({ drugId, onRemove }: { drugId: string; onRemove: () => void }) {
   const [versions, setVersions] = useState<MnemonicVersion[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -106,7 +106,7 @@ export function DrugMnemonicVersions({ drugId, mode, onRemove }: { drugId: strin
       {!loading && !editable ? <span className="mnemonic-read-only">읽기 전용</span> : null}
       <button className="field-remove" onClick={onRemove} title="이 생약에서 필드 삭제" aria-label="암기법 삭제"><X size={21}/></button>
     </div>
-    {loading ? <p className="mnemonic-loading">암기법을 불러오는 중…</p> : status === "error" && !currentUserId ? <p className="form-error">암기법을 불러오지 못했습니다.</p> : <StudyContentEditor key={selectedUserId} items={content.items} blocks={content.blocks} mode={mode} readOnly={!editable} onChange={change}/>}
+    {loading ? <p className="mnemonic-loading">암기법을 불러오는 중…</p> : status === "error" && !currentUserId ? <p className="form-error">암기법을 불러오지 못했습니다.</p> : <StudyContentEditor key={selectedUserId} items={content.items} blocks={content.blocks} mode="hierarchy3" mnemonic readOnly={!editable} onChange={change}/>}
   </section>;
 }
 

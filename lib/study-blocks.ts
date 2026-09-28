@@ -1,12 +1,18 @@
 import type { StudyBlock, StudyItem } from "@/lib/db/schema";
 
 export function visibleStudyBlocks(blocks: StudyBlock[], fallback: StudyBlock): StudyBlock[] {
-  const visible = blocks.filter((block) => block.type === "image" || block.items.length > 0);
+  const visible = blocks.filter(hasStudyBlockContent);
   return visible.length ? visible : [fallback];
 }
 
 export function normalizeStudyBlocks(blocks: StudyBlock[]): StudyBlock[] {
-  return blocks.filter((block) => block.type === "image" || block.items.length > 0);
+  return blocks.filter(hasStudyBlockContent);
+}
+
+function hasStudyBlockContent(block: StudyBlock) {
+  if (block.type === "image") return true;
+  if (block.type === "text") return Boolean(block.content.text || block.content.html);
+  return block.items.length > 0;
 }
 
 export function appendStudyItem(

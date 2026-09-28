@@ -377,6 +377,10 @@ h1 { font-weight: 750; letter-spacing: -.035em; }
 .hierarchy-children { padding-left: 35px; }
 .hierarchy-actions { display: flex; opacity: 0; margin-left: 4px; }
 .hierarchy-row:hover .hierarchy-actions, .hierarchy-row:focus-within .hierarchy-actions { opacity: 1; }
+.mnemonic-prose-block { margin: 4px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.mnemonic-prose-block .rich-input-wrap { align-items: flex-start; }
+.mnemonic-prose-block .rich-study-input.multiline { min-height: 86px; }
+.mnemonic-prose-block:hover .hierarchy-actions, .mnemonic-prose-block:focus-within .hierarchy-actions { opacity: 1; }
 .hierarchy-actions button { border: 0; background: transparent; color: #8b929c; padding: 5px; border-radius: 5px; display: grid; place-items: center; }
 .hierarchy-actions button:hover, .hierarchy-actions button.active { background: #e7eef8; color: #326fbf; }
 .character-spacing-select { width: 48px; border: 0; border-radius: 5px; padding: 2px; background: transparent; color: #8b929c; font-size: 11px; }

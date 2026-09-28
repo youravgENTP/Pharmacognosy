@@ -9,6 +9,12 @@ export type ImportItem = {
   children?: ImportItem[];
 };
 
+export type ImportMnemonic = {
+  authorUserName?: string;
+  text?: { text: string; html?: string };
+  items?: ImportItem[];
+};
+
 export const importItemSchema: z.ZodType<ImportItem> = z.lazy(() => z.object({
   text: z.string().trim().min(1),
   html: z.string().max(20000).optional(),
@@ -43,7 +49,11 @@ export const importDrugSchema = z.object({
   sections: z.array(importSectionSchema).optional(),
   relationships: z.array(importRelationshipSchema).optional(),
   identityTerms: z.array(z.string().trim().min(1)).optional(),
-  mnemonic: z.object({ items: z.array(importItemSchema) }).optional(),
+  mnemonic: z.object({
+    authorUserName: z.string().trim().min(1).optional(),
+    text: z.object({ text: z.string(), html: z.string().max(100000).optional() }).optional(),
+    items: z.array(importItemSchema).optional(),
+  }).refine((mnemonic) => mnemonic.text !== undefined || mnemonic.items !== undefined, { message: "mnemonic에는 text 또는 items가 필요합니다." }).optional(),
 });
 
 export const pharmacognosyImportV1Schema = z.object({

@@ -1,5 +1,5 @@
-import type { FieldInputMode, ImportanceLevel, OriginPlant, StudyItem, StudySection } from "@/lib/db/schema";
-import type { ImportDrug, ImportItem, PharmacognosyImportV1 } from "@/lib/import-schema";
+import type { FieldInputMode, ImportanceLevel, OriginPlant, StudyBlock, StudyItem, StudySection } from "@/lib/db/schema";
+import type { ImportDrug, ImportItem, ImportMnemonic, PharmacognosyImportV1 } from "@/lib/import-schema";
 import { isReservedImportSection, normalizeFieldAlias, normalizeImportPayload, normalizeKey, type ImportCorrection } from "@/lib/import-normalization";
 
 export type ImportFieldDefinition = { id: string; name: string; inputMode: FieldInputMode; position: number; active: boolean };
@@ -9,14 +9,18 @@ export type ImportExistingDrug = {
 };
 export type ImportFamily = { id: string; koreanName: string; scientificName: string };
 export type ImportCategory = { id: string; name: string };
+export type ImportUser = { id: string; name: string };
+export type ImportMnemonicVersion = { drugId: string; userId: string; items: StudyItem[]; blocks: StudyBlock[] };
 export type ImportIssue = { code: string; message: string; field?: string; sourceDepth?: number; destinationMode?: FieldInputMode };
 export type ResolvedImportSection = { fieldDefinitionId: string; title: string; inputMode: FieldInputMode; position: number; items: ImportItem[]; sourceHeadings: string[] };
 export type PreparedRelationship = { targetKoreanName: string; type: string; notes?: string | null; resolvable: boolean; source: "payload" | "database" | "missing" };
+export type PreparedMnemonic = { targetUserId?: string; targetUserName: string; existing?: ImportMnemonicVersion };
 export type PreparedImportDrug = {
   input: ImportDrug;
   existing?: ImportExistingDrug;
   sections: ResolvedImportSection[];
   relationships: PreparedRelationship[];
+  mnemonic?: PreparedMnemonic;
   corrections: ImportCorrection[];
   errors: ImportIssue[];
   warnings: ImportIssue[];
@@ -32,6 +36,9 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
   existingDrugs: ImportExistingDrug[];
   categories?: ImportCategory[];
   families?: ImportFamily[];
+  users?: ImportUser[];
+  currentUser?: ImportUser;
+  mnemonicVersions?: ImportMnemonicVersion[];
   mnemonicDrugIds?: Set<string>;
 }) : PreparedImport {
   const normalized = normalizeImportPayload(payload);
@@ -77,7 +84,7 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
     for (const section of sections) errors.push(...validateHierarchy(section.title, section.items, section.inputMode));
     if (input.mnemonic) {
       if (!mnemonicField) errors.push({ code: "missing-mnemonic-field", field: "암기법", message: "활성 암기법 필드 정의가 없습니다." });
-      else errors.push(...validateHierarchy("암기법", input.mnemonic.items, mnemonicField.inputMode));
+      if (input.mnemonic.items) errors.push(...validateHierarchy("암기법", input.mnemonic.items, "hierarchy3"));
     }
     const existing = existingByName.get(normalizeKey(input.koreanName));
     if (!existing && input.category === undefined) errors.push({ code: "missing-category", field: "category", message: "신규 생약은 category가 필요합니다." });
@@ -108,11 +115,24 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
           ? `기존 분류 사용 · ${input.category}`
           : `분류 변경 · ${currentCategory?.name ?? "미분류"} → ${input.category}`;
     const familyAction = input.family ? (family ? `기존 과 사용 · ${family.scientificName}` : `새 과 생성 · ${input.family.scientificName}`) : Object.hasOwn(input, "family") ? "과 연결 제거" : existing?.familyId ? "기존 과 유지" : "변경 없음";
-    const mnemonicAction = input.mnemonic ? (existing && context.mnemonicDrugIds?.has(existing.id) ? "현재 사용자 암기법 업데이트" : "현재 사용자 암기법 추가") : "변경 없음";
-    const identityAction = input.identityTerms ? `${input.identityTerms.length}개 식별 용어 교체` : "변경 없음";
+    let mnemonic: PreparedMnemonic | undefined;
+    if (input.mnemonic) {
+      const matches = input.mnemonic.authorUserName === undefined
+        ? context.currentUser ? [context.currentUser] : []
+        : (context.users ?? []).filter((candidate) => candidate.name === input.mnemonic?.authorUserName);
+      if (input.mnemonic.authorUserName !== undefined && matches.length === 0) errors.push({ code: "mnemonic-author-missing", field: "mnemonic.authorUserName", message: `암기법 작성자 '${input.mnemonic.authorUserName}'를 찾을 수 없습니다.` });
+      if (input.mnemonic.authorUserName !== undefined && matches.length > 1) errors.push({ code: "mnemonic-author-ambiguous", field: "mnemonic.authorUserName", message: "동일한 이름의 사용자가 여러 명 있습니다." });
+      const target = matches.length === 1 ? matches[0] : undefined;
+      const existingMnemonic = existing && target ? context.mnemonicVersions?.find((row) => row.drugId === existing.id && row.userId === target.id) : undefined;
+      mnemonic = { targetUserId: target?.id, targetUserName: target?.name ?? input.mnemonic.authorUserName ?? context.currentUser?.name ?? "현재 사용자", existing: existingMnemonic };
+    }
+    const mnemonicParts = input.mnemonic ? [input.mnemonic.text !== undefined ? "본문" : "", input.mnemonic.items !== undefined ? "목록" : ""].filter(Boolean).join(" + ") : "";
+    const legacyCurrentMnemonicExists = Boolean(existing && input.mnemonic?.authorUserName === undefined && context.mnemonicDrugIds?.has(existing.id));
+    const mnemonicAction = input.mnemonic ? `${mnemonic?.targetUserName ?? "현재 사용자"} 암기법 ${mnemonic?.existing || legacyCurrentMnemonicExists ? "업데이트" : "추가"} · ${mnemonicParts}` : "변경 없음";
+    const identityAction = input.identityTerms !== undefined ? `${input.identityTerms.length}개 식별 용어 교체` : "변경 없음";
     return {
-      input, existing, sections, relationships, corrections: normalized.corrections[index], errors, warnings,
-      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, categoryAction, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction, richTextCount: sections.reduce((sum, section) => sum + countRichItems(section.items), 0) + countRichItems(input.mnemonic?.items ?? []) },
+      input, existing, sections, relationships, mnemonic, corrections: normalized.corrections[index], errors, warnings,
+      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, categoryAction, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction, richTextCount: sections.reduce((sum, section) => sum + countRichItems(section.items), 0) + countRichItems(input.mnemonic?.items ?? []) + (input.mnemonic?.text?.html === undefined ? 0 : 1) },
     };
   });
   return { payload: normalized.payload, drugs, canCommit: drugs.every((drug) => !drug.errors.length) };
@@ -139,6 +159,32 @@ export function importItemsWithIds(items: ImportItem[], id = () => crypto.random
     ...(item.highlight !== undefined ? { highlight: item.highlight } : {}),
     ...(item.children ? { children: importItemsWithIds(item.children, id) } : {}),
   }));
+}
+
+export function mergeImportedMnemonic(existing: { items: StudyItem[]; blocks: StudyBlock[] } | undefined, incoming: ImportMnemonic, id = () => crypto.randomUUID()) {
+  const currentItems = structuredClone(existing?.items ?? []);
+  const nextItems = incoming.items === undefined ? currentItems : importItemsWithIds(incoming.items, id);
+  let blocks = structuredClone(existing?.blocks ?? []);
+  if (!blocks.length && currentItems.length) blocks = [{ id: id(), type: "items", items: currentItems }];
+
+  if (incoming.text !== undefined) {
+    const existingText = blocks.find((block): block is Extract<StudyBlock, { type: "text" }> => block.type === "text");
+    blocks = blocks.filter((block) => block.type !== "text");
+    if (incoming.text.text || incoming.text.html) blocks.unshift({ id: existingText?.id ?? id(), type: "text", content: structuredClone(incoming.text) });
+  }
+  if (incoming.items !== undefined) {
+    const existingItems = blocks.find((block): block is Extract<StudyBlock, { type: "items" }> => block.type === "items");
+    blocks = blocks.filter((block) => block.type !== "items");
+    if (nextItems.length) blocks.push({ id: existingItems?.id ?? id(), type: "items", items: structuredClone(nextItems) });
+  } else if (incoming.text !== undefined && nextItems.length && !blocks.some((block) => block.type === "items")) {
+    blocks.push({ id: id(), type: "items", items: structuredClone(nextItems) });
+  }
+
+  return { items: nextItems, blocks };
+}
+
+export function shouldSetMnemonicPreference(targetUserId: string, currentUserId: string, existing: ImportMnemonicVersion | undefined) {
+  return targetUserId === currentUserId && existing === undefined;
 }
 
 function countRichItems(items: ImportItem[]): number {

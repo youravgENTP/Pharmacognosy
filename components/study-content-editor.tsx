@@ -3,7 +3,7 @@
 
 import { ImagePlus, Trash2 } from "lucide-react";
 import { useId, useRef, useState } from "react";
-import { HierarchyEditor, type TaxonomyData } from "@/components/hierarchy-editor";
+import { HierarchyEditor, RichStudyInput, type TaxonomyData } from "@/components/hierarchy-editor";
 import { useLatexShortcuts } from "@/components/use-latex-shortcuts";
 import type { FieldInputMode, StudyBlock, StudyItem } from "@/lib/db/schema";
 import { applyLatexShortcuts } from "@/lib/latex-shortcuts";
@@ -13,14 +13,16 @@ import { normalizeStudyBlocks, visibleStudyBlocks } from "@/lib/study-blocks";
 type ChangeValue = { items: StudyItem[]; blocks: StudyBlock[] };
 
 type StudyConcept = { ownerType: "drug" | "collection"; ownerId: string; sectionId?: string; blockId?: string };
-export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, concept, readOnly = false }: { items: StudyItem[]; blocks?: StudyBlock[]; mode: FieldInputMode; onChange: (value: ChangeValue) => void; taxonomy?: TaxonomyData; concept?: StudyConcept; readOnly?: boolean }) {
+export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, concept, readOnly = false, mnemonic = false }: { items: StudyItem[]; blocks?: StudyBlock[]; mode: FieldInputMode; onChange: (value: ChangeValue) => void; taxonomy?: TaxonomyData; concept?: StudyConcept; readOnly?: boolean; mnemonic?: boolean }) {
   const latexShortcuts = useLatexShortcuts();
   const legacyId = useId(); const fileInput = useRef<HTMLInputElement>(null); const editorRoot = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false); const [dragging, setDragging] = useState(false); const [error, setError] = useState<string>();
   const fallback: StudyBlock = { id: `legacy-${legacyId}`, type: "items", items };
-  const rendered = visibleStudyBlocks(blocks?.length ? blocks : [fallback], fallback);
+  const source = blocks?.length ? blocks : [fallback];
+  const rendered = mnemonic ? mnemonicEditorBlocks(source, items, legacyId) : visibleStudyBlocks(source, fallback);
   function commit(next: StudyBlock[]) { const normalized = normalizeStudyBlocks(next); onChange({ blocks: normalized, items: normalized.flatMap((block) => block.type === "items" ? block.items : []) }); }
   function updateText(id: string, nextItems: StudyItem[]) { commit(rendered.map((block) => block.id === id && block.type === "items" ? { ...block, items: nextItems } : block)); }
+  function updateRichText(id: string, content: { text: string; html?: string }) { commit(rendered.map((block) => block.id === id && block.type === "text" ? { ...block, content } : block)); }
   function updateImage(id: string, patch: Partial<Extract<StudyBlock, { type: "image" }>>) { commit(rendered.map((block) => block.id === id && block.type === "image" ? { ...block, ...patch } : block)); }
 
   function collectItemIds(source: StudyItem[]) {
@@ -182,6 +184,7 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, co
 
   return <div ref={editorRoot} className={`study-content-editor ${readOnly ? "read-only" : ""} ${dragging ? "dragging" : ""}`} tabIndex={readOnly ? undefined : 0} onPaste={readOnly ? undefined : (event) => { const file = [...event.clipboardData.items].find((item) => item.type.startsWith("image/"))?.getAsFile(); if (file) { event.preventDefault(); void upload(file); } }} onDragOver={readOnly ? undefined : (event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(true); }} onDragLeave={readOnly ? undefined : (event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }} onDrop={readOnly ? undefined : (event) => { if (![...event.dataTransfer.types].includes("Files")) return; event.preventDefault(); setDragging(false); void upload([...event.dataTransfer.files].find((file) => file.type.startsWith("image/"))); }}>
     {rendered.map((block) => {
+      if (block.type === "text") return <div className={`study-flow-block ${mnemonic ? "mnemonic-prose-block" : "study-text-block"}`} key={block.id}><RichStudyInput item={{ id: block.id, ...block.content }} shortcuts={latexShortcuts} multiline readOnly={readOnly} onChange={(patch) => updateRichText(block.id, { text: patch.text ?? block.content.text, ...(patch.html !== undefined ? { html: patch.html } : block.content.html !== undefined ? { html: block.content.html } : {}) })}/></div>;
       if (block.type === "image") {
         if (block.anchorItemId) return null;
 
@@ -227,7 +230,8 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, co
           />
         ));
 
-      return <div className="study-flow-block study-items-block" key={block.id}>{mode === "text" ? <TextEditor readOnly={readOnly} conceptTarget={concept ? { ownerType: concept.ownerType, ownerId: concept.ownerId, targetType: concept.ownerType === "drug" ? "study_item" : "collection_hierarchy_item", targetRef: { sectionId: concept.sectionId, blockId: concept.blockId ?? block.id, itemId: block.items[0]?.id } } : undefined} items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor readOnly={readOnly} concept={concept} items={block.items} mode={mode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset} renderAnchoredImages={renderAnchoredImages} onImageDrop={(imageId, anchorItemId, anchorSide, clientX) => { if (!itemIds.has(anchorItemId)) return; moveImageToAnchor(imageId, anchorItemId, anchorSide, clientX); }}/>}</div>;
+      const itemMode = mnemonic ? "hierarchy3" : mode;
+      return <div className={`study-flow-block study-items-block ${mnemonic ? "mnemonic-items-block" : ""}`} key={block.id}>{itemMode === "text" ? <TextEditor readOnly={readOnly} conceptTarget={concept ? { ownerType: concept.ownerType, ownerId: concept.ownerId, targetType: concept.ownerType === "drug" ? "study_item" : "collection_hierarchy_item", targetRef: { sectionId: concept.sectionId, blockId: concept.blockId ?? block.id, itemId: block.items[0]?.id } } : undefined} items={block.items} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)}/> : <HierarchyEditor readOnly={readOnly} concept={concept} items={block.items} mode={itemMode} shortcuts={latexShortcuts} onChange={(next) => updateText(block.id, next)} taxonomy={taxonomy} startIndex={offset} renderAnchoredImages={renderAnchoredImages} onImageDrop={(imageId, anchorItemId, anchorSide, clientX) => { if (!itemIds.has(anchorItemId)) return; moveImageToAnchor(imageId, anchorItemId, anchorSide, clientX); }}/>}</div>;
     })}
 
     {!readOnly ? <div className="image-insert-row"><button type="button" onClick={() => fileInput.current?.click()} disabled={uploading}><ImagePlus size={14}/>{uploading ? "업로드 중…" : "이미지"}</button><span>파일을 드래그하거나 붙여넣기 ⌘V</span><input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => void upload(event.target.files?.[0])}/></div> : null}
@@ -235,6 +239,13 @@ export function StudyContentEditor({ items, blocks, mode, onChange, taxonomy, co
     {dragging ? <div className="image-drop-overlay"><ImagePlus size={22}/> 이미지를 놓아 삽입</div> : null}
     {error ? <p className="image-upload-error">{error}</p> : null}
   </div>;
+}
+
+function mnemonicEditorBlocks(source: StudyBlock[], legacyItems: StudyItem[], suffix: string): StudyBlock[] {
+  const text = source.find((block): block is Extract<StudyBlock, { type: "text" }> => block.type === "text") ?? { id: `mnemonic-text-${suffix}`, type: "text" as const, content: { text: "" } };
+  const itemBlocks = source.filter((block) => block.type === "items");
+  const items = itemBlocks.length ? itemBlocks : [{ id: `mnemonic-items-${suffix}`, type: "items" as const, items: legacyItems }];
+  return [text, ...source.filter((block) => block.type === "image"), ...items];
 }
 
 function TextEditor({ items, shortcuts, onChange, conceptTarget, readOnly }: { items: StudyItem[]; shortcuts: import("@/lib/latex-shortcuts").LatexShortcut[]; onChange: (items: StudyItem[]) => void; conceptTarget?: ConceptTarget; readOnly: boolean }) {

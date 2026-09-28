@@ -43,6 +43,7 @@ export const studyItemSchema: z.ZodType<StudyItem> = z.lazy(() => z.object({
 })) as never;
 
 export const studyBlockSchema: z.ZodType<StudyBlock> = z.discriminatedUnion("type", [
+  z.object({ id: z.string(), type: z.literal("text"), content: z.object({ text: z.string(), html: z.string().max(100000).optional() }) }),
   z.object({ id: z.string(), type: z.literal("items"), items: z.array(studyItemSchema) }),
   z.object({
     id: z.string(),

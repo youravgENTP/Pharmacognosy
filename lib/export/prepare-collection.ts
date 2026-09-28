@@ -26,9 +26,12 @@ export async function prepareCollectionExportCard(
           if (nested.type === "items") {
             const lines = hierarchyLines(nested.items);
             if (lines.length) fields.push({ title: "", lines });
-          } else {
+          } else if (nested.type === "image") {
             const image = await prepareImage(block.id, nested, loadMedia, warn);
             if (image) fields.push({ title: "", lines: [], images: [image] });
+          } else {
+            const text = plainText(nested.content.html, nested.content.text).trim();
+            if (text) fields.push({ title: "", lines: [{ text, html: nested.content.html, runs: richTextRuns(nested.content.html, text) }] });
           }
         }
       } else {

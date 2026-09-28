@@ -5,7 +5,7 @@ const studyItemSchema: z.ZodType<StudyItem> = z.lazy(() => z.object({
   id: z.string().min(1), text: z.string(), html: z.string().optional(), bold: z.boolean().optional(), italic: z.boolean().optional(), highlight: z.boolean().optional(), linkedConstituentId: z.string().optional(), children: z.array(studyItemSchema).optional(),
 }));
 const imageBlockSchema = z.object({ id: z.string(), type: z.literal("image"), mediaAssetId: z.string().uuid(), size: z.enum(["small", "medium", "large", "full"]), widthPercent: z.number().optional(), xPercent: z.number().optional(), yPx: z.number().optional(), anchorItemId: z.string().optional(), anchorSide: z.enum(["before", "after"]).optional(), align: z.enum(["left", "center", "right"]).optional() });
-const studyBlockSchema: z.ZodType<StudyBlock> = z.union([z.object({ id: z.string(), type: z.literal("items"), items: z.array(studyItemSchema) }), imageBlockSchema]);
+const studyBlockSchema: z.ZodType<StudyBlock> = z.union([z.object({ id: z.string(), type: z.literal("text"), content: z.object({ text: z.string(), html: z.string().optional() }) }), z.object({ id: z.string(), type: z.literal("items"), items: z.array(studyItemSchema) }), imageBlockSchema]);
 const studySectionSchema: z.ZodType<StudySection> = z.object({ id: z.string(), title: z.string(), fieldDefinitionId: z.string().optional(), items: z.array(studyItemSchema), blocks: z.array(studyBlockSchema).optional() });
 
 export const backupDrugSchema = z.object({

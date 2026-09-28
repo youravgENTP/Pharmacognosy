@@ -7,6 +7,7 @@ import type { FieldInputMode, StudyItem } from "@/lib/db/schema";
 import { applyLatexShortcuts, type LatexShortcut } from "@/lib/latex-shortcuts";
 import { conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 import { characterSpacingCss, sanitizeRichHtml, type CharacterSpacing } from "@/lib/rich-text";
+import { hierarchyMarkerForMode } from "@/lib/hierarchy-marker";
 
 export type TaxonomyData = { nodes: { id: string; name: string; kind: string }[]; edges: { parentId: string; childId: string }[] };
 
@@ -208,7 +209,7 @@ function HierarchyRows({
 
         <div className={`hierarchy-row depth-${Math.min(depth, 3)}`}>
           <span className="hierarchy-marker">
-            {marker(
+            {hierarchyMarkerForMode(
               depth,
               index + (depth === 0 ? startIndex : 0),
               mode,
@@ -272,7 +273,7 @@ function HierarchyRows({
   })}</>;
 }
 
-function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, onKeyAction, onRemove, conceptTarget, readOnly }: { item: StudyItem; shortcuts: LatexShortcut[]; taxonomy?: TaxonomyData; contextTaxonId?: string; onChange: (patch: Partial<StudyItem>) => void; onKeyAction: (event: React.KeyboardEvent<HTMLElement>, content: Pick<StudyItem, "text" | "html">) => void; onRemove: () => void; conceptTarget?: ConceptTarget; readOnly: boolean }) {
+export function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, onKeyAction, onRemove, conceptTarget, readOnly, multiline = false }: { item: StudyItem; shortcuts: LatexShortcut[]; taxonomy?: TaxonomyData; contextTaxonId?: string; onChange: (patch: Partial<StudyItem>) => void; onKeyAction?: (event: React.KeyboardEvent<HTMLElement>, content: Pick<StudyItem, "text" | "html">) => void; onRemove?: () => void; conceptTarget?: ConceptTarget; readOnly: boolean; multiline?: boolean }) {
   const editor = useRef<HTMLDivElement>(null);
   const savedRange = useRef<Range | undefined>(undefined);
   const composing = useRef(false);
@@ -305,7 +306,7 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
     };
   }, [context]);  
   useEffect(() => { const node = editor.current; if (!node || document.activeElement === node) return; const desired = item.html ? sanitizeRichHtml(item.html) : escapeHtml(item.text); if (node.innerHTML !== desired) node.innerHTML = desired; }, [item.html, item.text]);
-  function content() { const node = editor.current!; return { text: node.innerText.replace(/\n/g, ""), html: sanitizeRichHtml(node.innerHTML) }; }
+  function content() { const node = editor.current!; return { text: multiline ? node.innerText.replace(/\r\n?/g, "\n") : node.innerText.replace(/\n/g, ""), html: sanitizeRichHtml(node.innerHTML) }; }
   function emit() { const next = content(); if (conceptTarget && concepts?.reconcileText(conceptTarget, item.text, next.text) === false) { const node = editor.current; if (node) node.innerHTML = item.html ? sanitizeRichHtml(item.html) : escapeHtml(item.text); return; } onChange(next); }
   function normalize(includeEnd: boolean) {
     const node = editor.current;
@@ -411,7 +412,7 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
   return <div className="rich-input-wrap">
     <div
       ref={editor}
-      className="rich-study-input"
+      className={`rich-study-input ${multiline ? "multiline" : ""}`}
       data-study-item={item.id}
       contentEditable={!readOnly}
       suppressContentEditableWarning
@@ -452,8 +453,15 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
         return;
       }
 
+      if (multiline && event.key === "Enter") {
+        event.preventDefault();
+        normalize(true);
+        document.execCommand("insertLineBreak");
+        emit();
+        return;
+      }
       if (event.key === "Enter" || event.key === "Tab") normalize(true);
-      onKeyAction(event, content());
+      onKeyAction?.(event, content());
     }} onMouseUp={() => { rememberSelection(); if (highlightArmed && savedRange.current && !savedRange.current.collapsed) { command("hiliteColor", highlightColor); setHighlightArmed(false); } }} onKeyUp={rememberSelection} onContextMenu={(event) => {
   rememberSelection();
 
@@ -495,7 +503,7 @@ function RichStudyInput({ item, shortcuts, taxonomy, contextTaxonId, onChange, o
       <select className="character-spacing-select" defaultValue="normal" onMouseDown={rememberSelection} onChange={(event) => applyCharacterSpacing(event.target.value as CharacterSpacing)} title="자간"><option value="tight">좁게</option><option value="normal">보통</option><option value="wide">넓게</option></select>
       <span className="format-split"><button className={highlightArmed ? "active" : ""} style={{ color: highlightColor }} onMouseDown={(event) => event.preventDefault()} onClick={() => { if (restoreSelection() && savedRange.current && !savedRange.current.collapsed) command("hiliteColor", highlightColor); else setHighlightArmed((value) => !value); }} title="하이라이트"><Highlighter size={13}/></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => setPaletteOpen((value) => !value)} title="하이라이트 색"><ChevronDown size={10}/></button>{paletteOpen ? <span className="highlight-palette">{presets.map((color) => <button key={color} style={{ background: color }} onMouseDown={(event) => event.preventDefault()} onClick={() => chooseHighlight(color)} aria-label={`${color} 선택`}/>)}<input type="color" value={highlightColor} onChange={(event) => chooseHighlight(event.target.value)} title="새 색상 저장"/></span> : null}</span>
       <label className="text-color-button" title="글자색"><Palette size={13}/><input type="color" defaultValue="#e7eaee" onChange={(event) => command("foreColor", event.target.value)}/></label>
-      <button onClick={() => { if (!conceptTarget) onRemove(); else void concepts?.breakTarget(conceptTarget).then((allowed) => { if (allowed) onRemove(); }); }} title="삭제"><Trash2 size={13}/></button>
+      {onRemove ? <button onClick={() => { if (!conceptTarget) onRemove(); else void concepts?.breakTarget(conceptTarget).then((allowed) => { if (allowed) onRemove(); }); }} title="삭제"><Trash2 size={13}/></button> : null}
     </div> : null}
     {!readOnly && context ? <div className="constituent-context-menu" style={{ left: context.x, top: context.y }}><button onMouseDown={(event) => { event.preventDefault(); restoreSelection(); }} onClick={() => { if (conceptTarget && editor.current) void concepts?.createSelectionAnchor(conceptTarget, editor.current); setContext(undefined); }}><strong>개념연결</strong><span>선택한 텍스트를 개념 앵커로 만들기</span></button><button onClick={() => void createConstituent()}><strong>“{context.text}”</strong><span>{taxon?.name ?? "상위 분류"}의 constituent로 추가</span></button></div> : null}
   </div>;
@@ -555,8 +563,6 @@ function placeCaretAtOffset(element: HTMLElement, offset: number) {
   placeCaretAtEnd(element);
 }
 function newItem(): StudyItem { return { id: crypto.randomUUID(), text: "" }; }
-function marker(depth: number, index: number, mode: Exclude<FieldInputMode, "text">) { const adjusted = mode === "hierarchy3" ? depth + 1 : depth; if (adjusted === 0) return `${toRoman(index + 1).toLowerCase()})`; if (adjusted === 1) return index < 20 ? String.fromCodePoint(0x2460 + index) : `(${index + 1})`; if (adjusted === 2) return `${String.fromCharCode(97 + (index % 26))})`; return "•"; }
-function toRoman(value: number) { const pairs: [number, string][] = [[10,"X"],[9,"IX"],[5,"V"],[4,"IV"],[1,"I"]]; let number = value, result = ""; for (const [amount, symbol] of pairs) while (number >= amount) { result += symbol; number -= amount; } return result; }
 function updateItem(items: StudyItem[], id: string, patch: Partial<StudyItem>): StudyItem[] { return items.map((item) => item.id === id ? { ...item, ...patch } : { ...item, ...(item.children ? { children: updateItem(item.children, id, patch) } : {}) }); }
 function removeItem(items: StudyItem[], id: string): StudyItem[] { return items.filter((item) => item.id !== id).map((item) => ({ ...item, ...(item.children ? { children: removeItem(item.children, id) } : {}) })); }
 function flatten(items: StudyItem[]): StudyItem[] { return items.flatMap((item) => [item, ...flatten(item.children ?? [])]); }

@@ -2,8 +2,8 @@ import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { db } from "@/lib/db";
-import { categories, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, fieldDefinitions, relationshipTypes, userDrugMnemonics, userMnemonicPreferences } from "@/lib/db/schema";
-import { importItemsWithIds, mergeImportedSections, prepareImport, scalarMergePatch } from "@/lib/import-pipeline";
+import { categories, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, fieldDefinitions, relationshipTypes, user, userDrugMnemonics, userMnemonicPreferences } from "@/lib/db/schema";
+import { mergeImportedMnemonic, mergeImportedSections, prepareImport, scalarMergePatch, shouldSetMnemonicPreference } from "@/lib/import-pipeline";
 import { normalizeKey } from "@/lib/import-normalization";
 import { pharmacognosyImportV1Schema } from "@/lib/import-schema";
 import { z } from "zod";
@@ -26,11 +26,12 @@ export async function POST(request: Request) {
         [fallback] = await tx.insert(fieldDefinitions).values({ name: "기타", kind: "custom", inputMode: "hierarchy4", position: (last?.position ?? 70) + 10, active: true }).returning();
       } else if (!fallback.active) [fallback] = await tx.update(fieldDefinitions).set({ active: true, updatedAt: new Date() }).where(eq(fieldDefinitions.id, fallback.id)).returning();
 
-      const [fields, existingDrugs, familyRows, mnemonicRows, categoryRows] = await Promise.all([
+      const [fields, existingDrugs, familyRows, mnemonicRows, categoryRows, userRows] = await Promise.all([
         tx.select().from(fieldDefinitions), tx.select().from(crudeDrugs), tx.select().from(families),
-        tx.select({ drugId: userDrugMnemonics.drugId }).from(userDrugMnemonics).where(eq(userDrugMnemonics.userId, current.id)), tx.select().from(categories),
+        tx.select({ drugId: userDrugMnemonics.drugId, userId: userDrugMnemonics.userId, items: userDrugMnemonics.items, blocks: userDrugMnemonics.blocks }).from(userDrugMnemonics), tx.select().from(categories),
+        tx.select({ id: user.id, name: user.name }).from(user),
       ]);
-      const prepared = prepareImport(parsed.data.payload, { fields, existingDrugs, categories: categoryRows, families: familyRows, mnemonicDrugIds: new Set(mnemonicRows.map((row) => row.drugId)) });
+      const prepared = prepareImport(parsed.data.payload, { fields, existingDrugs, categories: categoryRows, families: familyRows, users: userRows, currentUser: { id: current.id, name: current.name }, mnemonicVersions: mnemonicRows });
       if (!prepared.canCommit) throw new ImportBlockedError(prepared.drugs.filter((drug) => drug.errors.length).map((drug) => ({ koreanName: drug.input.koreanName, errors: drug.errors })));
 
       const categoryByName = new Map(categoryRows.map((category) => [normalizeKey(category.name), category]));
@@ -56,11 +57,11 @@ export async function POST(request: Request) {
           }
           familyId = family.id;
         }
-        const sections = mergeImportedSections(existing?.sections ?? [], drug.sections, fields, Boolean(drug.input.mnemonic));
+        const sections = mergeImportedSections(existing?.sections ?? [], drug.sections, fields, !existing && Boolean(drug.input.mnemonic));
         const scalars = scalarMergePatch(drug.input, { categoryId: category?.id, familyId });
         let saved: typeof existingDrugs[number];
         if (existing) {
-          [saved] = await tx.update(crudeDrugs).set({ ...scalars, ...(Object.hasOwn(drug.input, "sections") || drug.input.mnemonic ? { sections } : {}), updatedAt: new Date() }).where(eq(crudeDrugs.id, existing.id)).returning();
+          [saved] = await tx.update(crudeDrugs).set({ ...scalars, ...(Object.hasOwn(drug.input, "sections") ? { sections } : {}), updatedAt: new Date() }).where(eq(crudeDrugs.id, existing.id)).returning();
           updated++;
         } else {
           [saved] = await tx.insert(crudeDrugs).values({ koreanName: drug.input.koreanName, categoryId: category!.id, importance: drug.input.importance ?? "중간", sections, ...(Object.hasOwn(drug.input, "latinName") ? { latinName: drug.input.latinName } : {}), ...(Object.hasOwn(drug.input, "origin") ? { origin: drug.input.origin } : {}), ...(Object.hasOwn(drug.input, "origins") ? { origins: drug.input.origins } : {}), ...(Object.hasOwn(drug.input, "scientificName") ? { scientificName: drug.input.scientificName } : {}), ...(Object.hasOwn(drug.input, "medicinalPart") ? { medicinalPart: drug.input.medicinalPart } : {}), ...(drug.input.family ? { familyId: familyId ?? null } : {}) }).returning();
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
       const identityByName = new Map(identityRows.map((term) => [normalizeKey(term.name), term]));
       let mnemonicsUpserted = 0;
       for (const { prepared: drug, drugId } of applied) {
-        if (drug.input.identityTerms) {
+        if (drug.input.identityTerms !== undefined) {
           await tx.delete(crudeDrugIdentityTerms).where(eq(crudeDrugIdentityTerms.crudeDrugId, drugId));
           for (const [position, name] of drug.input.identityTerms.entries()) {
             let term = identityByName.get(normalizeKey(name));
@@ -103,10 +104,11 @@ export async function POST(request: Request) {
             await tx.insert(crudeDrugIdentityTerms).values({ crudeDrugId: drugId, termId: term.id, position }).onConflictDoNothing();
           }
         }
-        if (drug.input.mnemonic) {
-          const items = importItemsWithIds(drug.input.mnemonic.items);
-          await tx.insert(userDrugMnemonics).values({ drugId, userId: current.id, items, blocks: [] }).onConflictDoUpdate({ target: [userDrugMnemonics.drugId, userDrugMnemonics.userId], set: { items, blocks: [], updatedAt: new Date() } });
-          await tx.insert(userMnemonicPreferences).values({ drugId, userId: current.id, preferredMnemonicUserId: current.id }).onConflictDoUpdate({ target: [userMnemonicPreferences.userId, userMnemonicPreferences.drugId], set: { preferredMnemonicUserId: current.id, updatedAt: new Date() } });
+        if (drug.input.mnemonic && drug.mnemonic?.targetUserId) {
+          const existingMnemonic = drug.mnemonic.existing;
+          const content = mergeImportedMnemonic(existingMnemonic, drug.input.mnemonic);
+          await tx.insert(userDrugMnemonics).values({ drugId, userId: drug.mnemonic.targetUserId, ...content }).onConflictDoUpdate({ target: [userDrugMnemonics.drugId, userDrugMnemonics.userId], set: { ...content, updatedAt: new Date() } });
+          if (shouldSetMnemonicPreference(drug.mnemonic.targetUserId, current.id, existingMnemonic)) await tx.insert(userMnemonicPreferences).values({ drugId, userId: current.id, preferredMnemonicUserId: current.id }).onConflictDoUpdate({ target: [userMnemonicPreferences.userId, userMnemonicPreferences.drugId], set: { preferredMnemonicUserId: current.id, updatedAt: new Date() } });
           mnemonicsUpserted++;
         }
       }

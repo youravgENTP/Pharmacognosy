@@ -1,4 +1,4 @@
-export type DataCardExportCode = "DATA_LOAD_FAILED" | "PDF_RENDER_FAILED" | "DOCX_RENDER_FAILED" | "INVALID_EXPORT_OUTPUT";
+export type DataCardExportCode = "DATA_LOAD_FAILED" | "DOCX_RENDER_FAILED" | "INVALID_EXPORT_OUTPUT";
 
 export class DataCardExportError extends Error {
   constructor(

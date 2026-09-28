@@ -758,15 +758,29 @@ html, body { background: var(--paper); color: var(--ink); }
 .data-export-options h2 { margin: 0; font-size: 18px; }
 .data-export-options p { margin: 4px 0 0; color: #7d8994; font-size: 11px; line-height: 1.5; }
 .data-export-options > label { color: #9ba6b0; display: grid; gap: 6px; font-size: 11px; font-weight: 700; }
+.data-export-format { border: 1px solid #343d46; border-radius: 8px; padding: 9px 10px; background: #111519; display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 8px; }
+.data-export-format span { grid-column: 1 / -1; color: #7d8994; font-size: 10px; font-weight: 700; }
+.data-export-format strong { color: #dfe4e9; font-size: 13px; }
+.data-export-format small { color: #74808b; font-size: 10px; }
 .data-export-options .data-export-error { margin: 0; border: 1px solid #73383b; border-radius: 7px; padding: 8px; background: #2d191b; color: #f0a0a5; font-size: 11px; }
-.data-export-progress { display: grid; gap: 7px; }
-.data-export-progress > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #c9d1d9; font-size: 11px; }
-.data-export-progress > div:first-child span, .data-export-progress > small { color: #7d8994; font-size: 10px; }
-.data-export-progress-track { position: relative; height: 7px; overflow: hidden; border-radius: 99px; background: #29333e; }
-.data-export-progress-track i { display: block; height: 100%; border-radius: inherit; background: #4a8ee3; transition: width .18s ease; }
-.data-export-progress-track.indeterminate i { position: absolute; width: 34%; animation: data-export-progress 1.15s ease-in-out infinite; }
-@keyframes data-export-progress { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
-@media (prefers-reduced-motion: reduce) { .data-export-progress-track.indeterminate i { width: 100%; animation: none; opacity: .65; } }
+.data-export-progress { border: 1px solid #32404d; border-radius: 9px; padding: 11px; background: #151b21; display: grid; gap: 9px; }
+.data-export-progress-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.data-export-progress-heading > span { min-width: 0; display: grid; gap: 3px; }
+.data-export-progress-heading strong { color: #d8e0e7; font-size: 12px; }
+.data-export-progress-heading small { color: #7d8994; font-size: 10px; line-height: 1.45; }
+.data-export-progress-heading > b { color: #80b6fa; font-size: 16px; font-variant-numeric: tabular-nums; }
+.data-export-progress-track { position: relative; height: 8px; overflow: hidden; border-radius: 99px; background: #29333e; }
+.data-export-progress-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #397edc, #72a9ef); transition: width .35s ease; }
+.data-export-progress-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: #7d8994; font-size: 9px; font-variant-numeric: tabular-nums; }
+.data-export-progress-steps { margin: 2px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.data-export-progress-steps li { display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 7px; color: #65717d; font-size: 10px; }
+.data-export-progress-steps li > span, .data-export-progress-steps li > svg { width: 17px; height: 17px; border: 1px solid #3b4651; border-radius: 50%; display: grid; place-items: center; padding: 2px; }
+.data-export-progress-steps li.done { color: #8b98a4; }
+.data-export-progress-steps li.done > svg { border-color: #416f58; background: #20392d; color: #83c9a1; }
+.data-export-progress-steps li.active { color: #d8e0e7; }
+.data-export-progress-steps li.active > svg { border-color: #4a8ee3; color: #80b6fa; animation: data-export-spin 1s linear infinite; }
+@keyframes data-export-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .data-export-progress-track i { transition: none; } .data-export-progress-steps li.active > svg { animation: none; } }
 .data-export-submit { min-height: 42px; border: 0; border-radius: 8px; background: #397edc; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 750; }
 .data-export-submit:disabled { background: #29333e; color: #65717c; cursor: not-allowed; }
 .data-export-options > small { color: #707c87; text-align: center; }
@@ -1444,8 +1458,10 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .data-export-drugs small,
 :root[data-theme="day"] .data-export-options p,
 :root[data-theme="day"] .data-export-options > small,
-:root[data-theme="day"] .data-export-progress > div:first-child span,
-:root[data-theme="day"] .data-export-progress > small,
+:root[data-theme="day"] .data-export-format span,
+:root[data-theme="day"] .data-export-format small,
+:root[data-theme="day"] .data-export-progress-heading small,
+:root[data-theme="day"] .data-export-progress-meta,
 :root[data-theme="day"] .settings-section-heading p,
 :root[data-theme="day"] .settings-definition-list span,
 :root[data-theme="day"] .field-kind,
@@ -1547,7 +1563,12 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .data-export-drugs > label:hover { background: var(--hover-bg); }
 :root[data-theme="day"] .data-export-drugs > label.selected { background: var(--selected-bg); }
 :root[data-theme="day"] .data-export-drugs strong { color: var(--text-primary); }
-:root[data-theme="day"] .data-export-progress > div:first-child { color: var(--text-primary); }
+:root[data-theme="day"] .data-export-format,
+:root[data-theme="day"] .data-export-progress { background: var(--surface); border-color: var(--border-strong); }
+:root[data-theme="day"] .data-export-format strong,
+:root[data-theme="day"] .data-export-progress-heading strong,
+:root[data-theme="day"] .data-export-progress-steps li.active { color: var(--text-primary); }
+:root[data-theme="day"] .data-export-progress-heading > b { color: var(--accent-hover); }
 :root[data-theme="day"] .data-export-progress-track { background: var(--border); }
 :root[data-theme="day"] .data-export-submit { background: var(--accent); }
 

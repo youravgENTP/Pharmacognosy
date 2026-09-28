@@ -20,5 +20,5 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
       categoryPosition: categories.position,
     }).from(crudeDrugs).leftJoin(categories, eq(crudeDrugs.categoryId, categories.id)).orderBy(asc(categories.position), asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex)),
   ]);
-  return <div className="page"><header className="page-header"><div><p className="eyebrow">Study material</p><h1>Export</h1><p className="subtitle">선택한 Data Card를 DOCX 또는 PDF 학습 자료로 내보냅니다.</p></div></header><DataCardExport drugs={drugs} initialDrugId={drugId}/></div>;
+  return <div className="page"><header className="page-header"><div><p className="eyebrow">Study material</p><h1>Export</h1><p className="subtitle">선택한 Data Card를 Word DOCX 학습 자료로 내보냅니다.</p></div></header><DataCardExport drugs={drugs} initialDrugId={drugId}/></div>;
 }

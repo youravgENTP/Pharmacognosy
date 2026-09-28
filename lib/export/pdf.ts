@@ -5,7 +5,7 @@ import type { InlineTextRun } from "@/lib/rich-text";
 import { cssColorToHex } from "@/lib/rich-text";
 
 export type PdfLine = { text: string; html?: string; runs?: InlineTextRun[]; indent?: number; bold?: boolean; italic?: boolean; size?: number; color?: string; gapAfter?: number };
-export type PdfImage = { buffer: Buffer; width: number; height: number; caption?: string };
+export type PdfImage = { buffer: Buffer; width: number; height: number; widthPercent?: number; xPercent?: number; align?: "left" | "center" | "right"; caption?: string };
 export type PdfTable = { rows: number; columns: number; cells: Record<string, { text: string; bold?: boolean; italic?: boolean; strikethrough?: boolean; highlight?: string; textColor?: string; horizontal?: "left" | "center" | "right"; vertical?: "top" | "middle" | "bottom" }>; rowSizes: number[]; columnSizes: number[]; mergedRanges: { startRow: number; startColumn: number; endRow: number; endColumn: number }[] };
 export type PdfField = { title: string; lines: PdfLine[]; images?: PdfImage[]; table?: PdfTable };
 export type PdfCard = { title: string; subtitle?: string; exportIndex?: string; latinName?: string; fields: PdfField[] };
@@ -100,14 +100,32 @@ class PdfColumnFlow {
     } else this.doc.font(line.bold ? "NotoBold" : "Noto").fontSize(size).fillColor(line.color ?? "#1c2733").text(text || " ", this.x + indent, this.doc.y, { width: this.width - indent, lineGap: 2, oblique: line.italic });
     this.doc.y += line.gapAfter ?? 2;
   }
-  fieldHeight(field: PdfField) { let value = field.title ? this.textHeight(field.title, 12, true) + 7 : 0; for (const line of field.lines) value += this.textHeight(line.text, line.size ?? 10, line.bold, line.indent ?? 0) + (line.gapAfter ?? 2); for (const image of field.images ?? []) if (validImage(image)) value += Math.min(220, image.height * Math.min(1, (this.width - 8) / image.width)) + (image.caption ? 18 : 8); if (field.table) value += this.tableLayout(field.table).heights.reduce((sum, height) => sum + height, 0); return value + 9; }
+  fieldHeight(field: PdfField) { let value = field.title ? this.textHeight(field.title, 12, true) + 7 : 0; for (const line of field.lines) value += this.textHeight(line.text, line.size ?? 10, line.bold, line.indent ?? 0) + (line.gapAfter ?? 2); for (const image of field.images ?? []) if (validImage(image)) value += this.imageLayout(image, 240).height + (image.caption ? 18 : 8); if (field.table) value += this.tableLayout(field.table).heights.reduce((sum, height) => sum + height, 0); return value + 9; }
   field(field: PdfField) {
     const estimated = this.fieldHeight(field); this.ensure(Math.min(estimated, this.capacity));
     if (field.title) this.text(field.title, { size: 12, bold: true, color: "#215f9d", gapAfter: 5 });
     for (const line of field.lines) this.text(line.text, line);
-    for (const image of field.images ?? []) { if (!validImage(image)) { console.warn("[DataCardExport] PDF image skipped: invalid geometry"); continue; } const width = Math.min(this.width - 8, image.width); const height = image.height * width / image.width; this.ensure(Math.min(height + 22, this.capacity)); try { this.doc.image(image.buffer, this.x, this.doc.y, { fit: [width, Math.min(240, this.bottom - this.doc.y)] }); this.doc.y += Math.min(height, 240) + 4; if (image.caption) this.text(image.caption, { size: 8, color: "#687584" }); } catch (error) { console.warn("[DataCardExport] PDF image rendering failed", { message: error instanceof Error ? error.message : String(error) }); this.text("[이미지를 불러오지 못했습니다]", { size: 8, color: "#9a4d4d" }); } }
+    for (const image of field.images ?? []) {
+      if (!validImage(image)) { console.warn("[DataCardExport] PDF image skipped: invalid geometry"); continue; }
+      const planned = this.imageLayout(image, 240);
+      this.ensure(Math.min(planned.height + 22, this.capacity));
+      const layout = this.imageLayout(image, Math.min(240, this.bottom - this.doc.y));
+      try {
+        this.doc.image(image.buffer, layout.x, this.doc.y, { width: layout.width, height: layout.height });
+        this.doc.y += layout.height + 4;
+        if (image.caption) this.text(image.caption, { size: 8, color: "#687584", indent: layout.x - this.x });
+      } catch (error) { console.warn("[DataCardExport] PDF image rendering failed", { message: error instanceof Error ? error.message : String(error) }); this.text("[이미지를 불러오지 못했습니다]", { size: 8, color: "#9a4d4d" }); }
+    }
     if (field.table) this.table(field.table);
     this.gap(7);
+  }
+  private imageLayout(image: PdfImage, maxHeight: number) {
+    const widthPercent = Math.max(15, Math.min(100, image.widthPercent ?? 100));
+    const xPercent = Math.max(0, Math.min(100 - widthPercent, image.xPercent ?? 0));
+    const requestedWidth = this.width * widthPercent / 100;
+    const requestedHeight = image.height * requestedWidth / image.width;
+    const scale = requestedHeight > maxHeight ? maxHeight / requestedHeight : 1;
+    return { x: this.x + this.width * xPercent / 100, width: requestedWidth * scale, height: requestedHeight * scale };
   }
   private tableLayout(table: PdfTable) {
     const rawWidths = Array.from({ length: table.columns }, (_, index) => table.columnSizes[index] ?? 128);

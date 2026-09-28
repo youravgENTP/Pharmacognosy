@@ -20,7 +20,7 @@ async function fixture(): Promise<PdfCard[]> {
         { text: "i) Lignan", indent: 0, runs: [{ text: "i) ", bold: true }, { text: "Lignan", italic: true, underline: true, color: "#245f3e", highlight: "#fff0a8" }] },
         { text: "① phillyrin", indent: 13, runs: [{ text: "① " }, { text: "phillyrin", strike: true }, { text: "2", superscript: true }, { text: "H", subscript: true }] },
         { text: "first\nsecond", runs: [{ text: "first\n", bold: true }, { text: "second", italic: true }] },
-      ], images: [{ buffer: png, width: 80, height: 50 }, { buffer: jpeg, width: 64, height: 96 }] },
+      ], images: [{ buffer: png, width: 80, height: 50, widthPercent: 50, xPercent: 25 }, { buffer: jpeg, width: 64, height: 96, widthPercent: 75, xPercent: 0 }] },
       { title: "암기법", lines: [{ text: "붉은 열매를 기억", runs: [{ text: "붉은", bold: true, color: "#ff0000" }, { text: " 열매를 기억", bold: true }] }] },
     ],
   }];
@@ -46,10 +46,14 @@ test("actual DOCX generation supports Korean rich hierarchy and PNG/JPEG images"
   assert.match(xml ?? "", /72\. 연교 \(Forsythiae Fructus\)/);
   assert.match(xml ?? "", /<w:color w:val="FF0000"\/>/);
   assert.doesNotMatch(xml ?? "", /215F9D/);
-  assert.match(styles ?? "", /<w:rFonts[^>]*w:ascii="Cambria"/);
-  assert.match(styles ?? "", /<w:rFonts[^>]*w:hAnsi="Cambria"/);
-  assert.match(styles ?? "", /<w:rFonts[^>]*w:eastAsia="Batang"/);
-  assert.match(styles ?? "", /<w:sz w:val="24"\/>/);
+  assert.match(styles ?? "", /<w:rFonts[^>]*w:ascii="맑은 고딕"/);
+  assert.match(styles ?? "", /<w:rFonts[^>]*w:hAnsi="맑은 고딕"/);
+  assert.match(styles ?? "", /<w:rFonts[^>]*w:eastAsia="맑은 고딕"/);
+  assert.match(styles ?? "", /<w:sz w:val="18"\/>/);
+  const imageWidths = [...(xml ?? "").matchAll(/<wp:extent cx="(\d+)"/g)].map((match) => Number(match[1]) / 914400);
+  assert.ok(Math.abs(imageWidths[0] - 3.592 * .5) < .01);
+  assert.ok(Math.abs(imageWidths[1] - 3.592 * .75) < .01);
+  assert.match(xml ?? "", /<w:ind w:left="1293"\/>/);
 });
 
 test("empty PDF still finalizes to a valid document", async () => {

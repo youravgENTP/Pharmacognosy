@@ -33,10 +33,10 @@ export async function prepareDrugExportCard(
   warn: (warning: ExportImageWarning) => void,
 ): Promise<PdfCard> {
   const fields: PdfField[] = [];
-  if (drug.scientificName) fields.push({ title: "학명", lines: [{ text: drug.scientificName, italic: true }] });
+  const origins = normalizedOrigins(drug);
+  if (drug.scientificName && !origins.carriesScientificName) fields.push({ title: "학명", lines: [{ text: drug.scientificName, italic: true }] });
   if (drug.medicinalPart) fields.push({ title: "약용부위", lines: [{ text: drug.medicinalPart }] });
-  const originLines = (drug.origins.length ? drug.origins.map((origin) => [origin.nameKo, origin.scientificName].filter(Boolean).join(" · ")) : [drug.origin]).filter((value): value is string => Boolean(value?.trim()));
-  if (originLines.length) fields.push({ title: "기원", lines: originLines.map((text) => ({ text })) });
+  if (origins.lines.length) fields.push({ title: "기원", lines: origins.lines.map((text) => ({ text })) });
   if (drug.family) fields.push({ title: "과", lines: [{ text: drug.family }] });
   if (drug.relatedDrugs.length) fields.push({ title: "연관생약", lines: drug.relatedDrugs.map((item) => ({ text: item.name })) });
   if (drug.similarDrugs.length) fields.push({ title: "유사생약", lines: drug.similarDrugs.map((item) => ({ text: item.name })) });
@@ -63,7 +63,16 @@ export async function prepareStudyField(drugId: string, title: string, items: St
       media = await loadMedia(image.mediaAssetId);
       if (!media?.buffer.length) throw new Error("Media asset is missing or empty");
       if (!validDimension(media.width) || !validDimension(media.height)) throw new Error(`Invalid image geometry: ${media.width}x${media.height}`);
-      return { buffer: await exportImageBuffer(Buffer.from(media.buffer), media.mimeType), width: media.width, height: media.height };
+      const widthPercent = clampPercent(image.widthPercent ?? imageSizePercent(image.size), 15, 100);
+      const defaultX = image.align === "right" ? 100 - widthPercent : image.align === "center" ? (100 - widthPercent) / 2 : 0;
+      return {
+        buffer: await exportImageBuffer(Buffer.from(media.buffer), media.mimeType),
+        width: media.width,
+        height: media.height,
+        widthPercent,
+        xPercent: clampPercent(image.xPercent ?? defaultX, 0, 100 - widthPercent),
+        align: image.align,
+      };
     } catch (error) {
       warn({ drugId, section: title, mediaAssetId: image.mediaAssetId, mimeType: media?.mimeType, error });
       return null;
@@ -73,3 +82,20 @@ export async function prepareStudyField(drugId: string, title: string, items: St
 }
 
 function validDimension(value: number) { return Number.isFinite(value) && value > 0; }
+
+function normalizedOrigins(drug: Pick<ExportDrugProfile, "origin" | "origins" | "scientificName">) {
+  const scientificName = drug.scientificName?.trim();
+  if (drug.origins.length) {
+    const rows = drug.origins.map((origin) => ({ nameKo: origin.nameKo?.trim(), scientificName: origin.scientificName?.trim() })).filter((origin) => origin.nameKo || origin.scientificName);
+    const hasOriginScientificName = rows.some((origin) => origin.scientificName);
+    if (rows.length === 1 && scientificName && !rows[0].scientificName) rows[0].scientificName = scientificName;
+    return { lines: rows.map((origin) => [origin.nameKo, origin.scientificName].filter(Boolean).join(" · ")), carriesScientificName: hasOriginScientificName || Boolean(rows.length === 1 && scientificName) };
+  }
+  const origin = drug.origin?.trim();
+  if (!origin) return { lines: [], carriesScientificName: false };
+  if (!scientificName || origin.toLocaleLowerCase().includes(scientificName.toLocaleLowerCase())) return { lines: [origin], carriesScientificName: Boolean(scientificName && origin.toLocaleLowerCase().includes(scientificName.toLocaleLowerCase())) };
+  return { lines: [`${origin} · ${scientificName}`], carriesScientificName: true };
+}
+
+function imageSizePercent(size: Extract<StudyBlock, { type: "image" }>["size"]) { return { small: 25, medium: 50, large: 75, full: 100 }[size]; }
+function clampPercent(value: number, minimum: number, maximum: number) { return Math.max(minimum, Math.min(maximum, value)); }

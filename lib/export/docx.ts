@@ -2,12 +2,15 @@ import { AlignmentType, Column, Document, ImageRun, Packer, Paragraph, ShadingTy
 import type { PdfCard, PdfField } from "@/lib/export/pdf";
 import { cssColorToHex, parseInlineRuns } from "@/lib/rich-text";
 
-const BODY_SIZE = 24;
-const BODY_FONT = { ascii: "Cambria", hAnsi: "Cambria", eastAsia: "Batang", cs: "Cambria" } as const;
+const BODY_SIZE = 18;
+const BODY_FONT = { ascii: "맑은 고딕", hAnsi: "맑은 고딕", eastAsia: "맑은 고딕", cs: "맑은 고딕" } as const;
 const METADATA_FIELDS = new Set(["학명", "약용부위", "기원", "과", "연관생약", "유사생약", "가공 및 기타 사항"]);
+const TWO_COLUMN_WIDTH_TWIPS = 5173;
+const ONE_COLUMN_WIDTH_TWIPS = 10772;
 
 export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
   const children: Paragraph[] = [];
+  const contentWidthTwips = columns === 2 ? TWO_COLUMN_WIDTH_TWIPS : ONE_COLUMN_WIDTH_TWIPS;
   for (const [cardIndex, card] of cards.entries()) {
     const prefix = card.exportIndex ? `${card.exportIndex}. ` : "";
     const latinName = card.latinName ? ` (${card.latinName})` : "";
@@ -17,7 +20,7 @@ export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
       spacing: { before: cardIndex ? 180 : 0, after: 0 },
       children: [new TextRun({ text: `${prefix}${card.title}${latinName}`, bold: true, size: BODY_SIZE, font: BODY_FONT })],
     }));
-    for (const field of card.fields) children.push(...fieldParagraphs(field));
+    for (const field of card.fields) children.push(...fieldParagraphs(field, contentWidthTwips));
   }
   const document = new Document({
     creator: "Herb Overflow",
@@ -37,7 +40,7 @@ export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
   return Buffer.isBuffer(packed) ? packed : Buffer.from(packed);
 }
 
-function fieldParagraphs(field: PdfField) {
+function fieldParagraphs(field: PdfField, contentWidthTwips: number) {
   const result: Paragraph[] = [];
   const total = 1 + field.lines.length + (field.images?.length ?? 0);
   let index = 0;
@@ -74,7 +77,23 @@ function fieldParagraphs(field: PdfField) {
       index++;
     }
   }
-  for (const image of field.images ?? []) { if (!validImage(image)) { console.warn("[DataCardExport] DOCX image skipped: invalid geometry"); continue; } const type = imageType(image.buffer); if (!type) { console.warn("[DataCardExport] DOCX image skipped: unsupported bytes"); continue; } const maxWidth = 335; const width = Math.min(maxWidth, image.width); const height = Math.round(image.height * width / image.width); if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) continue; result.push(new Paragraph({ keepNext: Boolean(image.caption) || index < total - 1, keepLines: true, alignment: AlignmentType.LEFT, spacing: { after: 0 }, children: [new ImageRun({ type, data: image.buffer, transformation: { width, height } })] })); index++; if (image.caption) result.push(new Paragraph({ keepNext: index < total - 1, keepLines: true, children: [new TextRun({ text: image.caption, color: "666666", size: 18, font: BODY_FONT })] })); }
+  for (const image of field.images ?? []) {
+    if (!validImage(image)) { console.warn("[DataCardExport] DOCX image skipped: invalid geometry"); continue; }
+    const type = imageType(image.buffer);
+    if (!type) { console.warn("[DataCardExport] DOCX image skipped: unsupported bytes"); continue; }
+    const layout = imageLayout(image, contentWidthTwips);
+    if (!Number.isFinite(layout.width) || !Number.isFinite(layout.height) || layout.width <= 0 || layout.height <= 0) continue;
+    result.push(new Paragraph({
+      keepNext: Boolean(image.caption) || index < total - 1,
+      keepLines: true,
+      alignment: AlignmentType.LEFT,
+      indent: layout.leftTwips ? { left: layout.leftTwips } : undefined,
+      spacing: { after: 0 },
+      children: [new ImageRun({ type, data: image.buffer, transformation: { width: layout.width, height: layout.height }, altText: { name: `${field.title} 이미지`, description: image.caption || `${field.title} 학습 자료 이미지` } })],
+    }));
+    index++;
+    if (image.caption) result.push(new Paragraph({ keepNext: index < total - 1, keepLines: true, indent: layout.leftTwips ? { left: layout.leftTwips } : undefined, children: [new TextRun({ text: image.caption, color: "666666", size: BODY_SIZE, font: BODY_FONT })] }));
+  }
   return result;
 }
 
@@ -103,10 +122,17 @@ function richRuns(line: import("@/lib/export/pdf").PdfLine, forceBold = false) {
       characterSpacing: run.characterSpacing === "tight" ? -6 : run.characterSpacing === "wide" ? 16 : 0,
       color: cssColorToHex(run.color) ?? cssColorToHex(line.color),
       shading: highlight ? { type: ShadingType.CLEAR, fill: highlight, color: "auto" } : undefined,
-      size: (line.size ?? 12) * 2,
+      size: BODY_SIZE,
       font: BODY_FONT,
     }));
   });
 }
 
 function validImage(image: import("@/lib/export/pdf").PdfImage) { return image.buffer.length > 0 && Number.isFinite(image.width) && Number.isFinite(image.height) && image.width > 0 && image.height > 0; }
+
+function imageLayout(image: import("@/lib/export/pdf").PdfImage, contentWidthTwips: number) {
+  const widthPercent = Math.max(15, Math.min(100, image.widthPercent ?? 100));
+  const xPercent = Math.max(0, Math.min(100 - widthPercent, image.xPercent ?? 0));
+  const width = contentWidthTwips / 15 * widthPercent / 100;
+  return { width, height: image.height * width / image.width, leftTwips: Math.round(contentWidthTwips * xPercent / 100) };
+}

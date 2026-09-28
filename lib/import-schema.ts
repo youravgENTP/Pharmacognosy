@@ -20,6 +20,14 @@ export const pharmacognosyImportV1Schema = z.object({
   schema: z.literal("pharmacognosy.import"),
   version: z.literal(1),
   drugs: z.array(importDrugSchema).min(1),
+}).superRefine((value, context) => {
+  const seen = new Map<string, number>();
+  value.drugs.forEach((drug, index) => {
+    const key = drug.koreanName.trim().normalize("NFC");
+    const first = seen.get(key);
+    if (first !== undefined) context.addIssue({ code: "custom", path: ["drugs", index, "koreanName"], message: `같은 파일의 drugs.${first}.koreanName과 중복됩니다.` });
+    else seen.set(key, index);
+  });
 });
 
 export type PharmacognosyImportV1 = z.infer<typeof pharmacognosyImportV1Schema>;

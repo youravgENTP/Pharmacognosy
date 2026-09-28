@@ -126,7 +126,7 @@ export function backupFilename(prefix = "HerbOverflow-Backup", date = new Date()
   return `${prefix}-${date.toISOString().replace(/[:.]/g, "-")}.zip`;
 }
 
-function collectReferencedMediaIds(tables: BackupTables) {
+export function collectReferencedMediaIds(tables: BackupTables) {
   const ids = new Set<string>();
   const visit = (value: unknown) => {
     if (Array.isArray(value)) { value.forEach(visit); return; }

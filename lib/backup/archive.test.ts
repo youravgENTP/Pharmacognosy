@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import JSZip from "jszip";
-import { BACKUP_TABLE_FILES, createBackupArchive, parseBackupArchive, sha256, type BackupTables } from "@/lib/backup/archive";
+import { BACKUP_TABLE_FILES, collectReferencedMediaIds, createBackupArchive, parseBackupArchive, sha256, type BackupTables } from "@/lib/backup/archive";
 import { backupDrugSchema } from "@/lib/backup/restore";
 
 const drugId = "10000000-0000-4000-8000-000000000001";
@@ -51,6 +51,13 @@ test("backup creation rejects a content reference whose media metadata is missin
   const tables = emptyTables();
   tables["crude-drugs"] = [{ sections: [{ blocks: [{ type: "image", mediaAssetId: mediaId }] }] }];
   await assert.rejects(() => createBackupArchive(tables, []), /metadata가 없어/);
+});
+
+test("media reference collection ignores orphan media metadata", () => {
+  const tables = emptyTables();
+  tables["media-assets"] = [{ id: "30000000-0000-4000-8000-000000000003" }];
+  tables["crude-drugs"] = [{ sections: [{ blocks: [{ type: "image", mediaAssetId: mediaId }] }] }];
+  assert.deepEqual([...collectReferencedMediaIds(tables)], [mediaId]);
 });
 
 test("missing media and incompatible manifests are rejected", async () => {

@@ -1843,8 +1843,15 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 .backup-status-grid > span { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 4px; color: var(--text-muted); font-size: 11px; }
 .backup-status-grid strong { color: var(--text-primary); font-size: 12px; overflow-wrap: anywhere; }
 .backup-status-grid .overdue { color: #c06a2e; }
+.backup-status-grid .failed { color: var(--control-danger-text); }
+.backup-status-grid .disabled { color: var(--text-muted); }
+.backup-status-grid .healthy { color: var(--green); }
 .backup-actions { margin-top: 14px; display: flex; justify-content: flex-end; gap: 8px; }
 .backup-live-status { margin: 12px 0 0; color: var(--text-secondary); font-size: 13px; }
+.backup-progress { margin-top: 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-muted); display: grid; gap: 7px; }
+.backup-progress > div { display: flex; justify-content: space-between; gap: 12px; color: var(--text-secondary); font-size: 13px; }
+.backup-progress progress { width: 100%; height: 7px; accent-color: var(--green); }
+.backup-progress small { color: var(--text-muted); font-size: 11px; }
 .restore-file-button { margin-top: 14px; }
 .restore-preview { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .restore-preview > header, .restore-preview > footer { padding: 12px; background: var(--surface-muted); display: flex; align-items: center; justify-content: space-between; gap: 12px; }

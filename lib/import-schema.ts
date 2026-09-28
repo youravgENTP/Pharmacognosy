@@ -1,19 +1,38 @@
 import { z } from "zod";
 
-const itemSchema: z.ZodType<{ text: string; children?: { text: string; children?: unknown[] }[] }> = z.lazy(() =>
-  z.object({ text: z.string().min(1), children: z.array(itemSchema).optional() }),
-) as never;
+export type ImportItem = { text: string; children?: ImportItem[] };
+
+export const importItemSchema: z.ZodType<ImportItem> = z.lazy(() => z.object({
+  text: z.string().trim().min(1),
+  children: z.array(importItemSchema).optional(),
+})) as z.ZodType<ImportItem>;
+
+export const importSectionSchema = z.object({
+  field: z.string().trim().min(1).optional(),
+  title: z.string().trim().min(1).optional(),
+  items: z.array(importItemSchema),
+}).refine((section) => Boolean(section.field || section.title), { message: "field 또는 title이 필요합니다." });
+
+export const importRelationshipSchema = z.object({
+  targetKoreanName: z.string().trim().min(1),
+  type: z.string().trim().min(1),
+  notes: z.string().trim().nullable().optional(),
+});
 
 export const importDrugSchema = z.object({
-  koreanName: z.string().min(1),
-  latinName: z.string().optional(),
-  origin: z.string().optional(),
-  scientificName: z.string().optional(),
-  family: z.object({ koreanName: z.string().optional(), scientificName: z.string().min(1) }).optional(),
-  medicinalPart: z.string().optional(),
-  category: z.string().min(1),
-  importance: z.enum(["중요", "중간", "비중요"]).default("중간"),
-  sections: z.array(z.object({ title: z.string().min(1), items: z.array(itemSchema) })).default([]),
+  koreanName: z.string().trim().min(1),
+  latinName: z.string().trim().nullable().optional(),
+  origin: z.string().trim().nullable().optional(),
+  origins: z.array(z.object({ nameKo: z.string().trim().nullable(), scientificName: z.string().trim().nullable() })).optional(),
+  scientificName: z.string().trim().nullable().optional(),
+  family: z.object({ koreanName: z.string().trim().optional(), scientificName: z.string().trim().min(1) }).nullable().optional(),
+  medicinalPart: z.string().trim().nullable().optional(),
+  category: z.string().trim().min(1),
+  importance: z.enum(["중요", "중간", "비중요"]).optional(),
+  sections: z.array(importSectionSchema).optional(),
+  relationships: z.array(importRelationshipSchema).optional(),
+  identityTerms: z.array(z.string().trim().min(1)).optional(),
+  mnemonic: z.object({ items: z.array(importItemSchema) }).optional(),
 });
 
 export const pharmacognosyImportV1Schema = z.object({
@@ -30,6 +49,7 @@ export const pharmacognosyImportV1Schema = z.object({
   });
 });
 
+export type ImportDrug = z.infer<typeof importDrugSchema>;
 export type PharmacognosyImportV1 = z.infer<typeof pharmacognosyImportV1Schema>;
 export const importExample: PharmacognosyImportV1 = {
   schema: "pharmacognosy.import",
@@ -39,8 +59,12 @@ export const importExample: PharmacognosyImportV1 = {
     latinName: "Citri Unshius Pericarpium",
     category: "과실류",
     origin: "귤나무의 잘 익은 열매껍질",
+    origins: [{ nameKo: "귤나무", scientificName: "Citrus unshiu" }],
     scientificName: "Citrus unshiu",
+    family: { koreanName: "운향과", scientificName: "Rutaceae" },
     importance: "중간",
-    sections: [{ title: "성분", items: [{ text: "Flavonoid", children: [{ text: "Hesperidin (정량성분)" }] }] }],
+    sections: [{ field: "성분", title: "성분", items: [{ text: "Flavonoid", children: [{ text: "Hesperidin (정량성분)" }] }] }],
+    relationships: [{ targetKoreanName: "청피", type: "연관생약", notes: null }],
+    mnemonic: { items: [] },
   }],
 };

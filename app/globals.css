@@ -1868,6 +1868,18 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 .restore-fields label { padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); color: var(--text-secondary); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
 .restore-drug-list article > p { margin: 9px 0 0 25px; color: #b07232; font-size: 12px; }
 .restore-preview > footer > span { color: var(--text-secondary); font-size: 13px; }
+.import-preview-list { display: grid; gap: 9px; max-height: 620px; overflow: auto; }
+.import-preview-row { padding: 11px; border: 1px solid var(--border); border-radius: 9px; display: grid; gap: 8px; }
+.import-preview-row.has-errors { border-color: var(--control-danger-border); }
+.import-preview-row > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.import-preview-row dl { margin: 0; display: grid; gap: 4px; }
+.import-preview-row dl > div { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 7px; font-size: 11px; }
+.import-preview-row dt { color: var(--text-muted); }
+.import-preview-row dd { margin: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.import-preview-row .import-correction, .import-preview-row .import-warning, .import-preview-row .import-blocking { margin: 0; font-size: 11px; }
+.import-preview-row .import-correction { color: var(--text-muted); }
+.import-preview-row .import-warning { color: var(--control-warning-text); }
+.import-preview-row .import-blocking { color: var(--control-danger-text); }
 .backup-overdue-banner { position: fixed; z-index: 180; right: 20px; bottom: 20px; width: min(390px, calc(100vw - 40px)); padding: 13px 14px; border: 1px solid #d8954f; border-radius: 10px; background: #fff8eb; color: #69451f; box-shadow: 0 14px 40px rgba(50,35,20,.2); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .backup-overdue-banner span { display: grid; gap: 3px; font-size: 12px; }
 .backup-overdue-banner a { flex: 0 0 auto; color: #81501e; font-size: 12px; font-weight: 800; text-decoration: underline; }

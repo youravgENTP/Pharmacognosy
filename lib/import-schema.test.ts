@@ -6,7 +6,35 @@ test("Import Schema v1 accepts the downloadable editor example", () => {
   const parsed = pharmacognosyImportV1Schema.parse(importExample);
   assert.equal(parsed.schema, "pharmacognosy.import");
   assert.equal(parsed.version, 1);
-  assert.equal(parsed.drugs[0].sections[0].items[0].children?.[0].text, "Hesperidin (정량성분)");
+  assert.equal(parsed.drugs[0].sections?.[0].items[0].children?.[0].text, "Hesperidin (정량성분)");
+});
+
+test("existing title-only v1 files remain valid without defaulting omitted merge fields", () => {
+  const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "진피", category: "과실류", sections: [{ title: "성분", items: [{ text: "Flavonoid" }] }] }] });
+  assert.equal(parsed.drugs[0].importance, undefined);
+  assert.equal(parsed.drugs[0].sections?.[0].title, "성분");
+});
+
+test("extended v1 accepts origin plants, relationships, identity terms, and mnemonic", () => {
+  const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "산약", category: "근류", origins: [{ nameKo: "마", scientificName: "Dioscorea batatas" }, { nameKo: "참마", scientificName: "Dioscorea japonica" }], relationships: [{ targetKoreanName: "참마", type: "연관생약", notes: null }], identityTerms: ["포제"], mnemonic: { items: [{ text: "기억" }] } }] });
+  assert.equal(parsed.drugs[0].origins?.length, 2);
+  assert.equal(parsed.drugs[0].relationships?.[0].targetKoreanName, "참마");
+  assert.equal(parsed.drugs[0].mnemonic?.items[0].text, "기억");
+});
+
+test("extended v1 accepts origins independently", () => {
+  const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "산약", category: "근류", origins: [{ nameKo: "마", scientificName: "Dioscorea batatas" }] }] });
+  assert.equal(parsed.drugs[0].origins?.[0].nameKo, "마");
+});
+
+test("extended v1 accepts relationships independently", () => {
+  const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "진피", category: "과실류", relationships: [{ targetKoreanName: "청피", type: "연관생약" }] }] });
+  assert.equal(parsed.drugs[0].relationships?.length, 1);
+});
+
+test("extended v1 accepts a user mnemonic independently", () => {
+  const parsed = pharmacognosyImportV1Schema.parse({ schema: "pharmacognosy.import", version: 1, drugs: [{ koreanName: "진피", category: "과실류", mnemonic: { items: [{ text: "기억" }] } }] });
+  assert.equal(parsed.drugs[0].mnemonic?.items.length, 1);
 });
 
 test("Import Schema v1 rejects duplicate Korean drug names", () => {

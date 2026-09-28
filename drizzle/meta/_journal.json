@@ -92,6 +92,13 @@
       "when": 1790071851248,
       "tag": "0012_secret_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790570188182,
+      "tag": "0013_fat_king_bedlam",
+      "breakpoints": true
     }
   ]
 }

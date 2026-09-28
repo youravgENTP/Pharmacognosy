@@ -649,9 +649,12 @@ html, body { background: var(--paper); color: var(--ink); }
 .constituent-leaf .taxon-toggle { color: #79a8e8; }
 .constituent-leaf .taxon-label > span { color: #cfd9e7; font-weight: 650; }
 .constituent-leaf .taxon-label small { max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
-.taxon-description { margin-top: 15px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 7px; }
-.taxon-description textarea { min-width: 0; min-height: 55px; resize: vertical; border: 1px solid #303740; border-radius: 7px; padding: 8px 9px; background: #12161a; color: #dfe4e9; font: inherit; font-size: 12px; }
-.taxon-description button, .constituent-create button, .detail-save { border: 0; border-radius: 7px; padding: 8px 9px; background: #2c67b7; color: white; white-space: nowrap; }
+.taxon-description-editor { margin-top: 15px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.taxon-description-editor > header { margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.taxon-description-editor > header > div { display: flex; align-items: baseline; gap: 8px; }
+.taxon-description-editor > header span { color: var(--text-muted); font-size: 10px; }
+.taxon-description-editor > header button, .constituent-create button, .detail-save { border: 0; border-radius: 7px; padding: 8px 9px; background: #2c67b7; color: white; white-space: nowrap; }
+.taxon-description-editor > header button:disabled { background: var(--control-disabled-bg); color: var(--control-disabled-text); }
 .constituent-create { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-bottom: 9px; }
 .constituent-create input { min-width: 0; border: 1px solid #303740; border-radius: 7px; padding: 8px 9px; background: #12161a; color: #e4e8ed; }
 .constituent-create button { display: inline-flex; align-items: center; gap: 4px; }
@@ -695,7 +698,7 @@ html, body { background: var(--paper); color: var(--ink); }
 .identity-term-combobox > div button { width: 100%; border: 0; border-radius: 5px; padding: 8px; background: transparent; color: #dce1e7; text-align: left; }
 .identity-term-combobox > div button:hover { background: #223247; }
 .identity-term-combobox > small { display: block; padding: 6px 2px; color: #7f8994; }
-@media (max-width: 650px) { .taxon-description { grid-template-columns: 1fr; } .compound-media article { grid-template-columns: 44px minmax(0, 1fr); } .compound-media article > span { grid-column: 2; } }
+@media (max-width: 650px) { .taxon-description-editor > header { align-items: flex-start; flex-direction: column; } .compound-media article { grid-template-columns: 44px minmax(0, 1fr); } .compound-media article > span { grid-column: 2; } }
 
 /* Export and explicit Collection modes */
 .collection-kind-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 12px; }
@@ -1428,7 +1431,6 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .taxon-inline-form input,
 :root[data-theme="day"] .taxon-inline-form select,
 :root[data-theme="day"] .inline-parent-editor select,
-:root[data-theme="day"] .taxon-description textarea,
 :root[data-theme="day"] .constituent-create input,
 :root[data-theme="day"] .constituent-detail > label input,
 :root[data-theme="day"] .constituent-detail > label textarea,

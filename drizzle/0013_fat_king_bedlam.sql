@@ -1,0 +1,2 @@
+ALTER TABLE "constituent_taxa" ADD COLUMN "description_items" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "constituent_taxa" ADD COLUMN "description_blocks" jsonb DEFAULT '[]'::jsonb NOT NULL;

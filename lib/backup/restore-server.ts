@@ -129,7 +129,7 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
       if (sameId && (sameId.name !== string(source.name) || sameId.kind !== string(source.kind))) throw new Error(`성분 분류 ${id}가 현재 DB와 충돌합니다.`);
       let target = sameId;
       if (!target) [target] = await tx.select().from(schema.constituentTaxa).where(andNameKind(string(source.name), string(source.kind))).limit(1);
-      if (!target) [target] = await tx.insert(schema.constituentTaxa).values({ id, name: string(source.name), kind: string(source.kind), description: nullableString(source.description), hidden: boolean(source.hidden), position: number(source.position) }).returning();
+      if (!target) [target] = await tx.insert(schema.constituentTaxa).values({ id, name: string(source.name), kind: string(source.kind), description: nullableString(source.description), descriptionItems: (Array.isArray(source.descriptionItems) ? source.descriptionItems : []) as schema.StudyItem[], descriptionBlocks: (Array.isArray(source.descriptionBlocks) ? source.descriptionBlocks : []) as schema.StudyBlock[], hidden: boolean(source.hidden), position: number(source.position) }).returning();
       taxonMap.set(id, target.id);
     }
     for (const edge of backupTaxonEdges) {

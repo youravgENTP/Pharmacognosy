@@ -212,6 +212,8 @@ export const constituentTaxa = pgTable("constituent_taxa", {
   name: text("name").notNull(),
   kind: text("kind").notNull().default("class"),
   description: text("description"),
+  descriptionItems: jsonb("description_items").$type<StudyItem[]>().notNull().default([]),
+  descriptionBlocks: jsonb("description_blocks").$type<StudyBlock[]>().notNull().default([]),
   hidden: boolean("hidden").notNull().default(false),
   position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

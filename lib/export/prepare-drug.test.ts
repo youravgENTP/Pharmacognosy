@@ -12,6 +12,7 @@ async function inputs() {
   const png = await sharp({ create: { width: 30, height: 20, channels: 3, background: "green" } }).png().toBuffer();
   const jpeg = await sharp({ create: { width: 20, height: 30, channels: 3, background: "white" } }).jpeg().toBuffer();
   const profile: ExportDrugProfile = {
+    catalogIndex: 72, referenceIndex: null,
     koreanName: "연교", latinName: "Forsythiae Fructus", importance: "중요", scientificName: null, medicinalPart: "열매", origin: null,
     origins: [{ nameKo: "의성개나리", scientificName: "Forsythia viridissima" }], family: "물푸레나무과 · Oleaceae", relatedDrugs: [], similarDrugs: [], identityTerms: [],
     sections: [{ id: "section", title: "성분", items: [], blocks: [
@@ -27,6 +28,8 @@ test("export preparation preserves plain, hierarchy, rich HTML, PNG and JPEG whi
   const { profile, loadMedia } = await inputs();
   const warnings: ExportImageWarning[] = [];
   const card = await prepareDrugExportCard("drug", profile, new Set(), [], loadMedia, (warning) => warnings.push(warning));
+  assert.equal(card.exportIndex, "72");
+  assert.equal(card.latinName, "Forsythiae Fructus");
   const section = card.fields.find((field) => field.title === "성분")!;
   assert.equal(section.lines.length, 2);
   assert.equal(section.lines[1].indent, 13);

@@ -8,7 +8,7 @@ export type PdfLine = { text: string; html?: string; runs?: InlineTextRun[]; ind
 export type PdfImage = { buffer: Buffer; width: number; height: number; caption?: string };
 export type PdfTable = { rows: number; columns: number; cells: Record<string, { text: string; bold?: boolean; italic?: boolean; strikethrough?: boolean; highlight?: string; textColor?: string; horizontal?: "left" | "center" | "right"; vertical?: "top" | "middle" | "bottom" }>; rowSizes: number[]; columnSizes: number[]; mergedRanges: { startRow: number; startColumn: number; endRow: number; endColumn: number }[] };
 export type PdfField = { title: string; lines: PdfLine[]; images?: PdfImage[]; table?: PdfTable };
-export type PdfCard = { title: string; subtitle?: string; fields: PdfField[] };
+export type PdfCard = { title: string; subtitle?: string; exportIndex?: string; latinName?: string; fields: PdfField[] };
 
 // next.config.ts explicitly traces these files into the Vercel server function.
 const fontPackageRoot = path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans-kr", "files");

@@ -1,20 +1,37 @@
-import { AlignmentType, Document, ImageRun, Packer, Paragraph, ShadingType, TextRun } from "docx";
+import { AlignmentType, Column, Document, ImageRun, Packer, Paragraph, ShadingType, TextRun } from "docx";
 import type { PdfCard, PdfField } from "@/lib/export/pdf";
 import { cssColorToHex, parseInlineRuns } from "@/lib/rich-text";
+
+const BODY_SIZE = 24;
+const BODY_FONT = { ascii: "Cambria", hAnsi: "Cambria", eastAsia: "Batang", cs: "Cambria" } as const;
+const METADATA_FIELDS = new Set(["학명", "약용부위", "기원", "과", "연관생약", "유사생약", "가공 및 기타 사항"]);
 
 export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
   const children: Paragraph[] = [];
   for (const [cardIndex, card] of cards.entries()) {
-    if (cardIndex) children.push(new Paragraph({ spacing: { before: 260 } }));
-    children.push(new Paragraph({ heading: "Title", keepNext: true, spacing: { before: cardIndex ? 180 : 0, after: 50 }, children: [new TextRun({ text: card.title, bold: true, size: 34, font: "Noto Sans KR" })] }));
-    if (card.subtitle) children.push(new Paragraph({ keepNext: Boolean(card.fields.length), spacing: { after: 150 }, children: [new TextRun({ text: card.subtitle, color: "667384", size: 18, font: "Noto Sans KR" })] }));
+    const prefix = card.exportIndex ? `${card.exportIndex}. ` : "";
+    const latinName = card.latinName ? ` (${card.latinName})` : "";
+    children.push(new Paragraph({
+      keepNext: Boolean(card.fields.length),
+      keepLines: true,
+      spacing: { before: cardIndex ? 180 : 0, after: 0 },
+      children: [new TextRun({ text: `${prefix}${card.title}${latinName}`, bold: true, size: BODY_SIZE, font: BODY_FONT })],
+    }));
     for (const field of card.fields) children.push(...fieldParagraphs(field));
   }
   const document = new Document({
     creator: "Herb Overflow",
     title: "Herb Overflow Data Cards",
-    styles: { default: { document: { run: { font: "Noto Sans KR", size: 20 }, paragraph: { spacing: { line: 276 } } } } },
-    sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } }, column: { count: columns, equalWidth: true, space: 360 } }, children }],
+    styles: { default: { document: { run: { font: BODY_FONT, size: BODY_SIZE, color: "000000" }, paragraph: { spacing: { before: 0, after: 0 } } } } },
+    sections: [{
+      properties: {
+        page: { size: { width: 11906, height: 16838 }, margin: { top: 567, right: 567, bottom: 816, left: 567 } },
+        column: columns === 2
+          ? { count: 2, equalWidth: false, space: 425, children: [new Column({ width: 5173, space: 425 }), new Column({ width: 5173 })] }
+          : { count: 1, equalWidth: true },
+      },
+      children,
+    }],
   });
   const packed = await Packer.toBuffer(document);
   return Buffer.isBuffer(packed) ? packed : Buffer.from(packed);
@@ -24,22 +41,60 @@ function fieldParagraphs(field: PdfField) {
   const result: Paragraph[] = [];
   const total = 1 + field.lines.length + (field.images?.length ?? 0);
   let index = 0;
-  result.push(new Paragraph({ keepNext: total > 1, keepLines: true, spacing: { before: 120, after: 50 }, children: [new TextRun({ text: field.title, bold: true, color: "215F9D", size: 23, font: "Noto Sans KR" })] })); index++;
-  for (const line of field.lines) { result.push(new Paragraph({ keepNext: index < total - 1, keepLines: true, indent: { left: (line.indent ?? 0) * 18 }, spacing: { after: 35 }, children: richRuns(line) })); index++; }
-  for (const image of field.images ?? []) { if (!validImage(image)) { console.warn("[DataCardExport] DOCX image skipped: invalid geometry"); continue; } const type = imageType(image.buffer); if (!type) { console.warn("[DataCardExport] DOCX image skipped: unsupported bytes"); continue; } const maxWidth = 260; const width = Math.min(maxWidth, image.width); const height = Math.round(image.height * width / image.width); if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) continue; result.push(new Paragraph({ keepNext: Boolean(image.caption) || index < total - 1, keepLines: true, alignment: AlignmentType.LEFT, spacing: { after: 45 }, children: [new ImageRun({ type, data: image.buffer, transformation: { width, height } })] })); index++; if (image.caption) result.push(new Paragraph({ keepNext: index < total - 1, keepLines: true, children: [new TextRun({ text: image.caption, color: "6A7480", size: 16 })] })); }
+  if (METADATA_FIELDS.has(field.title) && field.lines.length) {
+    for (const [lineIndex, line] of field.lines.entries()) {
+      result.push(new Paragraph({
+        keepNext: index < total - 1,
+        keepLines: true,
+        spacing: { before: 0, after: 0 },
+        children: [
+          ...(lineIndex === 0 ? [new TextRun({ text: `${field.title} : `, bold: true, size: BODY_SIZE, font: BODY_FONT })] : []),
+          ...richRuns(line),
+        ],
+      }));
+      index++;
+    }
+  } else {
+    const mnemonic = field.title.startsWith("암기법");
+    result.push(new Paragraph({
+      keepNext: total > 1,
+      keepLines: true,
+      spacing: { before: 80, after: 0 },
+      children: [new TextRun({ text: field.title, bold: true, color: mnemonic ? "FF0000" : "000000", size: BODY_SIZE, font: BODY_FONT })],
+    }));
+    index++;
+    for (const line of field.lines) {
+      result.push(new Paragraph({
+        keepNext: index < total - 1,
+        keepLines: true,
+        indent: hierarchyIndent(line),
+        spacing: { after: 0 },
+        children: richRuns(line, mnemonic),
+      }));
+      index++;
+    }
+  }
+  for (const image of field.images ?? []) { if (!validImage(image)) { console.warn("[DataCardExport] DOCX image skipped: invalid geometry"); continue; } const type = imageType(image.buffer); if (!type) { console.warn("[DataCardExport] DOCX image skipped: unsupported bytes"); continue; } const maxWidth = 335; const width = Math.min(maxWidth, image.width); const height = Math.round(image.height * width / image.width); if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) continue; result.push(new Paragraph({ keepNext: Boolean(image.caption) || index < total - 1, keepLines: true, alignment: AlignmentType.LEFT, spacing: { after: 0 }, children: [new ImageRun({ type, data: image.buffer, transformation: { width, height } })] })); index++; if (image.caption) result.push(new Paragraph({ keepNext: index < total - 1, keepLines: true, children: [new TextRun({ text: image.caption, color: "666666", size: 18, font: BODY_FONT })] })); }
   return result;
+}
+
+function hierarchyIndent(line: import("@/lib/export/pdf").PdfLine) {
+  if (!/^(?:[ivxlcdm]+\)|[①-⑳]|[a-z]\)|•)/i.test(line.text.trimStart())) return undefined;
+  if ((line.indent ?? 0) >= 26) return { left: 900, hanging: 160 };
+  if ((line.indent ?? 0) >= 13) return { left: 500, hanging: 220 };
+  return { left: 160, hanging: 160 };
 }
 
 function imageType(buffer: Buffer): "png" | "jpg" | "gif" | "bmp" | null { if (buffer[0] === 0x89 && buffer[1] === 0x50) return "png"; if (buffer[0] === 0xff && buffer[1] === 0xd8) return "jpg"; if (buffer.subarray(0, 3).toString() === "GIF") return "gif"; if (buffer.subarray(0, 2).toString() === "BM") return "bmp"; return null; }
 
-function richRuns(line: import("@/lib/export/pdf").PdfLine) {
+function richRuns(line: import("@/lib/export/pdf").PdfLine, forceBold = false) {
   const runs = (line.runs ?? parseInlineRuns(line.html, line.text)).filter((run) => typeof run.text === "string");
   return (runs.length ? runs : [{ text: line.text }]).flatMap((run) => {
     const highlight = cssColorToHex(run.highlight);
     return run.text.split("\n").map((text, index) => new TextRun({
       text,
       break: index ? 1 : undefined,
-      bold: run.bold || line.bold,
+      bold: forceBold || run.bold || line.bold,
       italics: run.italic || line.italic,
       strike: run.strike,
       underline: run.underline ? {} : undefined,
@@ -48,8 +103,8 @@ function richRuns(line: import("@/lib/export/pdf").PdfLine) {
       characterSpacing: run.characterSpacing === "tight" ? -6 : run.characterSpacing === "wide" ? 16 : 0,
       color: cssColorToHex(run.color) ?? cssColorToHex(line.color),
       shading: highlight ? { type: ShadingType.CLEAR, fill: highlight, color: "auto" } : undefined,
-      size: (line.size ?? 10) * 2,
-      font: "Noto Sans KR",
+      size: (line.size ?? 12) * 2,
+      font: BODY_FONT,
     }));
   });
 }

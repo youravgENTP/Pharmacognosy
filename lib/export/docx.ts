@@ -1,5 +1,5 @@
-import { AlignmentType, Column, Document, ImageRun, Packer, Paragraph, ShadingType, TextRun } from "docx";
-import type { PdfCard, PdfField } from "@/lib/export/pdf";
+import { AlignmentType, BorderStyle, Column, Document, ImageRun, Packer, Paragraph, ShadingType, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlign, WidthType } from "docx";
+import type { PdfCard, PdfField, PdfTable } from "@/lib/export/pdf";
 import { cssColorToHex, parseInlineRuns } from "@/lib/rich-text";
 
 const BODY_SIZE = 18;
@@ -9,7 +9,7 @@ const TWO_COLUMN_WIDTH_TWIPS = 5173;
 const ONE_COLUMN_WIDTH_TWIPS = 10772;
 
 export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
   const contentWidthTwips = columns === 2 ? TWO_COLUMN_WIDTH_TWIPS : ONE_COLUMN_WIDTH_TWIPS;
   for (const [cardIndex, card] of cards.entries()) {
     const prefix = card.exportIndex ? `${card.exportIndex}. ` : "";
@@ -41,8 +41,8 @@ export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
 }
 
 function fieldParagraphs(field: PdfField, contentWidthTwips: number) {
-  const result: Paragraph[] = [];
-  const total = 1 + field.lines.length + (field.images?.length ?? 0);
+  const result: (Paragraph | Table)[] = [];
+  const total = (field.title ? 1 : 0) + field.lines.length + (field.images?.length ?? 0) + (field.table ? 1 : 0);
   let index = 0;
   if (METADATA_FIELDS.has(field.title) && field.lines.length) {
     for (const [lineIndex, line] of field.lines.entries()) {
@@ -59,13 +59,15 @@ function fieldParagraphs(field: PdfField, contentWidthTwips: number) {
     }
   } else {
     const mnemonic = field.title.startsWith("암기법");
-    result.push(new Paragraph({
-      keepNext: total > 1,
-      keepLines: true,
-      spacing: { before: 80, after: 0 },
-      children: [new TextRun({ text: field.title, bold: true, color: mnemonic ? "FF0000" : "000000", size: BODY_SIZE, font: BODY_FONT })],
-    }));
-    index++;
+    if (field.title) {
+      result.push(new Paragraph({
+        keepNext: total > 1,
+        keepLines: true,
+        spacing: { before: 80, after: 0 },
+        children: [new TextRun({ text: field.title, bold: true, color: mnemonic ? "FF0000" : "000000", size: BODY_SIZE, font: BODY_FONT })],
+      }));
+      index++;
+    }
     for (const line of field.lines) {
       result.push(new Paragraph({
         keepNext: index < total - 1,
@@ -94,7 +96,51 @@ function fieldParagraphs(field: PdfField, contentWidthTwips: number) {
     index++;
     if (image.caption) result.push(new Paragraph({ keepNext: index < total - 1, keepLines: true, indent: layout.leftTwips ? { left: layout.leftTwips } : undefined, children: [new TextRun({ text: image.caption, color: "666666", size: BODY_SIZE, font: BODY_FONT })] }));
   }
+  if (field.table) result.push(docxTable(field.table, contentWidthTwips));
   return result;
+}
+
+function docxTable(table: PdfTable, contentWidthTwips: number) {
+  const sourceWidths = Array.from({ length: table.columns }, (_, index) => Math.max(1, table.columnSizes[index] ?? 128));
+  const sourceTotal = sourceWidths.reduce((sum, width) => sum + width, 0) || table.columns;
+  const columnWidths = sourceWidths.map((width) => Math.max(240, Math.round(contentWidthTwips * width / sourceTotal)));
+  const merges = table.mergedRanges.map(normalizeTableRange).filter((range) => range.startRow >= 0 && range.startColumn >= 0 && range.endRow < table.rows && range.endColumn < table.columns);
+  const border = { style: BorderStyle.SINGLE, size: 4, color: "B7B7B7" } as const;
+  const rows = Array.from({ length: table.rows }, (_, row) => new TableRow({
+    children: Array.from({ length: table.columns }, (_, column) => ({ row, column }))
+      .filter(({ row: cellRow, column: cellColumn }) => !merges.some((range) => range.startRow <= cellRow && range.endRow >= cellRow && range.startColumn <= cellColumn && range.endColumn >= cellColumn && (range.startRow !== cellRow || range.startColumn !== cellColumn)))
+      .map(({ row: cellRow, column: cellColumn }) => {
+        const cell = table.cells[`${cellRow}:${cellColumn}`] ?? { text: "" };
+        const merge = merges.find((range) => range.startRow === cellRow && range.startColumn === cellColumn);
+        const alignment = cell.horizontal === "center" ? AlignmentType.CENTER : cell.horizontal === "right" ? AlignmentType.RIGHT : AlignmentType.LEFT;
+        const verticalAlign = cell.vertical === "top" ? VerticalAlign.TOP : cell.vertical === "bottom" ? VerticalAlign.BOTTOM : VerticalAlign.CENTER;
+        const runs = richRuns({ text: cell.text, html: cell.html, bold: cell.bold, italic: cell.italic, color: cell.textColor, runs: cell.html ? parseInlineRuns(cell.html, cell.text) : [{ text: cell.text, bold: cell.bold, italic: cell.italic, strike: cell.strikethrough, color: cell.textColor, highlight: cell.highlight }] });
+        return new TableCell({
+          columnSpan: merge ? merge.endColumn - merge.startColumn + 1 : undefined,
+          rowSpan: merge ? merge.endRow - merge.startRow + 1 : undefined,
+          verticalAlign,
+          shading: cell.highlight ? { type: ShadingType.CLEAR, fill: cssColorToHex(cell.highlight) ?? "FFF2A8", color: "auto" } : undefined,
+          margins: { top: 80, right: 90, bottom: 80, left: 90 },
+          children: [new Paragraph({ alignment, spacing: { before: 0, after: 0 }, children: runs })],
+        });
+      }),
+  }));
+  return new Table({
+    rows,
+    width: { size: contentWidthTwips, type: WidthType.DXA },
+    columnWidths,
+    layout: TableLayoutType.FIXED,
+    borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
+  });
+}
+
+function normalizeTableRange(range: PdfTable["mergedRanges"][number]) {
+  return {
+    startRow: Math.min(range.startRow, range.endRow),
+    endRow: Math.max(range.startRow, range.endRow),
+    startColumn: Math.min(range.startColumn, range.endColumn),
+    endColumn: Math.max(range.startColumn, range.endColumn),
+  };
 }
 
 function hierarchyIndent(line: import("@/lib/export/pdf").PdfLine) {

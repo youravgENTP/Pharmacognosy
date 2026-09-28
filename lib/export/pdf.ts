@@ -6,7 +6,7 @@ import { cssColorToHex } from "@/lib/rich-text";
 
 export type PdfLine = { text: string; html?: string; runs?: InlineTextRun[]; indent?: number; bold?: boolean; italic?: boolean; size?: number; color?: string; gapAfter?: number };
 export type PdfImage = { buffer: Buffer; width: number; height: number; widthPercent?: number; xPercent?: number; align?: "left" | "center" | "right"; caption?: string };
-export type PdfTable = { rows: number; columns: number; cells: Record<string, { text: string; bold?: boolean; italic?: boolean; strikethrough?: boolean; highlight?: string; textColor?: string; horizontal?: "left" | "center" | "right"; vertical?: "top" | "middle" | "bottom" }>; rowSizes: number[]; columnSizes: number[]; mergedRanges: { startRow: number; startColumn: number; endRow: number; endColumn: number }[] };
+export type PdfTable = { rows: number; columns: number; cells: Record<string, { text: string; html?: string; bold?: boolean; italic?: boolean; strikethrough?: boolean; highlight?: string; textColor?: string; horizontal?: "left" | "center" | "right"; vertical?: "top" | "middle" | "bottom" }>; rowSizes: number[]; columnSizes: number[]; mergedRanges: { startRow: number; startColumn: number; endRow: number; endColumn: number }[] };
 export type PdfField = { title: string; lines: PdfLine[]; images?: PdfImage[]; table?: PdfTable };
 export type PdfCard = { title: string; subtitle?: string; exportIndex?: string; latinName?: string; fields: PdfField[] };
 

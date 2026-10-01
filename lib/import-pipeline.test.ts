@@ -75,6 +75,56 @@ test("merge scalar patch updates only explicitly supplied properties", () => {
   assert.equal(Object.hasOwn(patch, "familyId"), false);
 });
 
+test("normalization keeps every omitted optional top-level property omitted", () => {
+  const prepared = prepare([{ koreanName: "진피" }], { existingDrugs: [existing] });
+  for (const key of ["latinName", "origin", "origins", "scientificName", "medicinalPart", "category", "importance", "family", "sections", "relationships", "identityTerms", "mnemonic"] as const) {
+    assert.equal(Object.hasOwn(prepared.drugs[0].input, key), false, `${key} should remain omitted`);
+  }
+});
+
+test("an omitted family survives normalization and stays out of the scalar merge patch", () => {
+  const prepared = prepare([{ koreanName: "진피", sections: [{ field: "성분", items: [{ text: "new component" }] }] }], { existingDrugs: [existing] });
+  const input = prepared.drugs[0].input;
+  const patch = scalarMergePatch(input, { familyId: existing.familyId });
+  assert.equal(Object.hasOwn(input, "family"), false);
+  assert.equal(Object.hasOwn(patch, "familyId"), false);
+  assert.equal(({ ...existing, ...patch }).familyId, existing.familyId);
+});
+
+test("an explicit null family survives normalization and intentionally clears familyId", () => {
+  const prepared = prepare([{ koreanName: "진피", family: null }], { existingDrugs: [existing] });
+  const input = prepared.drugs[0].input;
+  const patch = scalarMergePatch(input, {});
+  assert.equal(Object.hasOwn(input, "family"), true);
+  assert.equal(input.family, null);
+  assert.equal(patch.familyId, null);
+});
+
+test("an explicit family object is normalized and updates familyId normally", () => {
+  const family = { id: "30000000-0000-4000-8000-000000000002", koreanName: "운향과", scientificName: "Rutaceae" };
+  const prepared = prepare([{ koreanName: "진피", family: { koreanName: "운향과", scientificName: " Rutaceae " } }], { existingDrugs: [existing], families: [family] });
+  const input = prepared.drugs[0].input;
+  const patch = scalarMergePatch(input, { familyId: family.id });
+  assert.equal(Object.hasOwn(input, "family"), true);
+  assert.equal(input.family?.scientificName, "Rutaceae");
+  assert.equal(patch.familyId, family.id);
+});
+
+test("omitted nullable scalars stay out of the patch after normalization", () => {
+  const prepared = prepare([{ koreanName: "진피" }], { existingDrugs: [existing] });
+  const patch = scalarMergePatch(prepared.drugs[0].input, {});
+  for (const key of ["latinName", "origin", "scientificName", "medicinalPart"] as const) assert.equal(Object.hasOwn(patch, key), false);
+});
+
+test("an explicit null nullable scalar remains present and clears its value", () => {
+  const prepared = prepare([{ koreanName: "진피", origin: null }], { existingDrugs: [existing] });
+  const input = prepared.drugs[0].input;
+  const patch = scalarMergePatch(input, {});
+  assert.equal(Object.hasOwn(input, "origin"), true);
+  assert.equal(Object.hasOwn(patch, "origin"), true);
+  assert.equal(patch.origin, null);
+});
+
 test("omitted importance never resets an existing importance", () => {
   const input = payload([{ koreanName: "진피", category: "과실류" }]).drugs[0];
   const patch = scalarMergePatch(input, { categoryId: "category" });
@@ -84,11 +134,19 @@ test("omitted importance never resets an existing importance", () => {
 
 test("merge replaces only its matching section and preserves unrelated sections", () => {
   const prepared = prepare([{ koreanName: "진피", category: "과실류", sections: [{ field: "성분", items: [{ text: "new component" }] }] }], { existingDrugs: [existing] });
+  assert.equal(Object.hasOwn(prepared.drugs[0].input, "sections"), true);
   let sequence = 0;
   const merged = mergeImportedSections(existing.sections, prepared.drugs[0].sections, fields, false, () => `new-${++sequence}`);
   assert.equal(merged.find((value) => value.title === "성분")?.items[0].text, "new component");
   assert.equal(merged.find((value) => value.title === "약리")?.items[0].text, "old pharmacology");
   assert.equal(merged.find((value) => value.title === "성분")?.id, existing.sections[0].id);
+});
+
+test("omitted sections remain omitted and preserve every existing section", () => {
+  const prepared = prepare([{ koreanName: "진피" }], { existingDrugs: [existing] });
+  assert.equal(Object.hasOwn(prepared.drugs[0].input, "sections"), false);
+  const merged = mergeImportedSections(existing.sections, prepared.drugs[0].sections, fields);
+  assert.deepEqual(merged, existing.sections);
 });
 
 test("mnemonic stays out of crude-drug content and only adds an empty field shell", () => {

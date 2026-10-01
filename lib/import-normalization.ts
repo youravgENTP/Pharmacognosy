@@ -58,23 +58,22 @@ export function normalizeImportPayload(payload: PharmacognosyImportV1) {
 function normalizeDrug(drug: ImportDrug, path: string, corrections: ImportCorrection[], issues: ImportNormalizationIssue[]): ImportDrug {
   const string = (value: string | null | undefined, key: string) => value == null ? value : corrected(value, `${path}.${key}`, corrections);
   const nullable = (value: string | null, key: string) => value === null ? null : corrected(value, `${path}.${key}`, corrections);
-  return {
-    ...drug,
-    latinName: string(drug.latinName, "latinName"),
-    origin: string(drug.origin, "origin"),
-    scientificName: string(drug.scientificName, "scientificName"),
-    medicinalPart: string(drug.medicinalPart, "medicinalPart"),
-    origins: drug.origins?.map((origin, index) => ({ nameKo: origin.nameKo, scientificName: nullable(origin.scientificName, `origins.${index}.scientificName`) })),
-    family: drug.family ? { koreanName: drug.family.koreanName, scientificName: corrected(drug.family.scientificName, `${path}.family.scientificName`, corrections) } : drug.family,
-    sections: drug.sections?.map((section, sectionIndex) => ({ ...section, items: normalizeItems(section.items, `${path}.sections.${sectionIndex}.items`, corrections, issues) })),
-    relationships: drug.relationships?.map((relationship, relationIndex) => ({ ...relationship, type: normalizeRelationshipType(relationship.type), notes: relationship.notes == null ? relationship.notes : corrected(relationship.notes, `${path}.relationships.${relationIndex}.notes`, corrections) })),
-    identityTerms: drug.identityTerms?.map((term, termIndex) => corrected(term, `${path}.identityTerms.${termIndex}`, corrections)),
-    mnemonic: drug.mnemonic ? {
+  const result: ImportDrug = { ...drug };
+  if (Object.hasOwn(drug, "latinName")) result.latinName = string(drug.latinName, "latinName");
+  if (Object.hasOwn(drug, "origin")) result.origin = string(drug.origin, "origin");
+  if (Object.hasOwn(drug, "scientificName")) result.scientificName = string(drug.scientificName, "scientificName");
+  if (Object.hasOwn(drug, "medicinalPart")) result.medicinalPart = string(drug.medicinalPart, "medicinalPart");
+  if (Object.hasOwn(drug, "origins")) result.origins = drug.origins?.map((origin, index) => ({ nameKo: origin.nameKo, scientificName: nullable(origin.scientificName, `origins.${index}.scientificName`) }));
+  if (Object.hasOwn(drug, "family")) result.family = drug.family ? { koreanName: drug.family.koreanName, scientificName: corrected(drug.family.scientificName, `${path}.family.scientificName`, corrections) } : drug.family;
+  if (Object.hasOwn(drug, "sections")) result.sections = drug.sections?.map((section, sectionIndex) => ({ ...section, items: normalizeItems(section.items, `${path}.sections.${sectionIndex}.items`, corrections, issues) }));
+  if (Object.hasOwn(drug, "relationships")) result.relationships = drug.relationships?.map((relationship, relationIndex) => ({ ...relationship, type: normalizeRelationshipType(relationship.type), notes: relationship.notes == null ? relationship.notes : corrected(relationship.notes, `${path}.relationships.${relationIndex}.notes`, corrections) }));
+  if (Object.hasOwn(drug, "identityTerms")) result.identityTerms = drug.identityTerms?.map((term, termIndex) => corrected(term, `${path}.identityTerms.${termIndex}`, corrections));
+  if (Object.hasOwn(drug, "mnemonic")) result.mnemonic = drug.mnemonic ? {
       ...drug.mnemonic,
       ...(drug.mnemonic.text ? { text: normalizeMnemonicText(drug.mnemonic.text, `${path}.mnemonic.text`, issues) } : {}),
       ...(drug.mnemonic.items ? { items: normalizeItems(drug.mnemonic.items, `${path}.mnemonic.items`, corrections, issues) } : {}),
-    } : undefined,
-  };
+    } : drug.mnemonic;
+  return result;
 }
 
 function normalizeItems(items: ImportItem[], path: string, corrections: ImportCorrection[], issues: ImportNormalizationIssue[]): ImportItem[] {

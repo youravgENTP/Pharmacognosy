@@ -2,9 +2,8 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { parseBackupArchive, sha256 } from "@/lib/backup/archive";
-import { applySelectedDrugFields, backupDrugSchema, referencedMediaIds, referencedTaxonIds, restoreFieldOptions, rewriteSectionMedia, rewriteSectionTaxa, type RestoreSelection } from "@/lib/backup/restore";
-import { readMediaAssetBytes } from "@/lib/media/read";
+import { parseBackupArchive } from "@/lib/backup/archive";
+import { applySelectedDrugFields, backupDrugSchema, referencedTaxonIds, restoreFieldOptions, rewriteSectionTaxa, type RestoreSelection } from "@/lib/backup/restore";
 
 export async function previewRestoreArchive(buffer: Buffer) {
   const archive = await parseBackupArchive(buffer);
@@ -56,7 +55,6 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
   const backupConstituents = archive.tables.constituents.map(record);
   const backupTaxa = archive.tables["constituent-taxa"].map(record);
   const backupTaxonEdges = archive.tables["constituent-taxon-edges"].map(record);
-  const backupMediaRows = new Map(archive.tables["media-assets"].map((row) => { const value = record(row); return [string(value.id), value] as const; }));
 
   if (!selections.length) throw new Error("복원할 Data Card를 선택해주세요.");
   for (const selection of selections) {
@@ -70,32 +68,13 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
   const currentById = new Map(currentDrugs.map((drug) => [drug.id, drug]));
   for (const selection of selections) if (!currentById.has(selection.drugId)) throw new Error(`현재 DB에 Data Card ${selection.drugId}가 없어 선택 복원할 수 없습니다.`);
 
-  const mediaIds = new Set<string>();
   const selectedSections = new Map<string, Set<string>>();
   for (const selection of selections) {
-    const drug = backupDrugs.get(selection.drugId)!;
     const sectionIds = new Set(selection.fields.filter((field) => field.startsWith("section:")).map((field) => field.slice(8)));
     selectedSections.set(selection.drugId, sectionIds);
-    for (const id of referencedMediaIds(drug.sections.filter((section) => sectionIds.has(section.id)))) mediaIds.add(id);
-  }
-  const mediaMap = new Map<string, string>();
-  const newMediaRows: (typeof schema.mediaAssets.$inferInsert)[] = [];
-  for (const id of mediaIds) {
-    const backupRow = backupMediaRows.get(id);
-    const bytes = archive.media.get(id);
-    if (!backupRow || !bytes) throw new Error(`복원에 필요한 미디어 ${id}가 백업에 없습니다.`);
-    const [current] = await db.select().from(schema.mediaAssets).where(eq(schema.mediaAssets.id, id)).limit(1);
-    if (current) {
-      const currentBytes = await readMediaAssetBytes(current).catch(() => null);
-      if (currentBytes && sha256(currentBytes) === string(backupRow.sha256)) { mediaMap.set(id, id); continue; }
-    }
-    const nextId = current ? crypto.randomUUID() : id;
-    mediaMap.set(id, nextId);
-    newMediaRows.push({ id: nextId, blobUrl: `data:${string(backupRow.mimeType)};base64,${bytes.toString("base64")}`, blobPathname: `database/restore-${nextId}-${safeName(nullableString(backupRow.originalFilename) ?? "image")}`, originalFilename: nullableString(backupRow.originalFilename), sizeBytes: bytes.length, mimeType: string(backupRow.mimeType), width: number(backupRow.width), height: number(backupRow.height) });
   }
 
   return db.transaction(async (tx) => {
-    if (newMediaRows.length) await tx.insert(schema.mediaAssets).values(newMediaRows);
     const fieldMap = new Map<string, string>();
     const taxonMap = new Map<string, string>();
     const requiredFieldIds = new Set<string>();
@@ -141,8 +120,7 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
     for (const selection of selections) {
       const backup = structuredClone(backupDrugs.get(selection.drugId)!);
       backup.sections = backup.sections.map((section) => {
-        const withMedia = rewriteSectionMedia(section, mediaMap);
-        const withTaxa = rewriteSectionTaxa(withMedia, taxonMap);
+        const withTaxa = rewriteSectionTaxa(section, taxonMap);
         return withTaxa.fieldDefinitionId && fieldMap.has(withTaxa.fieldDefinitionId) ? { ...withTaxa, fieldDefinitionId: fieldMap.get(withTaxa.fieldDefinitionId)! } : withTaxa;
       });
       const current = backupDrugSchema.parse(currentById.get(selection.drugId));
@@ -215,7 +193,7 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
       }
       changes.push({ drugId: selection.drugId, koreanName: backup.koreanName, fields: selection.fields });
     }
-    return { restored: changes.length, changes, mediaRestored: newMediaRows.length, warnings: ["선택 필드를 대상으로 한 기존 개념 앵커는 삭제하지 않았습니다. 복원 후 상태를 검토해주세요."] };
+    return { restored: changes.length, changes, mediaRestored: 0, warnings: ["이미지 원본 파일은 현재 복원 대상이 아닙니다.", "선택 필드를 대상으로 한 기존 개념 앵커는 삭제하지 않았습니다. 복원 후 상태를 검토해주세요."] };
   });
 }
 
@@ -227,4 +205,3 @@ function nullableString(value: unknown) { return value == null ? null : string(v
 function array(value: unknown) { if (!Array.isArray(value)) throw new Error("백업의 배열 값이 올바르지 않습니다."); return value; }
 function enumValue<T extends string>(value: unknown, values: readonly T[]) { const result = string(value); if (!values.includes(result as T)) throw new Error("백업의 enum 값이 올바르지 않습니다."); return result as T; }
 function andNameKind(name: string, kind: string) { return and(eq(schema.constituentTaxa.name, name), eq(schema.constituentTaxa.kind, kind)); }
-function safeName(value: string) { return value.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-100) || "image"; }

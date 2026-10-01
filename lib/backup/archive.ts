@@ -34,20 +34,7 @@ const manifestSchema = z.object({
 
 export type BackupManifest = z.infer<typeof manifestSchema>;
 
-export async function createBackupArchive(tables: BackupTables, media: BackupMediaFile[], createdAt = new Date()) {
-  const assetRows = tables["media-assets"].map((row) => {
-    if (!row || typeof row !== "object" || Array.isArray(row) || typeof (row as { id?: unknown }).id !== "string") throw new Error("media-assets 백업 행이 올바르지 않습니다.");
-    return row as { id: string; archivePath?: unknown; sha256?: unknown };
-  });
-  const mediaById = new Map(media.map((item) => [item.id, item]));
-  if (mediaById.size !== media.length) throw new Error("중복된 미디어 ID는 백업할 수 없습니다.");
-  for (const id of collectReferencedMediaIds(tables)) if (!assetRows.some((row) => row.id === id)) throw new Error(`콘텐츠가 참조하는 미디어 ${id}의 metadata가 없어 백업을 중단했습니다.`);
-  for (const row of assetRows) {
-    const file = mediaById.get(row.id);
-    if (!file) throw new Error(`미디어 ${row.id}의 실제 파일이 없어 백업을 중단했습니다.`);
-    if (row.archivePath !== file.archivePath || row.sha256 !== file.sha256 || file.size !== file.bytes.length || file.sha256 !== sha256(file.bytes)) throw new Error(`미디어 ${row.id}의 metadata 또는 checksum이 일치하지 않습니다.`);
-  }
-  if (assetRows.length !== media.length) throw new Error("미디어 metadata와 실제 파일 수가 일치하지 않습니다.");
+export async function createBackupArchive(tables: BackupTables, _media: BackupMediaFile[], createdAt = new Date()) {
   const zip = new JSZip();
   const counts: Record<string, number> = {};
   const files: BackupManifest["files"] = {};
@@ -61,7 +48,6 @@ export async function createBackupArchive(tables: BackupTables, media: BackupMed
     files[path] = { sha256: sha256(content), count: rows.length };
   }
 
-  for (const item of media) zip.file(item.archivePath, item.bytes);
   const manifest: BackupManifest = {
     schema: BACKUP_SCHEMA,
     version: BACKUP_VERSION,
@@ -69,7 +55,9 @@ export async function createBackupArchive(tables: BackupTables, media: BackupMed
     source: { app: "HerbOverflow" },
     counts,
     files,
-    media: { count: media.length, bytes: media.reduce((sum, item) => sum + item.bytes.length, 0), files: media.map((item) => ({ id: item.id, archivePath: item.archivePath, filename: item.filename, mimeType: item.mimeType, width: item.width, height: item.height, size: item.size, sha256: item.sha256 })) },
+    // Keep the v1 media shape so binary backup can be restored later without a
+    // schema migration. Image originals are intentionally excluded for now.
+    media: { count: 0, bytes: 0, files: [] },
     security: { authSecretsExcluded: true, excludedTables: ["session", "account", "verification", "user_invitations"] },
   };
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));

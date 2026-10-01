@@ -22,35 +22,44 @@ function fixture() {
   return { tables, media, bytes };
 }
 
-test("v1 archive includes every content table, actual media bytes, and no auth-secret table", async () => {
-  const { tables, media, bytes } = fixture();
+test("v1 archive includes every database table and excludes media binaries and auth secrets", async () => {
+  const { tables, media } = fixture();
   tables["user-attribution"] = [{ id: "user-1", name: "Editor", email: "editor@example.com" }];
   const { buffer, manifest } = await createBackupArchive(tables, media, new Date("2026-09-23T07:30:00.000Z"));
   const zip = await JSZip.loadAsync(buffer);
   for (const name of BACKUP_TABLE_FILES) assert.ok(zip.file(`database/${name}.json`), `${name} table missing`);
   for (const forbidden of ["session", "account", "verification", "password", "access-token", "refresh-token"]) assert.equal(zip.file(`database/${forbidden}.json`), null);
   assert.equal(manifest.security.authSecretsExcluded, true);
-  assert.deepEqual(await zip.file(media[0].archivePath)!.async("nodebuffer"), bytes);
+  assert.equal(zip.file(media[0].archivePath), null);
+  assert.deepEqual(manifest.media, { count: 0, bytes: 0, files: [] });
+  assert.deepEqual(JSON.parse(await zip.file("database/media-assets.json")!.async("string")), tables["media-assets"]);
 });
 
-test("archive round-trip preserves rich hierarchy and positioned image blocks exactly", async () => {
+test("archive round-trip preserves rich hierarchy, image references, and media metadata", async () => {
   const { tables, media } = fixture();
   const { buffer } = await createBackupArchive(tables, media);
   const parsed = await parseBackupArchive(buffer);
   const drug = backupDrugSchema.parse(parsed.tables["crude-drugs"][0]);
   assert.deepEqual(drug.sections, (tables["crude-drugs"][0] as { sections: unknown }).sections);
-  assert.equal(parsed.media.get(mediaId)?.toString(), "real-image-bytes");
+  assert.deepEqual(parsed.tables["media-assets"], tables["media-assets"]);
+  assert.equal(parsed.media.size, 0);
+  assert.deepEqual(parsed.manifest.media, { count: 0, bytes: 0, files: [] });
 });
 
-test("backup creation fails visibly when media metadata has no actual bytes", async () => {
+test("backup creation succeeds when media metadata has no actual bytes", async () => {
   const { tables } = fixture();
-  await assert.rejects(() => createBackupArchive(tables, []), /실제 파일이 없어/);
+  const { buffer } = await createBackupArchive(tables, []);
+  const parsed = await parseBackupArchive(buffer);
+  assert.equal(parsed.media.size, 0);
+  assert.equal(parsed.tables["media-assets"].length, 1);
 });
 
-test("backup creation rejects a content reference whose media metadata is missing", async () => {
+test("backup creation succeeds when a content media reference has no metadata row", async () => {
   const tables = emptyTables();
   tables["crude-drugs"] = [{ sections: [{ blocks: [{ type: "image", mediaAssetId: mediaId }] }] }];
-  await assert.rejects(() => createBackupArchive(tables, []), /metadata가 없어/);
+  const { buffer } = await createBackupArchive(tables, []);
+  const parsed = await parseBackupArchive(buffer);
+  assert.deepEqual(parsed.tables["crude-drugs"], tables["crude-drugs"]);
 });
 
 test("media reference collection ignores orphan media metadata", () => {
@@ -60,13 +69,12 @@ test("media reference collection ignores orphan media metadata", () => {
   assert.deepEqual([...collectReferencedMediaIds(tables)], [mediaId]);
 });
 
-test("missing media and incompatible manifests are rejected", async () => {
+test("a zero-media archive parses normally and incompatible manifests are rejected", async () => {
   const { tables, media } = fixture();
   const { buffer } = await createBackupArchive(tables, media);
-  const missingZip = await JSZip.loadAsync(buffer);
-  missingZip.remove(media[0].archivePath);
-  const missingBuffer = await missingZip.generateAsync({ type: "nodebuffer" });
-  await assert.rejects(() => parseBackupArchive(missingBuffer), /미디어 파일/);
+  const parsed = await parseBackupArchive(buffer);
+  assert.equal(parsed.manifest.media.count, 0);
+  assert.equal(parsed.media.size, 0);
   const incompatibleZip = await JSZip.loadAsync(buffer);
   const manifest = JSON.parse(await incompatibleZip.file("manifest.json")!.async("string"));
   manifest.version = 99;

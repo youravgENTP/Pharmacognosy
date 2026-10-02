@@ -341,7 +341,7 @@ h1 { font-weight: 750; letter-spacing: -.035em; }
 .drug-profile { background: white; min-height: 100vh; }
 .drug-profile.standalone { width: min(820px, calc(100% - 48px)); margin: 32px auto; min-height: calc(100vh - 64px); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
 .profile-toolbar { height: 55px; padding: 0 62px 0 34px; border-bottom: 1px solid #eef0f3; display: flex; align-items: center; justify-content: flex-end; position: sticky; top: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); z-index: 3; }
-.profile-identity { position: sticky; top: 0; z-index: 20; padding: 35px 44px 30px; border-bottom: 1px solid var(--line); background: #171b1f; }
+.profile-identity { position: relative; padding: 35px 44px 30px; border-bottom: 1px solid var(--line); background: #171b1f; }
 .profile-name-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 25px; }
 .profile-name-fields { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
 .profile-korean-name, .profile-latin-name { border: 0; padding: 0; box-shadow: none !important; background: transparent; }
@@ -564,6 +564,13 @@ html, body { background: var(--paper); color: var(--ink); }
 .profile-name-fields { display: grid; gap: 8px; }
 .profile-controls { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; padding-top: 1px; }
 .importance-select { min-width: 0; width: auto; height: 34px; border-radius: 7px; padding: 0 28px 0 11px; font-size: 13px; font-weight: 750; }
+.importance-control { --priority-dot: #7c9a82; position: relative; height: 34px; min-width: 86px; display: inline-flex; align-items: center; border: 1px solid #8fa793; border-radius: 7px; background: #f5f2e8; color: #365642; overflow: hidden; }
+.importance-control.importance-important { --priority-dot: #a9655d; background: #f5eee5; }
+.importance-control.importance-medium { --priority-dot: #b49352; background: #f4f1e6; }
+.importance-control.importance-low { --priority-dot: #78927c; background: #edf2e9; }
+.importance-control .importance-dot { position: absolute; left: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--priority-dot); pointer-events: none; }
+.importance-control .importance-select { width: 100%; height: 100%; min-width: 84px; padding: 0 27px 0 23px; border: 0; border-radius: 0; background: transparent; color: inherit; box-shadow: none; text-align: left; text-align-last: left; }
+.importance-control:focus-within { border-color: #66866d; box-shadow: 0 0 0 3px rgba(95,138,112,.16); }
 .save-status { height: 34px; padding: 0 11px; border: 1px solid #38404a; border-radius: 7px; background: #20252b; color: #d4d8dd; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 750; }
 .save-status:disabled { cursor: default; opacity: 1; }
 .save-status .dot { width: 8px; height: 8px; background: #db5757; }
@@ -620,6 +627,26 @@ html, body { background: var(--paper); color: var(--ink); }
 .origin-row button { width: 28px; height: 28px; justify-content: center; }
 .origin-row button:hover { color: #e47777; }
 .origin-add { width: fit-content; padding: 4px 0; color: #8db8f5; font-size: 12px; }
+
+/* Read-only, model-driven Data Card minimap. It is portaled beside the modal. */
+.data-card-minimap { position: fixed; z-index: 112; padding: 8px; border: 1px solid rgba(111,143,118,.72); border-radius: 14px; background: rgba(246,244,235,.9); box-shadow: 0 12px 34px rgba(17,45,30,.18); opacity: .78; user-select: none; -webkit-user-select: none; transition: opacity .16s ease, box-shadow .16s ease; }
+.data-card-minimap:hover { opacity: .96; box-shadow: 0 15px 38px rgba(17,45,30,.24); }
+.data-card-minimap-track { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 8px; background: #fbfaf5; cursor: pointer; touch-action: none; }
+.data-card-minimap-document { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
+.data-card-mini-identification, .data-card-mini-section { min-height: 0; flex-basis: 0; overflow: hidden; }
+.data-card-mini-identification { padding: 7px 7px 5px; display: flex; flex-direction: column; gap: 3px; border-bottom: 1px solid #ced9cb; background: #eef2e8; }
+.data-card-mini-name { width: 55%; height: 4px; margin-bottom: 2px; border-radius: 3px; background: #41644d; }
+.data-card-mini-line { height: 2px; flex: 0 0 2px; border-radius: 2px; background: #9bb09d; }
+.data-card-mini-section { padding: 4px 7px 3px; border-bottom: 1px solid rgba(153,174,155,.45); background: rgba(255,255,255,.56); }
+.data-card-mini-heading { display: block; height: 3px; margin-bottom: 3px; border-radius: 2px; background: #54745c; }
+.data-card-mini-blocks { height: calc(100% - 6px); display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.data-card-mini-text, .data-card-mini-list { display: grid; gap: 1px; }
+.data-card-mini-text i, .data-card-mini-list i { display: block; height: 1px; border-radius: 1px; background: #aab8a9; }
+.data-card-mini-list i::before { content: ""; display: block; width: 1px; height: 1px; margin-left: -3px; border-radius: 50%; background: #758b79; }
+.data-card-mini-image { display: block; min-height: 8px; flex: 1 1 18px; border: 1px solid #a8b8a7; border-radius: 2px; background: linear-gradient(145deg, #dfe7db, #c7d5c6); }
+.data-card-mini-table { min-height: 10px; flex: 1 1 18px; border: 1px solid #9eb09e; background-image: linear-gradient(to right, transparent calc(100% - 1px), #b9c6b8 calc(100% - 1px)), linear-gradient(to bottom, transparent calc(100% - 1px), #b9c6b8 calc(100% - 1px)); background-size: calc(100% / var(--mini-columns)) 100%, 100% calc(100% / var(--mini-rows)); }
+.data-card-minimap-viewport { position: absolute; z-index: 2; inset: 0 0 auto; min-height: 18px; border: 1px solid rgba(46,103,67,.82); border-radius: 4px; background: rgba(83,137,96,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.55); cursor: grab; touch-action: none; will-change: transform; }
+.data-card-minimap-viewport:active { cursor: grabbing; background: rgba(83,137,96,.25); }
 .autocomplete-anchor { position: relative; }
 .family-row { width: min(520px, 100%); display: grid; grid-template-columns: minmax(130px,.65fr) minmax(180px,1fr); align-items: center; gap: 8px; }
 .identity-suggestions { position: absolute; z-index: 55; top: calc(100% + 4px); left: 0; width: min(520px, calc(100vw - 90px)); max-height: 260px; overflow-y: auto; padding: 5px; border: 1px solid #3a424c; border-radius: 9px; background: #111519; box-shadow: 0 14px 38px rgba(0,0,0,.5); }

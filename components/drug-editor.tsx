@@ -3,7 +3,7 @@
 import { Check, ChevronDown, ChevronRight, Download, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FieldInputMode, ImportanceLevel, OriginPlant, StudyItem, StudySection } from "@/lib/db/schema";
 import { StudyContentEditor } from "@/components/study-content-editor";
 import { DrugMnemonicVersions } from "@/components/drug-mnemonic-versions";
@@ -11,6 +11,7 @@ import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
 import { ConceptBoundary, conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 import { taxonomyIndent } from "@/lib/constituent-taxonomy";
 import { appendStudyItem } from "@/lib/study-blocks";
+import { DataCardMinimap } from "@/components/data-card-minimap";
 
 type DrugDraft = {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
@@ -48,6 +49,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   const draftRef = useRef(draft);
   const revision = useRef(0);
   const timer = useRef<number | undefined>(undefined);
+  const profileRef = useRef<HTMLDivElement>(null);
   draftRef.current = draft;
 
   async function persist(value = draftRef.current, expectedRevision = revision.current) {
@@ -128,12 +130,21 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     }
     router.push(`/export?drugId=${encodeURIComponent(id)}`);
   }
+  const minimapSections = useMemo(() => draft.sections.map((section) => ({ ...section, title: fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.name ?? section.title })), [draft.sections, fieldDefinitions]);
+  const minimapIdentification = useMemo(() => ({
+    hasLatinName: Boolean(draft.latinName),
+    originCount: draft.origins.length || Number(Boolean(draft.origin)),
+    hasFamily: Boolean(draft.familyId || family),
+    relatedCount: relatedDrugs.length,
+    similarCount: similarDrugs.length,
+    identityTermCount: identityTerms.length,
+  }), [draft.latinName, draft.origins.length, draft.origin, draft.familyId, family, relatedDrugs.length, similarDrugs.length, identityTerms.length]);
 
-  return <div className={`drug-profile ${modal ? "in-modal" : "standalone"}`}>
+  return <div className={`drug-profile ${modal ? "in-modal" : "standalone"}`} ref={profileRef}>
     <section className="profile-identity indicator-field">
       <div className="profile-name-row">
         <div className="profile-name-fields"><AnchorableInput className="profile-korean-name" value={draft.koreanName} onChange={(value) => setField("koreanName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "koreanName" } }} aria-label="생약명"/><AnchorableInput className="profile-latin-name" value={draft.latinName ?? ""} onChange={(value) => setField("latinName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "latinName" } }} placeholder="Latin name" aria-label="Latin name"/></div>
-        <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><select className={`importance-select importance-${importanceClass(draft.importance)}`} value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
+        <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><label className={`importance-control importance-${importanceClass(draft.importance)}`}><span className="importance-dot" aria-hidden="true"/><select className="importance-select" aria-label="중요도" value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
       </div>
       <div className="identity-lines">
         <IndicatorLine label="기원"><OriginEditor drugId={id} origins={draft.origins} legacyOrigin={draft.origin} suggestions={identitySuggestions.origins} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>
@@ -157,6 +168,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     {pickerSectionId ? <ConstituentPicker nodes={constituentData.nodes} edges={constituentData.edges} onChoose={chooseConstituent} onClose={() => setPickerSectionId(undefined)}/> : null}
     {relationshipPicker ? <RelatedDrugPicker type={relationshipPicker} drugs={availableDrugs} onChoose={(targetId) => addRelationship(targetId, relationshipPicker)} onCreate={(name) => createAndRelate(name, relationshipPicker)} onClose={() => setRelationshipPicker(undefined)}/> : null}
     {fieldPickerOpen ? <FieldPicker definitions={fieldDefinitions} sections={draft.sections} onDefinitionsChange={setFieldDefinitions} onSave={applyDefinitions} onClose={() => setFieldPickerOpen(false)}/> : null}
+    {modal ? <DataCardMinimap rootRef={profileRef} identification={minimapIdentification} sections={minimapSections}/> : null}
   </div>;
 }
 

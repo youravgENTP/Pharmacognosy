@@ -15,10 +15,10 @@ export async function createCardsDocx(cards: PdfCard[], columns: 1 | 2) {
     const prefix = card.exportIndex ? `${card.exportIndex}. ` : "";
     const latinName = card.latinName ? ` (${card.latinName})` : "";
     children.push(new Paragraph({
-      keepNext: Boolean(card.fields.length),
+      keepNext: Boolean(card.fields.length) || card.role === "section",
       keepLines: true,
-      spacing: { before: cardIndex ? 180 : 0, after: 0 },
-      children: [new TextRun({ text: `${prefix}${card.title}${latinName}`, bold: true, size: BODY_SIZE, font: BODY_FONT })],
+      spacing: { before: cardIndex ? card.role === "section" ? 300 : 180 : 0, after: 0 },
+      children: [new TextRun({ text: `${prefix}${card.title}${latinName}`, bold: true, size: card.role === "cover" ? 30 : card.role === "section" ? 24 : BODY_SIZE, color: card.role === "section" ? "215F9D" : "000000", font: BODY_FONT })],
     }));
     for (const field of card.fields) children.push(...fieldParagraphs(field, contentWidthTwips));
   }

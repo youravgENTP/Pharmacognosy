@@ -8,7 +8,7 @@ export type PdfLine = { text: string; html?: string; runs?: InlineTextRun[]; ind
 export type PdfImage = { buffer: Buffer; width: number; height: number; widthPercent?: number; xPercent?: number; align?: "left" | "center" | "right"; caption?: string };
 export type PdfTable = { rows: number; columns: number; cells: Record<string, { text: string; html?: string; bold?: boolean; italic?: boolean; strikethrough?: boolean; highlight?: string; textColor?: string; horizontal?: "left" | "center" | "right"; vertical?: "top" | "middle" | "bottom" }>; rowSizes: number[]; columnSizes: number[]; mergedRanges: { startRow: number; startColumn: number; endRow: number; endColumn: number }[] };
 export type PdfField = { title: string; lines: PdfLine[]; images?: PdfImage[]; table?: PdfTable };
-export type PdfCard = { title: string; subtitle?: string; exportIndex?: string; latinName?: string; fields: PdfField[] };
+export type PdfCard = { title: string; subtitle?: string; exportIndex?: string; latinName?: string; sourceId?: string; role?: "cover" | "section"; fields: PdfField[] };
 
 // next.config.ts explicitly traces these files into the Vercel server function.
 const fontPackageRoot = path.join(process.cwd(), "node_modules", "@fontsource", "noto-sans-kr", "files");
@@ -37,11 +37,12 @@ export async function createCardsPdf(cards: PdfCard[], columns: 1 | 2) {
     }
     const flow = new PdfColumnFlow(doc, columns);
     for (const [cardIndex, card] of cards.entries()) {
-      const headerHeight = flow.textHeight(card.title, 19, true) + (card.subtitle ? flow.textHeight(card.subtitle, 9, false) : 0) + 13;
+      const titleSize = card.role === "cover" ? 24 : card.role === "section" ? 15 : 19;
+      const headerHeight = flow.textHeight(card.title, titleSize, true) + (card.subtitle ? flow.textHeight(card.subtitle, 9, false) : 0) + 13;
       const firstHeight = card.fields[0] ? flow.fieldHeight(card.fields[0]) : 0;
-      flow.ensure(Math.min(flow.capacity, headerHeight + firstHeight));
-      if (cardIndex) flow.gap(12);
-      flow.text(card.title, { size: 19, bold: true, color: "#14243a", gapAfter: 2 });
+      flow.ensure(Math.min(flow.capacity, headerHeight + firstHeight + (card.role === "section" ? 40 : 0)));
+      if (cardIndex) flow.gap(card.role === "section" ? 18 : 12);
+      flow.text(card.title, { size: titleSize, bold: true, color: card.role === "section" ? "#215f9d" : "#14243a", gapAfter: 2 });
       if (card.subtitle) flow.text(card.subtitle, { size: 9, color: "#5d6b7b", gapAfter: 8 });
       for (const field of card.fields) flow.field(field);
     }

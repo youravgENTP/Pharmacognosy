@@ -492,6 +492,9 @@ html, body { background: var(--paper); color: var(--ink); }
 .group-drug-row .drug-row-main b { color: #8b97a4; font-size: 16px; font-weight: 750; font-variant-numeric: tabular-nums; }
 .group-drug-row .drug-row-main strong { font-size: 16px; }
 .group-drug-row small { margin-left: 38px; color: #7f8994; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-drug-row .drug-search-matches { margin-left: 38px; display: grid; gap: 2px; min-width: 0; }
+.group-drug-row .drug-search-matches small { margin-left: 0; font-style: normal; }
+.group-drug-row .drug-search-matches b { color: var(--accent); font-weight: 750; }
 
 /* Dark profile card and compact document hierarchy */
 .modal-backdrop { background: rgba(4,6,8,.76); }
@@ -829,6 +832,9 @@ html, body { background: var(--paper); color: var(--ink); }
 .families-detail { min-width: 0; }
 .family-card { min-height: 620px; padding: 34px; }
 .family-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 30px; border-bottom: 1px solid #2d333a; }
+.family-card-controls { display: flex; align-items: center; gap: 8px; }
+.family-card-controls .data-card-export { height: 34px; border: 1px solid; border-radius: 7px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; }
+.family-card-controls .data-card-export:disabled { opacity: .45; cursor: not-allowed; }
 .family-card-names { flex: 1; display: grid; gap: 8px; }
 .family-card-names > input { width: 100%; border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 3px 2px; background: transparent; color: #edf0f4; box-shadow: none !important; }
 .family-card-names > input:focus { border-bottom-color: #608fcf; }
@@ -841,6 +847,19 @@ html, body { background: var(--paper); color: var(--ink); }
 .family-summary-title h2 { margin: 0; font-size: 21px; }
 .family-summary-title span { color: #69727d; font-size: 11px; }
 .family-empty { min-height: 620px; color: #7f8994; display: grid; place-items: center; }
+.family-export-dialog { width: min(480px, calc(100vw - 32px)); border: 1px solid var(--border-strong); border-radius: 14px; padding: 20px; background: var(--surface); box-shadow: 0 28px 80px rgba(0,0,0,.58); }
+.family-export-dialog > header, .family-export-dialog > header > span { display: flex; align-items: flex-start; gap: 10px; }
+.family-export-dialog > header { justify-content: space-between; }
+.family-export-dialog h2 { margin: 0; font-size: 19px; }
+.family-export-dialog p { margin: 5px 0 0; color: var(--text-muted); font-size: 12px; }
+.family-export-dialog > header > button { border: 0; background: transparent; color: var(--text-secondary); }
+.family-export-options { margin-top: 20px; display: grid; gap: 10px; }
+.family-export-options label { display: grid; grid-template-columns: 120px minmax(0,1fr); align-items: center; gap: 10px; color: var(--text-secondary); font-size: 12px; }
+.family-export-options select { border: 1px solid var(--border-strong); border-radius: 7px; padding: 8px 10px; background: var(--input-bg); color: var(--user-content-text); }
+.family-export-dialog .data-export-error { color: var(--control-danger-text); }
+.family-export-dialog footer { margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px; }
+.family-export-dialog footer button { border: 1px solid var(--control-border); border-radius: 7px; padding: 8px 11px; background: var(--control-bg); color: var(--control-text); display: inline-flex; align-items: center; gap: 6px; }
+.family-export-dialog footer button.primary { border-color: var(--accent); background: var(--accent); color: white; }
 .families-detail .drug-profile.standalone { margin: 0; max-width: none; }
 @media (max-width: 1000px) { .families-layout { grid-template-columns: 1fr; } .families-tree-panel, .family-card, .family-empty { min-height: 0; } }
 

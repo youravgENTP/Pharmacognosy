@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileText, Plus, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DrugEditor } from "@/components/drug-editor";
 import { StudyContentEditor } from "@/components/study-content-editor";
@@ -100,6 +100,7 @@ function NewFamilyForm({ onCreate, onCancel }: { onCreate: (koreanName: string, 
 function FamilyCard({ family, onUpdate }: { family: Family; onUpdate: (family: Family) => void }) {
   const [draft, setDraft] = useState(family);
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
+  const [exportOpen, setExportOpen] = useState(false);
   const first = useRef(true); const timer = useRef<number | undefined>(undefined); const revision = useRef(0);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -113,9 +114,35 @@ function FamilyCard({ family, onUpdate }: { family: Family; onUpdate: (family: F
   }, [draft, onUpdate]);
   function change<K extends keyof Family>(key: K, value: Family[K]) { const next = { ...draft, [key]: value }; setDraft(next); onUpdate(next); }
   return <article className="family-card panel">
-    <header className="family-card-header"><div className="family-card-names"><input className="family-korean-name" value={draft.koreanName} onChange={(event) => change("koreanName", event.target.value)}/><input className="family-scientific-name" value={draft.scientificName} onChange={(event) => change("scientificName", event.target.value)} aria-label="Scientific family name"/><label>Accepted name<input value={draft.acceptedScientificName ?? ""} onChange={(event) => change("acceptedScientificName", event.target.value || null)} placeholder="선택 사항"/></label></div><span className={`status ${status}`}><span className="dot"/>{status === "saved" ? "Saved" : status === "saving" ? "Saving" : status === "error" ? "Error" : "Save"}</span></header>
+    <header className="family-card-header"><div className="family-card-names"><input className="family-korean-name" value={draft.koreanName} onChange={(event) => change("koreanName", event.target.value)}/><input className="family-scientific-name" value={draft.scientificName} onChange={(event) => change("scientificName", event.target.value)} aria-label="Scientific family name"/><label>Accepted name<input value={draft.acceptedScientificName ?? ""} onChange={(event) => change("acceptedScientificName", event.target.value || null)} placeholder="선택 사항"/></label></div><div className="family-card-controls"><button className="data-card-export" disabled={status !== "saved" || !draft.drugs.length} onClick={() => setExportOpen(true)} title={status !== "saved" ? "저장이 완료된 뒤 내보낼 수 있습니다." : undefined}><Download size={14}/> Export</button><span className={`status ${status}`}><span className="dot"/>{status === "saved" ? "Saved" : status === "saving" ? "Saving" : status === "error" ? "Error" : "Save"}</span></div></header>
     <section className="family-summary"><div className="family-summary-title"><h2>Summary</h2><span>i) → ① → a) → •</span></div><StudyContentEditor items={draft.summary} blocks={draft.summaryBlocks} mode="hierarchy4" onChange={({ items, blocks }) => { const next = { ...draft, summary: items, summaryBlocks: blocks }; setDraft(next); onUpdate(next); }}/></section>
+    {exportOpen ? <FamilyExportDialog family={draft} onClose={() => setExportOpen(false)}/> : null}
   </article>;
+}
+
+function FamilyExportDialog({ family, onClose }: { family: Family; onClose: () => void }) {
+  const [format, setFormat] = useState<"docx" | "pdf">("docx");
+  const [columns, setColumns] = useState<1 | 2>(2);
+  const [mnemonicMode, setMnemonicMode] = useState<"preferred" | "mine" | "none" | "all">("preferred");
+  const [busy, setBusy] = useState(false); const [error, setError] = useState<string>();
+  async function download() {
+    if (busy) return;
+    setBusy(true); setError(undefined);
+    try {
+      const response = await fetch(`/api/export/families/${family.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ format, columns, mnemonicMode }) });
+      if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(typeof body.error === "string" ? body.error : "Family 파일을 생성하지 못했습니다."); }
+      const blob = await response.blob();
+      const expected = format === "docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf";
+      if (!blob.size || blob.type !== expected) throw new Error(`${format.toUpperCase()} 응답 형식이 올바르지 않습니다.`);
+      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `HerbOverflow-${family.koreanName}.${format}`; anchor.style.display = "none";
+      document.body.appendChild(anchor); anchor.click();
+      window.setTimeout(() => { URL.revokeObjectURL(url); anchor.remove(); }, 30_000);
+      onClose();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Family 파일을 생성하지 못했습니다."); }
+    finally { setBusy(false); }
+  }
+  return <div className="constituent-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}><section className="family-export-dialog export-dialog"><header><span><FileText size={19}/><div><h2>Family Export</h2><p>{family.koreanName} · {family.scientificName} · {family.drugs.length}개 생약</p></div></span><button onClick={onClose} disabled={busy} aria-label="닫기"><X size={18}/></button></header><div className="family-export-options"><label>파일 형식<select value={format} onChange={(event) => setFormat(event.target.value as "docx" | "pdf")}><option value="docx">Word DOCX</option><option value="pdf">PDF</option></select></label><label>레이아웃<select value={columns} onChange={(event) => setColumns(Number(event.target.value) as 1 | 2)}><option value={1}>1 column</option><option value={2}>2 columns</option></select></label><label>암기법<select value={mnemonicMode} onChange={(event) => setMnemonicMode(event.target.value as typeof mnemonicMode)}><option value="preferred">Preferred/default mnemonic</option><option value="mine">My mnemonic</option><option value="none">No mnemonic</option><option value="all">All mnemonic versions</option></select></label></div><p>Family summary와 류별 소속 생약을 현재 Data Card 형식으로 내보냅니다.</p>{error ? <p className="data-export-error" role="alert">{error}</p> : null}<footer><button disabled={busy} onClick={onClose}>취소</button><button className="primary" disabled={busy} onClick={() => void download()}><Download size={15}/>{busy ? "생성 중…" : `${format.toUpperCase()} 내보내기`}</button></footer></section></div>;
 }
 
 function DrugDetail({ id }: { id: string }) {

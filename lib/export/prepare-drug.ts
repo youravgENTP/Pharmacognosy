@@ -45,6 +45,7 @@ export async function prepareDrugExportCard(
   for (const section of drug.sections.filter((section) => section.title !== "암기법" && (!section.fieldDefinitionId || activeFieldIds.has(section.fieldDefinitionId)))) fields.push(await prepareStudyField(drugId, section.title, section.items, section.blocks ?? [], loadMedia, warn));
   for (const mnemonic of mnemonics) fields.push(await prepareStudyField(drugId, mnemonics.length > 1 ? `암기법 · ${mnemonic.userName}` : "암기법", mnemonic.items, mnemonic.blocks, loadMedia, warn, true));
   return {
+    sourceId: drugId,
     title: drug.koreanName,
     subtitle: [drug.latinName, drug.importance].filter(Boolean).join(" · "),
     exportIndex: drug.catalogIndex != null || drug.referenceIndex != null ? formatDrugIndex(drug.catalogIndex ?? null, drug.referenceIndex ?? null) : undefined,

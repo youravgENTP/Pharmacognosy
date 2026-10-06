@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsLeft, ChevronsRight, Download, Flower2, Layers3, Leaf, LogOut, PanelsTopLeft, Settings, UserRound } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Download, Flower2, Layers3, Leaf, LogOut, Network, PanelsTopLeft, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -11,6 +11,7 @@ import { authClient } from "@/lib/auth-client";
 
 const links = [
   { href: "/", label: "Herb Garden", icon: Leaf },
+  { href: "/relationships", label: "Relations", icon: Network },
   { href: "/constituents", label: "Compound Tree", icon: TaxonomyIcon },
   { href: "/families", label: "Families", icon: Flower2 },
   { href: "/collections", label: "Collections", icon: Layers3 },

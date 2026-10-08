@@ -18,7 +18,7 @@ type MnemonicVersion = {
 type MnemonicContent = { items: StudyItem[]; blocks: StudyBlock[] };
 const NEW_MINE = "__new_mine__";
 
-export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef }: { drugId: string; onRemove: () => void; manualSaveRef?: React.MutableRefObject<(() => Promise<boolean>) | null> }) {
+export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveStatusChange }: { drugId: string; onRemove: () => void; manualSaveRef?: React.MutableRefObject<(() => Promise<boolean>) | null>; onSaveStatusChange?: (status: "saved" | "dirty" | "saving" | "error") => void }) {
   const [versions, setVersions] = useState<MnemonicVersion[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -72,6 +72,8 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef }: { drug
   // The registered function reads refs and therefore does not need re-registration.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualSaveRef]);
+  useEffect(() => { onSaveStatusChange?.(status); }, [onSaveStatusChange, status]);
+  useEffect(() => () => onSaveStatusChange?.("saved"), [onSaveStatusChange]);
 
   function selectVersion(userId: string) {
     window.clearTimeout(timer.current);

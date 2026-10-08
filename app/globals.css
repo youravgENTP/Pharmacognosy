@@ -338,6 +338,7 @@ h1 { font-weight: 750; letter-spacing: -.035em; }
 .profile-modal-body { width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; }
 .modal-close { position: absolute; top: 17px; right: 18px; z-index: 30; border: 0; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #f0f2f5; color: #59616c; }
 .modal-close:hover { background: #e3e7ec; color: #171b22; }
+.modal-close:disabled { cursor: not-allowed; opacity: .35; }
 .drug-profile { background: white; min-height: 100vh; }
 .drug-profile.standalone { width: min(820px, calc(100% - 48px)); margin: 32px auto; min-height: calc(100vh - 64px); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
 .profile-toolbar { height: 55px; padding: 0 62px 0 34px; border-bottom: 1px solid #eef0f3; display: flex; align-items: center; justify-content: flex-end; position: sticky; top: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); z-index: 3; }
@@ -576,6 +577,8 @@ html, body { background: var(--paper); color: var(--ink); }
 .save-status .dot { width: 8px; height: 8px; background: #db5757; }
 .save-status.saved .dot { background: #45a879; }
 .save-status.saving .dot { background: #db5757; animation: pulse 1s infinite; }
+.data-card-saved-toast { position: fixed; z-index: 220; left: 50%; bottom: 28px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid rgba(89,190,137,.4); border-radius: 999px; background: rgba(20,42,31,.96); color: #9be0ba; box-shadow: 0 10px 30px rgba(0,0,0,.35); font-size: 12px; font-weight: 800; animation: saved-toast-in .16s ease-out; }
+@keyframes saved-toast-in { from { opacity: 0; transform: translate(-50%, 5px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .modal-close { top: 40px; right: 40px; width: 34px; height: 34px; }
 .indicator-field .identity-line input { background: transparent !important; border-color: transparent; color: #e7eaee; }
 .indicator-field .identity-line input:focus { border-bottom-color: #608fcf; }

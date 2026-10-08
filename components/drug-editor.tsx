@@ -11,6 +11,7 @@ import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
 import { ConceptBoundary, conceptTargetAttributes, type ConceptTarget, useConceptEngine } from "@/components/concept-engine";
 import { taxonomyIndent } from "@/lib/constituent-taxonomy";
 import { appendStudyItem } from "@/lib/study-blocks";
+import { useDataCardSaveGuard } from "@/components/data-card-save-guard";
 
 type DrugDraft = {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
@@ -32,8 +33,15 @@ export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary own
 function DrugEditorContent({ id, initial, family, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
   const router = useRouter();
   const concepts = useConceptEngine();
+  const { setBlocked } = useDataCardSaveGuard();
   const [draft, setDraft] = useState(initial);
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
+  const [mnemonicStatus, setMnemonicStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
+  const [manualSavePending, setManualSavePending] = useState(false);
+  const [manualSaveError, setManualSaveError] = useState(false);
+  const [relationshipPending, setRelationshipPending] = useState(0);
+  const [identityPending, setIdentityPending] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
   const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinition[]>([]);
   const [constituentData, setConstituentData] = useState<{ nodes: Taxon[]; edges: TaxonEdge[] }>({ nodes: [], edges: [] });
   const [identitySuggestions, setIdentitySuggestions] = useState<{ origins: OriginSuggestion[]; families: FamilySuggestion[] }>({ origins: [], families: [] });
@@ -51,7 +59,9 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
   const manualSaving = useRef(false);
   const mnemonicManualSave = useRef<(() => Promise<boolean>) | null>(null);
+  const hadUnsavedChanges = useRef(false);
   draftRef.current = draft;
+  const leaveBlocked = status !== "saved" || mnemonicStatus !== "saved" || manualSavePending || manualSaveError || relationshipPending > 0 || identityPending;
 
   function persist(value = draftRef.current, expectedRevision = revision.current) {
     const snapshot = structuredClone(value);
@@ -94,6 +104,38 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   // manualSave reads mutable refs so the shortcut always saves the newest editor state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin, id]);
+  useEffect(() => {
+    setBlocked(leaveBlocked);
+    return () => setBlocked(false);
+  }, [leaveBlocked, setBlocked]);
+  useEffect(() => {
+    if (leaveBlocked) {
+      hadUnsavedChanges.current = true;
+      setShowSaved(false);
+      return;
+    }
+    if (!hadUnsavedChanges.current) return;
+    hadUnsavedChanges.current = false;
+    setShowSaved(true);
+    const hide = window.setTimeout(() => setShowSaved(false), 1600);
+    return () => window.clearTimeout(hide);
+  }, [leaveBlocked]);
+  useEffect(() => {
+    if (!leaveBlocked) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const blockLink = (event: MouseEvent) => {
+      if ((event.target as Element | null)?.closest("a[href]")) event.preventDefault();
+    };
+    const blockBack = () => window.history.forward();
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", blockLink, true);
+    window.addEventListener("popstate", blockBack);
+    return () => {
+      window.removeEventListener("beforeunload", beforeUnload);
+      document.removeEventListener("click", blockLink, true);
+      window.removeEventListener("popstate", blockBack);
+    };
+  }, [leaveBlocked]);
 
   const setField = <K extends keyof DrugDraft>(key: K, value: DrugDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   function fieldName(section: StudySection) { return fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.name ?? section.title; }
@@ -113,25 +155,35 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   async function addRelationship(targetId: string, type: RelationshipType, supplied?: AvailableDrug) {
     const target = supplied ?? availableDrugs.find((drug) => drug.id === targetId);
     if (!target) return;
-    const response = await fetch(`/api/drugs/${id}/relationships`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetId, type }) });
-    if (!response.ok) { const body = await response.json(); window.alert(body.error ?? "연결하지 못했습니다."); return; }
-    const created = await response.json();
-    const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs;
-    setter((current) => [...current, { id: created.id, drugId: target.id, catalogIndex: target.catalogIndex, referenceIndex: target.referenceIndex, name: target.name, latinName: target.latinName }]);
-    setAvailableDrugs((current) => current.filter((drug) => drug.id !== targetId));
-    setRelationshipPicker(undefined);
+    setRelationshipPending((current) => current + 1);
+    try {
+      const response = await fetch(`/api/drugs/${id}/relationships`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetId, type }) });
+      if (!response.ok) { const body = await response.json(); window.alert(body.error ?? "연결하지 못했습니다."); return; }
+      const created = await response.json();
+      const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs;
+      setter((current) => [...current, { id: created.id, drugId: target.id, catalogIndex: target.catalogIndex, referenceIndex: target.referenceIndex, name: target.name, latinName: target.latinName }]);
+      setAvailableDrugs((current) => current.filter((drug) => drug.id !== targetId));
+      setRelationshipPicker(undefined);
+    } finally { setRelationshipPending((current) => Math.max(0, current - 1)); }
   }
   async function createAndRelate(name: string, type: RelationshipType) {
-    const response = await fetch("/api/reference-drugs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ koreanName: name }) });
-    const created = await response.json(); if (!response.ok) { window.alert(created.error ?? "참고 생약을 만들지 못했습니다."); return; }
-    await addRelationship(created.id, type, { id: created.id, catalogIndex: created.catalogIndex, referenceIndex: created.referenceIndex, name: created.koreanName, latinName: created.latinName });
+    setRelationshipPending((current) => current + 1);
+    try {
+      const response = await fetch("/api/reference-drugs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ koreanName: name }) });
+      const created = await response.json(); if (!response.ok) { window.alert(created.error ?? "참고 생약을 만들지 못했습니다."); return; }
+      await addRelationship(created.id, type, { id: created.id, catalogIndex: created.catalogIndex, referenceIndex: created.referenceIndex, name: created.koreanName, latinName: created.latinName });
+    } finally { setRelationshipPending((current) => Math.max(0, current - 1)); }
   }
   async function removeRelated(relationshipId: string, type: RelationshipType) {
     const list = type === "연관생약" ? relatedDrugs : similarDrugs; const related = list.find((item) => item.id === relationshipId);
     if (await concepts?.breakTarget({ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: type, relationId: relationshipId } }) === false) return;
-    await fetch(`/api/drugs/${id}/relationships`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ relationshipId }) });
-    const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs; setter((current) => current.filter((item) => item.id !== relationshipId));
-    if (related) setAvailableDrugs((current) => [...current, { id: related.drugId, catalogIndex: related.catalogIndex, referenceIndex: related.referenceIndex, name: related.name, latinName: related.latinName }].sort(sortDrug));
+    setRelationshipPending((current) => current + 1);
+    try {
+      const response = await fetch(`/api/drugs/${id}/relationships`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ relationshipId }) });
+      if (!response.ok) { window.alert("연결을 해제하지 못했습니다."); return; }
+      const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs; setter((current) => current.filter((item) => item.id !== relationshipId));
+      if (related) setAvailableDrugs((current) => [...current, { id: related.drugId, catalogIndex: related.catalogIndex, referenceIndex: related.referenceIndex, name: related.name, latinName: related.latinName }].sort(sortDrug));
+    } finally { setRelationshipPending((current) => Math.max(0, current - 1)); }
   }
   function chooseConstituent(taxon: Taxon) {
     if (!pickerSectionId) return;
@@ -143,21 +195,26 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   async function manualSave() {
     if (manualSaving.current) return;
     manualSaving.current = true;
+    setManualSavePending(true);
+    setManualSaveError(false);
     window.clearTimeout(timer.current);
-    const expectedRevision = revision.current;
-    const [cardSaved, mnemonicSaved] = await Promise.all([
-      persist(draftRef.current, expectedRevision),
-      mnemonicManualSave.current?.() ?? Promise.resolve(true),
-    ]);
-    if (cardSaved && mnemonicSaved && admin) {
-      try {
+    try {
+      const expectedRevision = revision.current;
+      const [cardSaved, mnemonicSaved] = await Promise.all([
+        persist(draftRef.current, expectedRevision),
+        mnemonicManualSave.current?.() ?? Promise.resolve(true),
+      ]);
+      if (cardSaved && mnemonicSaved && admin) {
         const response = await fetch(`/api/drugs/${id}/manual-save-backup`, { method: "POST" });
         if (!response.ok) throw new Error();
-      } catch {
-        window.alert("카드는 저장됐지만 temp JSON 백업을 만들지 못했습니다.");
       }
+    } catch {
+      setManualSaveError(true);
+      window.alert("카드는 저장됐지만 temp JSON 백업을 만들지 못했습니다.");
+    } finally {
+      manualSaving.current = false;
+      setManualSavePending(false);
     }
-    manualSaving.current = false;
   }
   async function openExport() {
     window.clearTimeout(timer.current);
@@ -168,6 +225,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     router.push(`/export?drugId=${encodeURIComponent(id)}`);
   }
   return <div className={`drug-profile ${modal ? "in-modal" : "standalone"}`}>
+    {showSaved ? <div className="data-card-saved-toast" role="status" aria-live="polite"><Check size={14}/> Saved!</div> : null}
     <section className="profile-identity indicator-field">
       <div className="profile-name-row">
         <div className="profile-name-fields"><AnchorableInput className="profile-korean-name" value={draft.koreanName} onChange={(value) => setField("koreanName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "koreanName" } }} aria-label="생약명"/><AnchorableInput className="profile-latin-name" value={draft.latinName ?? ""} onChange={(value) => setField("latinName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "latinName" } }} placeholder="Latin name" aria-label="Latin name"/></div>
@@ -178,13 +236,13 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
         <IndicatorLine label="과"><FamilyEditor drugId={id} initialLabel={family} familyId={draft.familyId} suggestions={identitySuggestions.families} onChange={(familyId) => setField("familyId", familyId)}/></IndicatorLine>
         <IndicatorLine label="연관생약"><RelationshipList drugId={id} items={relatedDrugs} type="연관생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("연관생약")}/></IndicatorLine>
         <IndicatorLine label="유사생약"><RelationshipList drugId={id} items={similarDrugs} type="유사생약" onRemove={removeRelated} onAdd={() => setRelationshipPicker("유사생약")}/></IndicatorLine>
-        <IndicatorLine label="가공 및 기타 사항"><IdentityTermsEditor drugId={id} terms={identityTerms} onChange={setIdentityTerms}/></IndicatorLine>
+        <IndicatorLine label="가공 및 기타 사항"><IdentityTermsEditor drugId={id} terms={identityTerms} onChange={setIdentityTerms} onBusyChange={setIdentityPending}/></IndicatorLine>
       </div>
     </section>
     <div className="profile-sections">{draft.sections.map((section) => {
       const name = fieldName(section);
       const inputMode = fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.inputMode ?? "hierarchy4";
-      if (name === "암기법") return <DrugMnemonicVersions key={section.id} drugId={id} manualSaveRef={mnemonicManualSave} onRemove={() => void removeSection(section.id)}/>;
+      if (name === "암기법") return <DrugMnemonicVersions key={section.id} drugId={id} manualSaveRef={mnemonicManualSave} onSaveStatusChange={setMnemonicStatus} onRemove={() => void removeSection(section.id)}/>;
       return <section className="profile-field" key={section.id}>
         <div className="profile-field-title"><h2>{name}</h2><button className="field-remove" onClick={() => void removeSection(section.id)} title="이 생약에서 필드 삭제" aria-label={`${name} 삭제`}><X size={21}/></button></div>
         <StudyContentEditor items={section.items} blocks={section.blocks} mode={inputMode} taxonomy={name === "성분" ? constituentData : undefined} concept={{ ownerType: "drug", ownerId: id, sectionId: section.id }} onChange={(value) => updateSection(section.id, value)}/>
@@ -199,12 +257,13 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
 }
 
 function IndicatorLine({ label, children }: { label: string; children: React.ReactNode }) { return <div className="identity-line indicator-line"><strong>{label}</strong><span className="identity-colon">:</span>{children}</div>; }
-function IdentityTermsEditor({ drugId, terms, onChange }: { drugId: string; terms: IdentityTerm[]; onChange: (terms: IdentityTerm[]) => void }) {
+function IdentityTermsEditor({ drugId, terms, onChange, onBusyChange }: { drugId: string; terms: IdentityTerm[]; onChange: (terms: IdentityTerm[]) => void; onBusyChange?: (busy: boolean) => void }) {
   const [adding, setAdding] = useState(false); const [query, setQuery] = useState(""); const [suggestions, setSuggestions] = useState<IdentityTerm[]>([]); const [busy, setBusy] = useState(false);
+  useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); }, [busy, onBusyChange]);
   useEffect(() => { if (!adding) return; const controller = new AbortController(); const timer = window.setTimeout(() => fetch(`/api/identity-terms?q=${encodeURIComponent(query.trim())}`, { signal: controller.signal }).then((response) => response.json()).then((rows: IdentityTerm[]) => setSuggestions(rows.filter((row) => !terms.some((term) => term.id === row.id)))).catch(() => undefined), 140); return () => { controller.abort(); window.clearTimeout(timer); }; }, [adding, query, terms]);
   async function attach(term: IdentityTerm) { if (terms.some((item) => item.id === term.id)) return; setBusy(true); const response = await fetch(`/api/drugs/${drugId}/identity-terms`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ termId: term.id }) }); setBusy(false); if (!response.ok) return window.alert("용어를 추가하지 못했습니다."); onChange([...terms, term]); setQuery(""); setAdding(false); }
   async function createAndAttach() { const name = query.trim(); if (!name || busy) return; const exact = suggestions.find((term) => term.name.toLocaleLowerCase() === name.toLocaleLowerCase()); if (exact) return attach(exact); setBusy(true); const response = await fetch("/api/identity-terms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }); const term = await response.json(); setBusy(false); if (!response.ok) return window.alert(term.error ?? "용어를 만들지 못했습니다."); await attach(term); }
-  async function remove(term: IdentityTerm) { const response = await fetch(`/api/drugs/${drugId}/identity-terms/${term.id}`, { method: "DELETE" }); if (response.ok) onChange(terms.filter((item) => item.id !== term.id)); }
+  async function remove(term: IdentityTerm) { setBusy(true); try { const response = await fetch(`/api/drugs/${drugId}/identity-terms/${term.id}`, { method: "DELETE" }); if (response.ok) onChange(terms.filter((item) => item.id !== term.id)); } finally { setBusy(false); } }
   return <div className="identity-term-editor"><div className="identity-term-chips">{terms.map((term) => <span key={term.id}>{term.name}<button onClick={() => void remove(term)} aria-label={`${term.name} 제거`}><X size={12}/></button></span>)}<button className="inline-add" onClick={() => setAdding((value) => !value)}><Plus size={14}/> 추가</button></div>{adding ? <div className="identity-term-combobox"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void createAndAttach(); } if (event.key === "Escape") setAdding(false); }} placeholder="등록된 용어 검색 또는 새 용어 입력" autoFocus disabled={busy}/>{suggestions.length ? <div>{suggestions.map((term) => <button key={term.id} onMouseDown={(event) => event.preventDefault()} onClick={() => void attach(term)}>{term.name}</button>)}</div> : query.trim() ? <small>Enter로 “{query.trim()}” 만들기</small> : null}</div> : null}</div>;
 }
 function RelationshipList({ drugId, items, type, onRemove, onAdd }: { drugId: string; items: RelatedDrug[]; type: RelationshipType; onRemove: (id: string, type: RelationshipType) => void; onAdd: () => void }) {

@@ -44,7 +44,7 @@ export const importDrugSchema = z.object({
   scientificName: z.string().trim().nullable().optional(),
   family: z.object({ koreanName: z.string().trim().optional(), scientificName: z.string().trim().min(1) }).nullable().optional(),
   medicinalPart: z.string().trim().nullable().optional(),
-  category: z.string().trim().min(1).optional(),
+  category: z.string().trim().min(1).nullable().optional(),
   importance: z.enum(["중요", "중간", "비중요"]).optional(),
   sections: z.array(importSectionSchema).optional(),
   relationships: z.array(importRelationshipSchema).optional(),
@@ -59,6 +59,7 @@ export const importDrugSchema = z.object({
 export const pharmacognosyImportV1Schema = z.object({
   schema: z.literal("pharmacognosy.import"),
   version: z.literal(1),
+  replaceExisting: z.boolean().optional(),
   drugs: z.array(importDrugSchema).min(1),
 }).superRefine((value, context) => {
   const seen = new Map<string, number>();

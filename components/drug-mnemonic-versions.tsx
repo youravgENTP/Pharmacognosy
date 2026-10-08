@@ -18,7 +18,7 @@ type MnemonicVersion = {
 type MnemonicContent = { items: StudyItem[]; blocks: StudyBlock[] };
 const NEW_MINE = "__new_mine__";
 
-export function DrugMnemonicVersions({ drugId, onRemove }: { drugId: string; onRemove: () => void }) {
+export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef }: { drugId: string; onRemove: () => void; manualSaveRef?: React.MutableRefObject<(() => Promise<boolean>) | null> }) {
   const [versions, setVersions] = useState<MnemonicVersion[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -27,6 +27,12 @@ export function DrugMnemonicVersions({ drugId, onRemove }: { drugId: string; onR
   const [status, setStatus] = useState<"saved" | "dirty" | "saving" | "error">("saved");
   const timer = useRef<number | undefined>(undefined);
   const revision = useRef(0);
+  const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const contentRef = useRef(content);
+  const editableRef = useRef(false);
+  const selectedUserIdRef = useRef(selectedUserId);
+  contentRef.current = content;
+  selectedUserIdRef.current = selectedUserId;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,7 +59,19 @@ export function DrugMnemonicVersions({ drugId, onRemove }: { drugId: string; onR
 
   const selected = versions.find((version) => version.userId === selectedUserId);
   const editable = selectedUserId === NEW_MINE || selected?.isMine === true;
+  editableRef.current = editable;
   const labels = versionLabels(versions);
+
+  useEffect(() => {
+    if (!manualSaveRef) return;
+    manualSaveRef.current = async () => {
+      window.clearTimeout(timer.current);
+      return editableRef.current ? save(contentRef.current, revision.current) : true;
+    };
+    return () => { manualSaveRef.current = null; };
+  // The registered function reads refs and therefore does not need re-registration.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manualSaveRef]);
 
   function selectVersion(userId: string) {
     window.clearTimeout(timer.current);
@@ -81,18 +99,25 @@ export function DrugMnemonicVersions({ drugId, onRemove }: { drugId: string; onR
     timer.current = window.setTimeout(() => void save(next, expectedRevision), 700);
   }
 
-  async function save(next: MnemonicContent, expectedRevision: number) {
-    const savingSelection = selectedUserId;
-    setStatus("saving");
-    try {
-      const response = await fetch(`/api/drugs/${drugId}/mnemonics/me`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
-      if (!response.ok) throw new Error();
-      const saved = await response.json() as MnemonicVersion;
-      setVersions((current) => [saved, ...current.filter((version) => version.userId !== saved.userId)]);
-      setSelectedUserId((current) => current === savingSelection ? saved.userId : current);
-      if (savingSelection === NEW_MINE) void fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: saved.userId }) });
-      if (revision.current === expectedRevision) setStatus("saved");
-    } catch { if (revision.current === expectedRevision) setStatus("error"); }
+  function save(next: MnemonicContent, expectedRevision: number) {
+    const snapshot = structuredClone(next);
+    const savingSelection = selectedUserIdRef.current;
+    const run = async () => {
+      setStatus("saving");
+      try {
+        const response = await fetch(`/api/drugs/${drugId}/mnemonics/me`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot) });
+        if (!response.ok) throw new Error();
+        const saved = await response.json() as MnemonicVersion;
+        setVersions((current) => [saved, ...current.filter((version) => version.userId !== saved.userId)]);
+        setSelectedUserId((current) => current === savingSelection ? saved.userId : current);
+        if (savingSelection === NEW_MINE) void fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: saved.userId }) });
+        if (revision.current === expectedRevision) setStatus("saved");
+        return true;
+      } catch { if (revision.current === expectedRevision) setStatus("error"); return false; }
+    };
+    const queued = saveQueue.current.then(run, run);
+    saveQueue.current = queued;
+    return queued;
   }
 
   return <section className="profile-field mnemonic-field">

@@ -87,13 +87,13 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
       if (input.mnemonic.items) errors.push(...validateHierarchy("암기법", input.mnemonic.items, "hierarchy3"));
     }
     const existing = existingByName.get(normalizeKey(input.koreanName));
-    if (!existing && input.category === undefined) errors.push({ code: "missing-category", field: "category", message: "신규 생약은 category가 필요합니다." });
+    if (!existing && !input.category) errors.push({ code: "missing-category", field: "category", message: "신규 생약은 category가 필요합니다." });
     const incomingIds = new Set(sections.map((section) => section.fieldDefinitionId));
     const incomingNames = new Set(sections.map((section) => normalizeKey(section.title)));
     const existingSections = (existing?.sections ?? []).filter((section) => resolveExistingField(section, activeFields)?.name !== "암기법");
     const fieldsAdded = sections.filter((section) => !existingSections.some((existingSection) => sameSection(existingSection, section, activeFields))).map((section) => section.title);
     const fieldsUpdated = sections.filter((section) => existingSections.some((existingSection) => sameSection(existingSection, section, activeFields))).map((section) => section.title);
-    const fieldsPreserved = existingSections.filter((section) => {
+    const fieldsPreserved = (payload.replaceExisting ? [] : existingSections).filter((section) => {
       const resolved = resolveExistingField(section, activeFields);
       return !incomingIds.has(resolved?.id ?? "") && !incomingNames.has(normalizeKey(resolved?.name ?? section.title));
     }).map((section) => resolveExistingField(section, activeFields)?.name ?? section.title);
@@ -111,7 +111,9 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
       ? input.category ? `신규 분류 · ${input.category}` : "분류 필요"
       : input.category === undefined
         ? "기존 분류 유지"
-        : suppliedCategory?.id === existing.categoryId || normalizeKey(currentCategory?.name ?? "") === normalizeKey(input.category)
+        : input.category === null
+          ? "분류 연결 제거"
+          : suppliedCategory?.id === existing.categoryId || normalizeKey(currentCategory?.name ?? "") === normalizeKey(input.category)
           ? `기존 분류 사용 · ${input.category}`
           : `분류 변경 · ${currentCategory?.name ?? "미분류"} → ${input.category}`;
     const familyAction = input.family ? (family ? `기존 과 사용 · ${family.scientificName}` : `새 과 생성 · ${input.family.scientificName}`) : Object.hasOwn(input, "family") ? "과 연결 제거" : existing?.familyId ? "기존 과 유지" : "변경 없음";
@@ -204,7 +206,7 @@ export function mergeImportedSections(existing: StudySection[], incoming: Resolv
   return next.sort((left, right) => (position.get(left.fieldDefinitionId ?? "") ?? 10_000) - (position.get(right.fieldDefinitionId ?? "") ?? 10_000));
 }
 
-export function scalarMergePatch(input: ImportDrug, resolved: { categoryId?: string; familyId?: string | null }) {
+export function scalarMergePatch(input: ImportDrug, resolved: { categoryId?: string | null; familyId?: string | null }) {
   const patch: Record<string, unknown> = {};
   if (Object.hasOwn(input, "category")) patch.categoryId = resolved.categoryId;
   for (const key of ["latinName", "origin", "origins", "scientificName", "medicinalPart", "importance"] as const) if (Object.hasOwn(input, key)) patch[key] = input[key];

@@ -27,9 +27,9 @@ type FamilySuggestion = { id: string; koreanName: string; scientificName: string
 type IdentityTerm = { id: string; name: string };
 const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
-type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean };
+type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
 export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
-function DrugEditorContent({ id, initial, family, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: DrugEditorProps) {
+function DrugEditorContent({ id, initial, family, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
   const router = useRouter();
   const concepts = useConceptEngine();
   const [draft, setDraft] = useState(initial);
@@ -48,16 +48,25 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   const draftRef = useRef(draft);
   const revision = useRef(0);
   const timer = useRef<number | undefined>(undefined);
+  const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const manualSaving = useRef(false);
+  const mnemonicManualSave = useRef<(() => Promise<boolean>) | null>(null);
   draftRef.current = draft;
 
-  async function persist(value = draftRef.current, expectedRevision = revision.current) {
-    setStatus("saving");
-    try {
-      const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
-      if (!response.ok) throw new Error();
-      if (revision.current === expectedRevision) setStatus("saved");
-      return true;
-    } catch { setStatus("error"); return false; }
+  function persist(value = draftRef.current, expectedRevision = revision.current) {
+    const snapshot = structuredClone(value);
+    const run = async () => {
+      setStatus("saving");
+      try {
+        const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot) });
+        if (!response.ok) throw new Error();
+        if (revision.current === expectedRevision) setStatus("saved");
+        return true;
+      } catch { if (revision.current === expectedRevision) setStatus("error"); return false; }
+    };
+    const queued = saveQueue.current.then(run, run);
+    saveQueue.current = queued;
+    return queued;
   }
   useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -74,6 +83,17 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
       .then(([taxa, fields, suggestions]) => { setConstituentData({ nodes: taxa.nodes ?? [], edges: taxa.edges ?? [] }); setFieldDefinitions(fields ?? []); setIdentitySuggestions({ origins: suggestions.origins ?? [], families: suggestions.families ?? [] }); })
       .catch(() => undefined);
   }, []);
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLocaleLowerCase() !== "s") return;
+      event.preventDefault();
+      if (!event.repeat) void manualSave();
+    };
+    window.addEventListener("keydown", listener, { capture: true });
+    return () => window.removeEventListener("keydown", listener, { capture: true });
+  // manualSave reads mutable refs so the shortcut always saves the newest editor state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admin, id]);
 
   const setField = <K extends keyof DrugDraft>(key: K, value: DrugDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   function fieldName(section: StudySection) { return fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.name ?? section.title; }
@@ -120,6 +140,25 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     setPickerSectionId(undefined);
   }
   function saveNow() { window.clearTimeout(timer.current); void persist(draftRef.current, revision.current); }
+  async function manualSave() {
+    if (manualSaving.current) return;
+    manualSaving.current = true;
+    window.clearTimeout(timer.current);
+    const expectedRevision = revision.current;
+    const [cardSaved, mnemonicSaved] = await Promise.all([
+      persist(draftRef.current, expectedRevision),
+      mnemonicManualSave.current?.() ?? Promise.resolve(true),
+    ]);
+    if (cardSaved && mnemonicSaved && admin) {
+      try {
+        const response = await fetch(`/api/drugs/${id}/manual-save-backup`, { method: "POST" });
+        if (!response.ok) throw new Error();
+      } catch {
+        window.alert("카드는 저장됐지만 temp JSON 백업을 만들지 못했습니다.");
+      }
+    }
+    manualSaving.current = false;
+  }
   async function openExport() {
     window.clearTimeout(timer.current);
     if (status !== "saved" && !await persist(draftRef.current, revision.current)) {
@@ -145,7 +184,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     <div className="profile-sections">{draft.sections.map((section) => {
       const name = fieldName(section);
       const inputMode = fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.inputMode ?? "hierarchy4";
-      if (name === "암기법") return <DrugMnemonicVersions key={section.id} drugId={id} onRemove={() => void removeSection(section.id)}/>;
+      if (name === "암기법") return <DrugMnemonicVersions key={section.id} drugId={id} manualSaveRef={mnemonicManualSave} onRemove={() => void removeSection(section.id)}/>;
       return <section className="profile-field" key={section.id}>
         <div className="profile-field-title"><h2>{name}</h2><button className="field-remove" onClick={() => void removeSection(section.id)} title="이 생약에서 필드 삭제" aria-label={`${name} 삭제`}><X size={21}/></button></div>
         <StudyContentEditor items={section.items} blocks={section.blocks} mode={inputMode} taxonomy={name === "성분" ? constituentData : undefined} concept={{ ownerType: "drug", ownerId: id, sectionId: section.id }} onChange={(value) => updateSection(section.id, value)}/>

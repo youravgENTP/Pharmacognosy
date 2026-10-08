@@ -187,6 +187,13 @@ test("preview identifies updated and preserved fields for a real merge", () => {
   assert.deepEqual(prepared.drugs[0].preview.fieldsPreserved, ["약리"]);
 });
 
+test("replace-style manual-save payload reports no omitted fields as preserved", () => {
+  const input = payload([{ koreanName: "진피", category: "과실류", sections: [{ field: "성분", items: [{ text: "new" }] }] }]).drugs[0];
+  const prepared = prepareImport({ schema: "pharmacognosy.import", version: 1, replaceExisting: true, drugs: [input] }, { fields, existingDrugs: [existing] });
+  assert.deepEqual(prepared.drugs[0].preview.fieldsUpdated, ["성분"]);
+  assert.deepEqual(prepared.drugs[0].preview.fieldsPreserved, []);
+});
+
 test("existing drug with omitted category preserves category and omits categoryId from its patch", () => {
   const input = payload([{ koreanName: "진피", sections: [{ field: "성분", items: [{ text: "new" }] }] }]).drugs[0];
   const prepared = prepareImport({ schema: "pharmacognosy.import", version: 1, drugs: [input] }, { fields, existingDrugs: [categorizedExisting], categories: categoryRows });
@@ -202,6 +209,14 @@ test("existing drug with supplied category updates categoryId", () => {
   const patch = scalarMergePatch(input, { categoryId: categoryRows[1].id });
   assert.equal(patch.categoryId, categoryRows[1].id);
   assert.equal(prepared.drugs[0].preview.categoryAction, "분류 변경 · 과실류 → 종자류");
+});
+
+test("existing drug with explicit null category clears categoryId", () => {
+  const input = payload([{ koreanName: "진피", category: null }]).drugs[0];
+  const prepared = prepareImport({ schema: "pharmacognosy.import", version: 1, drugs: [input] }, { fields, existingDrugs: [categorizedExisting], categories: categoryRows });
+  const patch = scalarMergePatch(input, { categoryId: null });
+  assert.equal(patch.categoryId, null);
+  assert.equal(prepared.drugs[0].preview.categoryAction, "분류 연결 제거");
 });
 
 test("new drug with supplied category remains valid", () => {

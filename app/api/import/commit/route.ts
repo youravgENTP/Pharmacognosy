@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { db } from "@/lib/db";
@@ -57,8 +57,9 @@ export async function POST(request: Request) {
           }
           familyId = family.id;
         }
-        const sections = mergeImportedSections(existing?.sections ?? [], drug.sections, fields, !existing && Boolean(drug.input.mnemonic));
-        const scalars = scalarMergePatch(drug.input, { categoryId: category?.id, familyId });
+        const replaceExisting = Boolean(existing && parsed.data.payload.replaceExisting);
+        const sections = mergeImportedSections(replaceExisting ? [] : existing?.sections ?? [], drug.sections, fields, (!existing || replaceExisting) && Boolean(drug.input.mnemonic));
+        const scalars = scalarMergePatch(drug.input, { categoryId: drug.input.category === null ? null : category?.id, familyId });
         let saved: typeof existingDrugs[number];
         if (existing) {
           [saved] = await tx.update(crudeDrugs).set({ ...scalars, ...(Object.hasOwn(drug.input, "sections") ? { sections } : {}), updatedAt: new Date() }).where(eq(crudeDrugs.id, existing.id)).returning();
@@ -76,6 +77,10 @@ export async function POST(request: Request) {
       const pairKey = (left: string, right: string) => [left, right].sort().join(":");
       const relationshipByPair = new Map(existingRelationships.map((relationship) => [pairKey(relationship.sourceId, relationship.targetId), relationship]));
       let relationshipsUpserted = 0, relationshipsSkipped = 0;
+      if (parsed.data.payload.replaceExisting) for (const { prepared: drug, drugId } of applied) if (drug.input.relationships !== undefined) {
+        await tx.delete(crudeDrugRelationships).where(or(eq(crudeDrugRelationships.sourceId, drugId), eq(crudeDrugRelationships.targetId, drugId)));
+        for (const [key, relationship] of relationshipByPair) if (relationship.sourceId === drugId || relationship.targetId === drugId) relationshipByPair.delete(key);
+      }
       for (const { prepared: drug, drugId } of applied) for (const relationship of drug.relationships) {
         const target = drugByName.get(normalizeKey(relationship.targetKoreanName));
         if (!relationship.resolvable || !target) { relationshipsSkipped++; continue; }

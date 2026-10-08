@@ -9,4 +9,3 @@ dist/
 .local-media/
 .vercel
 output/
-temp/*.json

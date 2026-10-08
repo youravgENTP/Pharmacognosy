@@ -38,7 +38,6 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
   const [mnemonicStatus, setMnemonicStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
   const [manualSavePending, setManualSavePending] = useState(false);
-  const [manualSaveError, setManualSaveError] = useState(false);
   const [relationshipPending, setRelationshipPending] = useState(0);
   const [identityPending, setIdentityPending] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
@@ -61,7 +60,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   const mnemonicManualSave = useRef<(() => Promise<boolean>) | null>(null);
   const hadUnsavedChanges = useRef(false);
   draftRef.current = draft;
-  const leaveBlocked = status !== "saved" || mnemonicStatus !== "saved" || manualSavePending || manualSaveError || relationshipPending > 0 || identityPending;
+  const leaveBlocked = status !== "saved" || mnemonicStatus !== "saved" || manualSavePending || relationshipPending > 0 || identityPending;
 
   function persist(value = draftRef.current, expectedRevision = revision.current) {
     const snapshot = structuredClone(value);
@@ -196,7 +195,6 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
     if (manualSaving.current) return;
     manualSaving.current = true;
     setManualSavePending(true);
-    setManualSaveError(false);
     window.clearTimeout(timer.current);
     try {
       const expectedRevision = revision.current;
@@ -207,10 +205,10 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
       if (cardSaved && mnemonicSaved && admin) {
         const response = await fetch(`/api/drugs/${id}/manual-save-backup`, { method: "POST" });
         if (!response.ok) throw new Error();
+        await downloadBackup(response);
       }
     } catch {
-      setManualSaveError(true);
-      window.alert("카드는 저장됐지만 temp JSON 백업을 만들지 못했습니다.");
+      window.alert("카드는 저장됐지만 JSON 파일을 다운로드하지 못했습니다. Cmd+S로 다시 시도해 주세요.");
     } finally {
       manualSaving.current = false;
       setManualSavePending(false);
@@ -303,6 +301,18 @@ function FamilyEditor({ drugId, initialLabel, familyId, suggestions, onChange }:
 function AnchorableInput({ value, onChange, target, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & { value: string; onChange: (value: string) => void; target: ConceptTarget }) { const concepts = useConceptEngine(); return <input {...props} {...conceptTargetAttributes(target)} value={value} onContextMenu={(event) => concepts?.openMenu(event, target)} onChange={(event) => { if (concepts?.reconcileText(target, value, event.target.value) === false) return; onChange(event.target.value); }}/>; }
 function newItem(): StudyItem { return { id: crypto.randomUUID(), text: "" }; }
 function importanceClass(value: ImportanceLevel) { return { 중요: "important", 중간: "medium", 비중요: "low" }[value]; }
+async function downloadBackup(response: Response) {
+  const encodedFilename = response.headers.get("X-Download-Filename");
+  const filename = encodedFilename ? decodeURIComponent(encodedFilename) : `data-card-${new Date().toISOString()}.json`;
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 function hasContent(items: StudyItem[]): boolean { return items.some((item) => item.text.trim() || hasContent(item.children ?? [])); }
 function sortDrug(a: { catalogIndex: number | null; referenceIndex?: number | null; name: string }, b: { catalogIndex: number | null; referenceIndex?: number | null; name: string }) { return compareDrugIndexes(a, b); }
 function appendItem(section: StudySection, item: StudyItem): Partial<StudySection> {

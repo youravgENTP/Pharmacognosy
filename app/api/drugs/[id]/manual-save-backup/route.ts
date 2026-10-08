@@ -1,5 +1,3 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { and, eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -7,8 +5,6 @@ import { buildDataCardImport } from "@/lib/data-card-import";
 import { db } from "@/lib/db";
 import { categories, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, fieldDefinitions, relationshipTypes, userDrugMnemonics } from "@/lib/db/schema";
 import { uuidSchema } from "@/lib/validators";
-
-export const runtime = "nodejs";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const current = await getCurrentUser(request.headers);
@@ -65,14 +61,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     mnemonic: mnemonic ? { items: mnemonic.items, blocks: mnemonic.blocks } : { items: [], blocks: [] },
   });
 
-  const directory = path.join(process.cwd(), "temp");
-  await mkdir(directory, { recursive: true });
   const timestamp = new Date().toISOString().replaceAll(":", "-");
   const safeName = drug.koreanName.normalize("NFC").replace(/[^\p{L}\p{N}._-]+/gu, "-").replace(/^-+|-+$/g, "") || "data-card";
   const filename = `${safeName}-${timestamp}-${crypto.randomUUID().slice(0, 8)}.json`;
-  const target = path.join(directory, filename);
-  const staging = `${target}.tmp`;
-  await writeFile(staging, `${JSON.stringify(payload, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
-  await rename(staging, target);
-  return NextResponse.json({ filename: `temp/${filename}` }, { status: 201 });
+  return new Response(`${JSON.stringify(payload, null, 2)}\n`, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Disposition": `attachment; filename="data-card-${timestamp}.json"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "X-Download-Filename": encodeURIComponent(filename),
+      "Cache-Control": "no-store",
+    },
+  });
 }

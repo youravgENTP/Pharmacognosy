@@ -8,18 +8,20 @@ import { getHerbSearchMatches, normalizeSearchText, type HerbSearchDocument, typ
 
 type Importance = "중요" | "중간" | "비중요";
 type Drug = { id: string; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; importance: Importance; categoryId: string | null; categoryName: string | null; categoryPosition: number | null; searchDocument: HerbSearchDocument };
+type Assignment = { label: string; drugIds: string[]; missingCount: number };
 type VisibleDrug = Drug & { searchMatches: HerbSearchMatch[]; searchScore: number };
 type MnemonicMode = "preferred" | "mine" | "none" | "all";
 type ExportPhase = "idle" | "preparing" | "generating" | "downloading" | "complete";
 type TransferProgress = { percent: number; received: number; total: number };
 
-export function DataCardExport({ drugs, initialDrugId }: { drugs: Drug[]; initialDrugId?: string }) {
+export function DataCardExport({ drugs, assignments, initialDrugId }: { drugs: Drug[]; assignments: Assignment[]; initialDrugId?: string }) {
   const validInitial = initialDrugId && drugs.some((drug) => drug.id === initialDrugId) ? initialDrugId : undefined;
   const [selected, setSelected] = useState<Set<string>>(() => new Set(validInitial ? [validInitial] : []));
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("index");
   const [columns, setColumns] = useState<1 | 2>(2);
   const [mnemonicMode, setMnemonicMode] = useState<MnemonicMode>("preferred");
+  const [assignmentLabel, setAssignmentLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<ExportPhase>("idle");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -49,8 +51,13 @@ export function DataCardExport({ drugs, initialDrugId }: { drugs: Drug[]; initia
     return () => window.clearInterval(timer);
   }, [busy]);
 
-  function toggle(id: string) { setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
-  function add(ids: string[]) { setSelected((current) => new Set([...current, ...ids])); }
+  function toggle(id: string) { setAssignmentLabel(""); setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
+  function add(ids: string[]) { setAssignmentLabel(""); setSelected((current) => new Set([...current, ...ids])); }
+  function selectAssignment(label: string) {
+    setAssignmentLabel(label);
+    const assignment = assignments.find((item) => item.label === label);
+    setSelected(new Set(assignment?.drugIds ?? []));
+  }
   async function exportCards() {
     const drugIds = sorted.filter((drug) => selected.has(drug.id)).map((drug) => drug.id);
     if (!drugIds.length || exportLock.current) return;
@@ -68,7 +75,7 @@ export function DataCardExport({ drugs, initialDrugId }: { drugs: Drug[]; initia
       if (blob.type !== expectedType) throw new Error("DOCX 응답 형식이 올바르지 않습니다.");
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = "HerbOverflow-DataCards.docx"; anchor.style.display = "none";
+      anchor.href = url; anchor.download = assignmentLabel ? `HerbOverflow-${assignmentLabel}-DataCards.docx` : "HerbOverflow-DataCards.docx"; anchor.style.display = "none";
       document.body.appendChild(anchor); anchor.click();
       window.setTimeout(() => { URL.revokeObjectURL(url); anchor.remove(); }, 30_000);
       setTransfer({ percent: 100, received: blob.size, total: blob.size });
@@ -83,12 +90,12 @@ export function DataCardExport({ drugs, initialDrugId }: { drugs: Drug[]; initia
 
   return <div className="data-export-layout">
     <section className="panel data-export-picker">
-      <div className="data-export-summary"><div><strong>{selected.size}</strong><span>개 Data Card 선택됨</span></div><button onClick={() => setSelected(new Set())} disabled={!selected.size}><X size={14}/> 선택 지우기</button></div>
-      <div className="data-export-quick"><button onClick={() => setSelected(new Set(drugs.map((drug) => drug.id)))}>전체 생약</button>{categories.map((category) => <button key={category.id} onClick={() => add(category.drugIds)}>{category.name}<small>{category.drugIds.length}</small></button>)}</div>
+      <div className="data-export-summary"><div><strong>{selected.size}</strong><span>개 Data Card 선택됨{assignmentLabel ? ` · ${assignmentLabel} 담당` : ""}</span></div><button onClick={() => { setAssignmentLabel(""); setSelected(new Set()); }} disabled={!selected.size}><X size={14}/> 선택 지우기</button></div>
+      <div className="data-export-quick"><button onClick={() => { setAssignmentLabel(""); setSelected(new Set(drugs.map((drug) => drug.id))); }}>전체 생약</button>{categories.map((category) => <button key={category.id} onClick={() => add(category.drugIds)}>{category.name}<small>{category.drugIds.length}</small></button>)}</div>
       <div className="data-export-list-tools"><div className="search-wrap"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="생약명, Family, 성분, 효능 등 통합 검색"/></div><select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} aria-label="정렬"><option value="index">Index order</option><option value="name">Korean name order</option><option value="importance">Importance order</option></select></div>
       <div className="data-export-drugs">{visible.map((drug) => <label key={drug.id} className={selected.has(drug.id) ? "selected" : ""}><input type="checkbox" checked={selected.has(drug.id)} onChange={() => toggle(drug.id)}/><span className="data-export-check">{selected.has(drug.id) ? <Check size={13}/> : null}</span><b>{formatDrugIndex(drug.catalogIndex, drug.referenceIndex)}</b><span><strong>{drug.koreanName}</strong>{drug.searchMatches.length ? <small className="data-export-search-match"><b>{drug.searchMatches[0].label}</b> · {drug.searchMatches[0].text}{drug.searchMatches.length > 1 ? ` 외 ${drug.searchMatches.length - 1}건` : ""}</small> : <small>{[drug.latinName, drug.categoryName].filter(Boolean).join(" · ")}</small>}</span><em className={`importance-${importanceClass(drug.importance)}`}>{drug.importance}</em></label>)}</div>
     </section>
-    <aside className="panel data-export-options"><header><FileText size={20}/><div><h2>Data Card Export</h2><p>채워진 필드를 현재 순서대로 Word 문서로 내보냅니다.</p></div></header><div className="data-export-format"><span>파일 형식</span><strong>Word DOCX</strong><small>.docx 문서</small></div><label>레이아웃<select value={columns} onChange={(event) => setColumns(Number(event.target.value) as 1 | 2)}><option value={1}>1 column</option><option value={2}>2 columns</option></select></label><label>암기법<select value={mnemonicMode} onChange={(event) => setMnemonicMode(event.target.value as MnemonicMode)}><option value="preferred">Preferred/default mnemonic</option><option value="mine">My mnemonic</option><option value="none">No mnemonic</option><option value="all">All mnemonic versions</option></select></label>{error ? <p className="data-export-error" role="alert">{error}</p> : null}{busy ? <div className="data-export-progress" role="status" aria-live="polite"><div className="data-export-progress-heading"><span><strong>{progressTitle(phase)}</strong><small>{detail}</small></span><b>{percent}%</b></div><div className="data-export-progress-track" role="progressbar" aria-label="DOCX 내보내기 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${progressTitle(phase)} ${percent}%`}><i style={{ width: `${percent}%` }}/></div><div className="data-export-progress-meta"><span>{activeCount}개 Data Card</span><span>{elapsedSeconds}초 경과</span>{transfer?.total ? <span>{formatBytes(transfer.received)} / {formatBytes(transfer.total)}</span> : <span>{phase === "generating" ? "예상 진행률" : "처리 중"}</span>}</div><ol className="data-export-progress-steps">{progressSteps.map((step, index) => { const state = stepState(phase, index); return <li key={step} className={state}>{state === "done" ? <Check size={12}/> : state === "active" ? <LoaderCircle size={12}/> : <span>{index + 1}</span>}<b>{step}</b></li>; })}</ol></div> : null}<button className="data-export-submit" disabled={!selected.size || busy} onClick={() => void exportCards()}><Download size={16}/>{busy ? progressButtonLabel(phase) : `${selected.size}개 DOCX 내보내기`}</button>{!selected.size ? <small>먼저 하나 이상의 Data Card를 선택하세요.</small> : null}</aside>
+    <aside className="panel data-export-options"><header><FileText size={20}/><div><h2>Data Card Export</h2><p>채워진 필드를 현재 순서대로 Word 문서로 내보냅니다.</p></div></header><div className="data-export-format"><span>파일 형식</span><strong>Word DOCX</strong><small>.docx 문서</small></div><label>담당자 생약<select value={assignmentLabel} onChange={(event) => selectAssignment(event.target.value)}><option value="">직접 선택</option>{assignments.map((assignment) => <option key={assignment.label} value={assignment.label}>{assignment.label} 담당 ({assignment.drugIds.length}개)</option>)}</select>{assignmentLabel && assignments.find((item) => item.label === assignmentLabel)?.missingCount ? <small>현재 DB에 없는 배정 생약은 제외됩니다.</small> : null}</label><label>레이아웃<select value={columns} onChange={(event) => setColumns(Number(event.target.value) as 1 | 2)}><option value={1}>1 column</option><option value={2}>2 columns</option></select></label><label>암기법<select value={mnemonicMode} onChange={(event) => setMnemonicMode(event.target.value as MnemonicMode)}><option value="preferred">Preferred/default mnemonic</option><option value="mine">My mnemonic</option><option value="none">No mnemonic</option><option value="all">All mnemonic versions</option></select></label>{error ? <p className="data-export-error" role="alert">{error}</p> : null}{busy ? <div className="data-export-progress" role="status" aria-live="polite"><div className="data-export-progress-heading"><span><strong>{progressTitle(phase)}</strong><small>{detail}</small></span><b>{percent}%</b></div><div className="data-export-progress-track" role="progressbar" aria-label="DOCX 내보내기 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${progressTitle(phase)} ${percent}%`}><i style={{ width: `${percent}%` }}/></div><div className="data-export-progress-meta"><span>{activeCount}개 Data Card</span><span>{elapsedSeconds}초 경과</span>{transfer?.total ? <span>{formatBytes(transfer.received)} / {formatBytes(transfer.total)}</span> : <span>{phase === "generating" ? "예상 진행률" : "처리 중"}</span>}</div><ol className="data-export-progress-steps">{progressSteps.map((step, index) => { const state = stepState(phase, index); return <li key={step} className={state}>{state === "done" ? <Check size={12}/> : state === "active" ? <LoaderCircle size={12}/> : <span>{index + 1}</span>}<b>{step}</b></li>; })}</ol></div> : null}<button className="data-export-submit" disabled={!selected.size || busy} onClick={() => void exportCards()}><Download size={16}/>{busy ? progressButtonLabel(phase) : `${selected.size}개 DOCX 내보내기`}</button>{!selected.size ? <small>먼저 하나 이상의 Data Card를 선택하세요.</small> : null}</aside>
   </div>;
 }
 

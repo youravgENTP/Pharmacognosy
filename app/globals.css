@@ -779,6 +779,7 @@ html, body { background: var(--paper); color: var(--ink); }
 .data-export-options h2 { margin: 0; font-size: 18px; }
 .data-export-options p { margin: 4px 0 0; color: #7d8994; font-size: 11px; line-height: 1.5; }
 .data-export-options > label { color: #9ba6b0; display: grid; gap: 6px; font-size: 11px; font-weight: 700; }
+.data-export-options > label > small { color: #8b7548; font-size: 10px; font-weight: 500; line-height: 1.45; }
 .data-export-format { border: 1px solid #343d46; border-radius: 8px; padding: 9px 10px; background: #111519; display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 8px; }
 .data-export-format span { grid-column: 1 / -1; color: #7d8994; font-size: 10px; font-weight: 700; }
 .data-export-format strong { color: #dfe4e9; font-size: 13px; }

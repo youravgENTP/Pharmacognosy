@@ -49,6 +49,16 @@ export function assignmentNameVariants(name: string) {
     .filter(Boolean);
 }
 
+export function assignedDrugIds(assignment: MnemonicAssignment, drugs: Array<{ id: string; koreanName: string }>) {
+  const assignedNames = assignment.drugs.map(assignmentNameVariants);
+  return drugs
+    .filter((drug) => {
+      const drugNames = assignmentNameVariants(drug.koreanName);
+      return assignedNames.some((names) => names.some((name) => drugNames.includes(name)));
+    })
+    .map((drug) => drug.id);
+}
+
 export function normalizeAssignmentName(value: string) {
   return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/[\s·/()\[\]{}_-]/g, "");
 }

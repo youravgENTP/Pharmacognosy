@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { StudySection } from "@/lib/db/schema";
-import { assignmentForUser, assignmentNameVariants, mnemonicAssignments } from "@/lib/mnemonic-assignments";
+import { assignedDrugIds, assignmentForUser, assignmentNameVariants, mnemonicAssignments } from "@/lib/mnemonic-assignments";
 import { calculateMnemonicProgress, hasMnemonicContent } from "@/lib/mnemonic-progress";
 
 const shell = (id: string, title: string, fieldDefinitionId?: string): StudySection => ({ id, title, fieldDefinitionId, items: [], blocks: [] });
@@ -29,6 +29,16 @@ test("assignment matching tolerates database-only parenthetical labels", () => {
   assert.equal(progress.missingCards.length, 0);
   assert.equal(progress.required, 1);
   assert.equal(progress.excluded, 1);
+});
+
+test("assigned drug ids resolve alternate card labels without including other drugs", () => {
+  const assignment = { label: "테스트", userNames: ["테스트"], drugs: ["귤핵", "홉·호프", "육종용(열당)"] };
+  assert.deepEqual(assignedDrugIds(assignment, [
+    { id: "a", koreanName: "귤핵 (종자류)" },
+    { id: "b", koreanName: "홉,호프" },
+    { id: "c", koreanName: "육종용" },
+    { id: "d", koreanName: "갈근" },
+  ]), ["a", "b", "c"]);
 });
 
 test("progress excludes cards without a mnemonic field and counts meaningful user content", () => {

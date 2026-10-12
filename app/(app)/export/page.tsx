@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { categories, constituentMemberships, constituents, constituentTaxa, constituentTaxonEdges, crudeDrugConstituents, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, relationshipTypes } from "@/lib/db/schema";
 import { formatDrugIndex } from "@/lib/drug-index";
 import { buildHerbSearchDocument } from "@/lib/herb-search";
+import { assignedDrugIds, mnemonicAssignments } from "@/lib/mnemonic-assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,11 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
       sections: drug.sections, constituents: constituentsByDrug.get(drug.id), identityTerms: (identityByDrug.get(drug.id) ?? []).map((item) => item.name), relationships: relationshipsByDrug.get(drug.id),
     }),
   }));
-  return <div className="page"><header className="page-header"><div><p className="eyebrow">Study material</p><h1>Export</h1><p className="subtitle">선택한 Data Card를 Word DOCX 학습 자료로 내보냅니다.</p></div></header><DataCardExport drugs={searchable} initialDrugId={drugId}/></div>;
+  const assignments = mnemonicAssignments.map((assignment) => {
+    const drugIds = assignedDrugIds(assignment, drugs);
+    return { label: assignment.label, drugIds, missingCount: assignment.drugs.length - drugIds.length };
+  });
+  return <div className="page"><header className="page-header"><div><p className="eyebrow">Study material</p><h1>Export</h1><p className="subtitle">선택한 Data Card를 Word DOCX 학습 자료로 내보냅니다.</p></div></header><DataCardExport drugs={searchable} assignments={assignments} initialDrugId={drugId}/></div>;
 }
 
 function group<T, K>(rows: T[], key: (row: T) => K) {

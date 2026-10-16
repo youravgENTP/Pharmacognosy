@@ -13,16 +13,17 @@ export const backupDrugSchema = z.object({
 });
 
 export type BackupDrug = z.infer<typeof backupDrugSchema>;
-export type RestoreFieldKey = "basic" | "origins" | "family" | "importance" | "identification" | `section:${string}`;
+export type RestoreFieldKey = "basic" | "origins" | "family" | "importance" | "identification" | "mnemonics" | `section:${string}`;
 export type RestoreSelection = { drugId: string; fields: RestoreFieldKey[] };
 
-export function restoreFieldOptions(drug: BackupDrug) {
+export function restoreFieldOptions(drug: BackupDrug, includeMnemonics = false) {
   return [
     { key: "basic" as const, label: "기본 정보" },
     { key: "origins" as const, label: "기원 / 기원식물" },
     { key: "family" as const, label: "Family" },
     { key: "importance" as const, label: "중요도" },
     { key: "identification" as const, label: "연관·유사·가공 정보" },
+    ...(includeMnemonics ? [{ key: "mnemonics" as const, label: "암기법 및 개인 대표 설정" }] : []),
     ...drug.sections.map((section) => ({ key: `section:${section.id}` as const, label: section.title })),
   ];
 }

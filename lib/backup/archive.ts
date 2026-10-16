@@ -82,6 +82,10 @@ export async function parseBackupArchive(input: Buffer | ArrayBuffer) {
     const path = `database/${name}.json`;
     const file = zip.file(path);
     const expected = manifest.files[path];
+    if (name === "user-mnemonic-preferences" && !file && !expected && manifest.counts[name] === undefined) {
+      tables[name] = [];
+      continue;
+    }
     if (!file || !expected) throw new Error(`백업에 ${path} 파일이 없습니다.`);
     if (manifest.counts[name] !== expected.count) throw new Error(`${path} 행 수 metadata가 일치하지 않습니다.`);
     const content = await file.async("string");

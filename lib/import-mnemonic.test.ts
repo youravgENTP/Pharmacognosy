@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { StudyBlock, StudyItem, StudySection } from "@/lib/db/schema";
 import { hierarchyMarkerForMode } from "@/lib/hierarchy-marker";
-import { mergeImportedMnemonic, mergeImportedSections, prepareImport, scalarMergePatch, shouldSetMnemonicPreference, type ImportExistingDrug, type ImportFieldDefinition, type ImportMnemonicVersion } from "@/lib/import-pipeline";
+import { mergeImportedMnemonic, mergeImportedSections, prepareImport, scalarMergePatch, type ImportExistingDrug, type ImportFieldDefinition, type ImportMnemonicVersion } from "@/lib/import-pipeline";
 import { pharmacognosyImportV1Schema } from "@/lib/import-schema";
 import { studyBlockSchema } from "@/lib/validators";
 
@@ -63,12 +63,6 @@ test("third-party mnemonic targets the resolved author rather than current user"
   const prepared = prepare({ koreanName: "개자", mnemonic: { authorUserName: "이은재", text: { text: "prose" } } });
   assert.equal(prepared.drugs[0].mnemonic?.targetUserId, "lee");
   assert.notEqual(prepared.drugs[0].mnemonic?.targetUserId, users[0].id);
-});
-
-test("third-party mnemonic import never changes the current user's preference", () => {
-  assert.equal(shouldSetMnemonicPreference("song", "current", undefined), false);
-  assert.equal(shouldSetMnemonicPreference("current", "current", undefined), true);
-  assert.equal(shouldSetMnemonicPreference("current", "current", existingMnemonic), false);
 });
 
 test("mnemonic text-only update preserves existing items", () => {

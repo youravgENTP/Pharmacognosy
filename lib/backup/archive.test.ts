@@ -82,3 +82,16 @@ test("a zero-media archive parses normally and incompatible manifests are reject
   const incompatibleBuffer = await incompatibleZip.generateAsync({ type: "nodebuffer" });
   await assert.rejects(() => parseBackupArchive(incompatibleBuffer), /지원하지 않거나 손상된/);
 });
+
+test("older v1 backups without the optional mnemonic preference table remain importable", async () => {
+  const { tables } = fixture();
+  const { buffer } = await createBackupArchive(tables, []);
+  const zip = await JSZip.loadAsync(buffer);
+  zip.remove("database/user-mnemonic-preferences.json");
+  const manifest = JSON.parse(await zip.file("manifest.json")!.async("string"));
+  delete manifest.counts["user-mnemonic-preferences"];
+  delete manifest.files["database/user-mnemonic-preferences.json"];
+  zip.file("manifest.json", JSON.stringify(manifest));
+  const parsed = await parseBackupArchive(await zip.generateAsync({ type: "nodebuffer" }));
+  assert.deepEqual(parsed.tables["user-mnemonic-preferences"], []);
+});

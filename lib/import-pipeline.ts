@@ -185,10 +185,6 @@ export function mergeImportedMnemonic(existing: { items: StudyItem[]; blocks: St
   return { items: nextItems, blocks };
 }
 
-export function shouldSetMnemonicPreference(targetUserId: string, currentUserId: string, existing: ImportMnemonicVersion | undefined) {
-  return targetUserId === currentUserId && existing === undefined;
-}
-
 function countRichItems(items: ImportItem[]): number {
   return items.reduce((sum, item) => sum + (item.html === undefined ? 0 : 1) + countRichItems(item.children ?? []), 0);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Star, X } from "lucide-react";
 import { StudyContentEditor } from "@/components/study-content-editor";
 import type { StudyBlock, StudyItem } from "@/lib/db/schema";
 
@@ -22,6 +22,9 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
   const [versions, setVersions] = useState<MnemonicVersion[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [preferredMnemonicUserId, setPreferredMnemonicUserId] = useState<string | null>(null);
+  const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [preferenceError, setPreferenceError] = useState<string>();
   const [content, setContent] = useState<MnemonicContent>({ items: [], blocks: [] });
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<"saved" | "dirty" | "saving" | "error">("saved");
@@ -40,12 +43,14 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
     fetch(`/api/drugs/${drugId}/mnemonics`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("암기법을 불러오지 못했습니다.");
-        return response.json() as Promise<{ currentUserId: string; preferredMnemonicUserId: string | null; versions: MnemonicVersion[] }>;
+        return response.json() as Promise<{ currentUserId: string; preferredMnemonicUserId: string | null; resolvedMnemonicUserId: string | null; versions: MnemonicVersion[] }>;
       })
       .then((result) => {
-        const selected = result.versions.find((version) => version.userId === result.preferredMnemonicUserId) ?? result.versions.find((version) => version.isMine) ?? result.versions[0];
+        const selected = result.versions.find((version) => version.userId === result.resolvedMnemonicUserId);
         setVersions(result.versions);
         setCurrentUserId(result.currentUserId);
+        setPreferredMnemonicUserId(result.preferredMnemonicUserId);
+        setPreferenceError(undefined);
         setSelectedUserId(selected?.userId ?? NEW_MINE);
         setContent(selected ? { items: selected.items, blocks: selected.blocks } : { items: [], blocks: [] });
         setStatus("saved");
@@ -88,7 +93,24 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
     if (!next) return;
     setSelectedUserId(next.userId);
     setContent({ items: next.items, blocks: next.blocks });
-    void fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: next.userId }) });
+    setPreferenceError(undefined);
+  }
+
+  async function setCanonical() {
+    const next = versions.find((version) => version.userId === selectedUserId);
+    if (!next || preferenceSaving || preferredMnemonicUserId === next.userId) return;
+    setPreferenceSaving(true);
+    setPreferenceError(undefined);
+    try {
+      const response = await fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: next.userId }) });
+      const body = await response.json().catch(() => ({})) as { preferredMnemonicUserId?: string; error?: string };
+      if (!response.ok || body.preferredMnemonicUserId !== next.userId) throw new Error(body.error ?? "대표 암기법을 저장하지 못했습니다.");
+      setPreferredMnemonicUserId(next.userId);
+    } catch (error) {
+      setPreferenceError(error instanceof Error ? error.message : "대표 암기법을 저장하지 못했습니다.");
+    } finally {
+      setPreferenceSaving(false);
+    }
   }
 
   function change(next: MnemonicContent) {
@@ -112,7 +134,6 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
         const saved = await response.json() as MnemonicVersion;
         setVersions((current) => [saved, ...current.filter((version) => version.userId !== saved.userId)]);
         setSelectedUserId((current) => current === savingSelection ? saved.userId : current);
-        if (savingSelection === NEW_MINE) void fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: saved.userId }) });
         if (revision.current === expectedRevision) setStatus("saved");
         return true;
       } catch { if (revision.current === expectedRevision) setStatus("error"); return false; }
@@ -126,13 +147,15 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
     <div className="profile-field-title mnemonic-title">
       <h2>암기법</h2>
       {!loading && versions.length ? <select className="mnemonic-version-select" aria-label="암기법 작성자" value={selectedUserId} onChange={(event) => selectVersion(event.target.value)}>
-        {versions.map((version) => <option key={version.userId} value={version.userId}>{labels.get(version.userId)}</option>)}
+        {versions.map((version) => <option key={version.userId} value={version.userId}>{preferredMnemonicUserId === version.userId ? "★ " : ""}{labels.get(version.userId)}</option>)}
         {!versions.some((version) => version.isMine) ? <option value={NEW_MINE}>+ 내 암기법 만들기</option> : null}
       </select> : null}
+      {!loading && selected ? <button className={`mnemonic-canonical ${preferredMnemonicUserId === selected.userId ? "selected" : ""}`} type="button" disabled={preferenceSaving || preferredMnemonicUserId === selected.userId} onClick={() => void setCanonical()}><Star size={13} fill={preferredMnemonicUserId === selected.userId ? "currentColor" : "none"}/>{preferredMnemonicUserId === selected.userId ? "대표" : preferenceSaving ? "저장 중…" : "대표로 지정"}</button> : null}
       {!loading && editable ? <span className={`mnemonic-save-status ${status}`}>{status === "saving" ? "저장 중…" : status === "error" ? "저장 실패" : status === "dirty" ? "변경됨" : "저장됨"}</span> : null}
       {!loading && !editable ? <span className="mnemonic-read-only">읽기 전용</span> : null}
       <button className="field-remove" onClick={onRemove} title="이 생약에서 필드 삭제" aria-label="암기법 삭제"><X size={21}/></button>
     </div>
+    {preferenceError ? <p className="form-error mnemonic-preference-error" role="alert">{preferenceError}</p> : null}
     {loading ? <p className="mnemonic-loading">암기법을 불러오는 중…</p> : status === "error" && !currentUserId ? <p className="form-error">암기법을 불러오지 못했습니다.</p> : <StudyContentEditor key={selectedUserId} items={content.items} blocks={content.blocks} mode="hierarchy3" mnemonic readOnly={!editable} onChange={change}/>}
   </section>;
 }

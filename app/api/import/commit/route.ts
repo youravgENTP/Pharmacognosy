@@ -2,8 +2,8 @@ import { desc, eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { db } from "@/lib/db";
-import { categories, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, fieldDefinitions, relationshipTypes, user, userDrugMnemonics, userMnemonicPreferences } from "@/lib/db/schema";
-import { mergeImportedMnemonic, mergeImportedSections, prepareImport, scalarMergePatch, shouldSetMnemonicPreference } from "@/lib/import-pipeline";
+import { categories, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, fieldDefinitions, relationshipTypes, user, userDrugMnemonics } from "@/lib/db/schema";
+import { mergeImportedMnemonic, mergeImportedSections, prepareImport, scalarMergePatch } from "@/lib/import-pipeline";
 import { normalizeKey } from "@/lib/import-normalization";
 import { pharmacognosyImportV1Schema } from "@/lib/import-schema";
 import { z } from "zod";
@@ -113,7 +113,6 @@ export async function POST(request: Request) {
           const existingMnemonic = drug.mnemonic.existing;
           const content = mergeImportedMnemonic(existingMnemonic, drug.input.mnemonic);
           await tx.insert(userDrugMnemonics).values({ drugId, userId: drug.mnemonic.targetUserId, ...content }).onConflictDoUpdate({ target: [userDrugMnemonics.drugId, userDrugMnemonics.userId], set: { ...content, updatedAt: new Date() } });
-          if (shouldSetMnemonicPreference(drug.mnemonic.targetUserId, current.id, existingMnemonic)) await tx.insert(userMnemonicPreferences).values({ drugId, userId: current.id, preferredMnemonicUserId: current.id }).onConflictDoUpdate({ target: [userMnemonicPreferences.userId, userMnemonicPreferences.drugId], set: { preferredMnemonicUserId: current.id, updatedAt: new Date() } });
           mnemonicsUpserted++;
         }
       }

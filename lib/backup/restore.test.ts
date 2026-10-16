@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applySelectedDrugFields, referencedMediaIds, referencedTaxonIds, rewriteSectionMedia, rewriteSectionTaxa, type BackupDrug } from "@/lib/backup/restore";
+import { applySelectedDrugFields, referencedMediaIds, referencedTaxonIds, restoreFieldOptions, rewriteSectionMedia, rewriteSectionTaxa, type BackupDrug } from "@/lib/backup/restore";
 
 const base = (name: string): BackupDrug => ({ id: "10000000-0000-4000-8000-000000000001", catalogIndex: 1, referenceIndex: 1, koreanName: name, latinName: null, origin: null, origins: [], scientificName: null, medicinalPart: null, categoryId: null, familyId: null, importance: "중간", sections: [{ id: "keep", title: "약리", items: [{ id: "current", text: "current" }] }, { id: "replace", fieldDefinitionId: "30000000-0000-4000-8000-000000000003", title: "성분", items: [{ id: "old", text: "old" }] }], createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01") });
 
@@ -35,4 +35,9 @@ test("related image and taxonomy IDs are discovered and safely rewritten", () =>
   assert.equal(taxa.blocks?.[0].type === "image" && taxa.blocks[0].mediaAssetId, "20000000-0000-4000-8000-000000000009");
   assert.equal(taxa.items[0].children?.[0].linkedConstituentId, "taxon-new");
   assert.equal(taxa.blocks?.[1].type === "items" && taxa.blocks[1].items[0].linkedConstituentId, "taxon-three");
+});
+
+test("mnemonic backup restoration is an explicit optional field", () => {
+  assert.equal(restoreFieldOptions(base("연교")).some((field) => field.key === "mnemonics"), false);
+  assert.equal(restoreFieldOptions(base("연교"), true).find((field) => field.key === "mnemonics")?.label, "암기법 및 개인 대표 설정");
 });

@@ -15,6 +15,7 @@ export async function previewRestoreArchive(buffer: Buffer) {
   const backupFields = new Map(archive.tables["field-definitions"].map((row) => { const value = record(row); return [string(value.id), value] as const; }));
   const backupTaxa = new Map(archive.tables["constituent-taxa"].map((row) => { const value = record(row); return [string(value.id), value] as const; }));
   const backupRelationships = archive.tables["crude-drug-relationships"].map(record);
+  const mnemonicDrugIds = new Set(archive.tables["user-drug-mnemonics"].map((row) => string(record(row).drugId)));
   const anchors = await db.select({ ownerId: schema.conceptAnchors.ownerId, targetRef: schema.conceptAnchors.targetRef }).from(schema.conceptAnchors).where(eq(schema.conceptAnchors.ownerType, "drug"));
   const anchorCounts = new Map<string, number>();
   for (const anchor of anchors) anchorCounts.set(anchor.ownerId, (anchorCounts.get(anchor.ownerId) ?? 0) + 1);
@@ -36,7 +37,7 @@ export async function previewRestoreArchive(buffer: Buffer) {
         else if (target && (target.name !== string(source.name) || target.kind !== string(source.kind))) warnings.push(`연결된 성분 분류 ${string(source.name)}의 ID가 현재 DB와 충돌합니다.`);
       }
       for (const relation of backupRelationships.filter((row) => row.sourceId === drug.id)) if (!current.has(string(relation.targetId))) warnings.push(`연결 대상 Data Card ${string(relation.targetId)}가 현재 DB에 없어 Identification 복원이 중단됩니다.`);
-      return { id: drug.id, koreanName: drug.koreanName, catalogIndex: drug.catalogIndex, referenceIndex: drug.referenceIndex, exists: current.has(drug.id), fields: restoreFieldOptions(drug), warnings };
+      return { id: drug.id, koreanName: drug.koreanName, catalogIndex: drug.catalogIndex, referenceIndex: drug.referenceIndex, exists: current.has(drug.id), fields: restoreFieldOptions(drug, mnemonicDrugIds.has(drug.id)), warnings };
     }),
   };
 }
@@ -55,12 +56,16 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
   const backupConstituents = archive.tables.constituents.map(record);
   const backupTaxa = archive.tables["constituent-taxa"].map(record);
   const backupTaxonEdges = archive.tables["constituent-taxon-edges"].map(record);
+  const backupMnemonics = archive.tables["user-drug-mnemonics"].map(record);
+  const backupMnemonicPreferences = archive.tables["user-mnemonic-preferences"].map(record);
+  const hasMnemonicPreferenceSnapshot = archive.manifest.counts["user-mnemonic-preferences"] !== undefined;
+  const mnemonicDrugIds = new Set(backupMnemonics.map((row) => string(row.drugId)));
 
   if (!selections.length) throw new Error("복원할 Data Card를 선택해주세요.");
   for (const selection of selections) {
     const drug = backupDrugs.get(selection.drugId);
     if (!drug) throw new Error(`선택한 Data Card ${selection.drugId}가 백업에 없습니다.`);
-    const valid = new Set(restoreFieldOptions(drug).map((field) => field.key));
+    const valid = new Set(restoreFieldOptions(drug, mnemonicDrugIds.has(drug.id)).map((field) => field.key));
     if (!selection.fields.length || selection.fields.some((field) => !valid.has(field))) throw new Error(`${drug.koreanName}의 복원 필드 선택이 올바르지 않습니다.`);
   }
 
@@ -79,6 +84,8 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
     const taxonMap = new Map<string, string>();
     const requiredFieldIds = new Set<string>();
     const requiredTaxonIds = new Set<string>();
+    const existingUserIds = new Set((await tx.select({ id: schema.user.id }).from(schema.user)).map((row) => row.id));
+    let skippedMnemonicUsers = 0;
     for (const selection of selections) {
       const sectionIds = selectedSections.get(selection.drugId)!;
       const sections = backupDrugs.get(selection.drugId)!.sections.filter((section) => sectionIds.has(section.id));
@@ -191,9 +198,29 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
           await tx.insert(schema.crudeDrugConstituents).values({ crudeDrugId: selection.drugId, constituentId: constituent.id, notes: nullableString(link.notes) });
         }
       }
+      if (selection.fields.includes("mnemonics")) {
+        const sourceMnemonics = backupMnemonics.filter((row) => row.drugId === selection.drugId);
+        await tx.delete(schema.userDrugMnemonics).where(eq(schema.userDrugMnemonics.drugId, selection.drugId));
+        const restoredOwners = new Set<string>();
+        for (const row of sourceMnemonics) {
+          const userId = string(row.userId);
+          if (!existingUserIds.has(userId)) { skippedMnemonicUsers++; continue; }
+          await tx.insert(schema.userDrugMnemonics).values({ id: string(row.id), drugId: selection.drugId, userId, items: array(row.items) as schema.StudyItem[], blocks: array(row.blocks) as schema.StudyBlock[] });
+          restoredOwners.add(userId);
+        }
+        if (hasMnemonicPreferenceSnapshot) {
+          await tx.delete(schema.userMnemonicPreferences).where(eq(schema.userMnemonicPreferences.drugId, selection.drugId));
+          for (const row of backupMnemonicPreferences.filter((preference) => preference.drugId === selection.drugId)) {
+            const userId = string(row.userId);
+            const preferredMnemonicUserId = nullableString(row.preferredMnemonicUserId);
+            if (!existingUserIds.has(userId) || !preferredMnemonicUserId || !restoredOwners.has(preferredMnemonicUserId)) { skippedMnemonicUsers++; continue; }
+            await tx.insert(schema.userMnemonicPreferences).values({ userId, drugId: selection.drugId, preferredMnemonicUserId }).onConflictDoNothing();
+          }
+        }
+      }
       changes.push({ drugId: selection.drugId, koreanName: backup.koreanName, fields: selection.fields });
     }
-    return { restored: changes.length, changes, mediaRestored: 0, warnings: ["이미지 원본 파일은 현재 복원 대상이 아닙니다.", "선택 필드를 대상으로 한 기존 개념 앵커는 삭제하지 않았습니다. 복원 후 상태를 검토해주세요."] };
+    return { restored: changes.length, changes, mediaRestored: 0, warnings: ["이미지 원본 파일은 현재 복원 대상이 아닙니다.", "선택 필드를 대상으로 한 기존 개념 앵커는 삭제하지 않았습니다. 복원 후 상태를 검토해주세요.", ...(skippedMnemonicUsers ? [`현재 존재하지 않는 사용자의 암기법 또는 대표 설정 ${skippedMnemonicUsers}건을 건너뛰었습니다.`] : [])] };
   });
 }
 

@@ -123,6 +123,30 @@ export const crudeDrugs = pgTable("crude_drugs", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("crude_drugs_category_idx").on(t.categoryId), uniqueIndex("crude_drugs_korean_name_idx").on(t.koreanName)]);
 
+export const archiveGroups = pgTable("archive_groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  prefix: text("prefix").notNull(),
+  description: text("description"),
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("archive_groups_name_idx").on(t.name), uniqueIndex("archive_groups_prefix_idx").on(t.prefix)]);
+
+export const archiveEntries = pgTable("archive_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  archiveGroupId: uuid("archive_group_id").notNull().references(() => archiveGroups.id, { onDelete: "restrict" }),
+  drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "restrict" }),
+  originalIndex: integer("original_index").notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }).defaultNow().notNull(),
+  archivedBy: text("archived_by").references(() => user.id, { onDelete: "set null" }),
+}, (t) => [
+  uniqueIndex("archive_entries_drug_idx").on(t.drugId),
+  uniqueIndex("archive_entries_group_drug_idx").on(t.archiveGroupId, t.drugId),
+  uniqueIndex("archive_entries_group_index_idx").on(t.archiveGroupId, t.originalIndex),
+  index("archive_entries_group_idx").on(t.archiveGroupId),
+]);
+
 export const drugIdentityTerms = pgTable("drug_identity_terms", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
@@ -350,6 +374,16 @@ export const crudeDrugRelations = relations(crudeDrugs, ({ one, many }) => ({
   mnemonics: many(userDrugMnemonics),
   mnemonicPreferences: many(userMnemonicPreferences),
   identityTerms: many(crudeDrugIdentityTerms),
+  archiveEntries: many(archiveEntries),
+}));
+export const archiveGroupRelations = relations(archiveGroups, ({ one, many }) => ({
+  entries: many(archiveEntries),
+  creator: one(user, { fields: [archiveGroups.createdBy], references: [user.id] }),
+}));
+export const archiveEntryRelations = relations(archiveEntries, ({ one }) => ({
+  group: one(archiveGroups, { fields: [archiveEntries.archiveGroupId], references: [archiveGroups.id] }),
+  drug: one(crudeDrugs, { fields: [archiveEntries.drugId], references: [crudeDrugs.id] }),
+  archivedByUser: one(user, { fields: [archiveEntries.archivedBy], references: [user.id] }),
 }));
 export const userMnemonicPreferenceRelations = relations(userMnemonicPreferences, ({ one }) => ({
   viewingUser: one(user, { fields: [userMnemonicPreferences.userId], references: [user.id], relationName: "mnemonicPreferenceViewer" }),

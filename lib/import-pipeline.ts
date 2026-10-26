@@ -4,7 +4,7 @@ import { isReservedImportSection, normalizeFieldAlias, normalizeImportPayload, n
 
 export type ImportFieldDefinition = { id: string; name: string; inputMode: FieldInputMode; position: number; active: boolean };
 export type ImportExistingDrug = {
-  id: string; koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
+  id: string; catalogIndex?: number | null; referenceIndex?: number | null; koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
   medicinalPart: string | null; categoryId: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[];
 };
 export type ImportFamily = { id: string; koreanName: string; scientificName: string };

@@ -21,16 +21,17 @@ type Taxon = { id: string; name: string; kind: string };
 type TaxonEdge = { parentId: string; childId: string };
 type FieldDefinition = { id: string; name: string; kind: "default" | "custom"; inputMode: FieldInputMode; position: number; active: boolean };
 type RelationshipType = "연관생약" | "유사생약";
-type RelatedDrug = { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; name: string; latinName?: string | null };
-type AvailableDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; name: string; latinName?: string | null };
+type DrugArchive = { prefix: string; name: string; originalIndex: number } | null;
+type RelatedDrug = { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; archive?: DrugArchive; name: string; latinName?: string | null };
+type AvailableDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; archive?: DrugArchive; name: string; latinName?: string | null };
 type OriginSuggestion = OriginPlant & { drugs: { id: string; name: string }[] };
 type FamilySuggestion = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null };
 type IdentityTerm = { id: string; name: string };
 const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
-type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
+type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; archive?: DrugArchive; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
 export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
-function DrugEditorContent({ id, initial, family, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
+function DrugEditorContent({ id, initial, family, archive, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
   const router = useRouter();
   const concepts = useConceptEngine();
   const { setBlocked } = useDataCardSaveGuard();
@@ -160,7 +161,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
       if (!response.ok) { const body = await response.json(); window.alert(body.error ?? "연결하지 못했습니다."); return; }
       const created = await response.json();
       const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs;
-      setter((current) => [...current, { id: created.id, drugId: target.id, catalogIndex: target.catalogIndex, referenceIndex: target.referenceIndex, name: target.name, latinName: target.latinName }]);
+      setter((current) => [...current, { id: created.id, drugId: target.id, catalogIndex: target.catalogIndex, referenceIndex: target.referenceIndex, archive: target.archive, name: target.name, latinName: target.latinName }]);
       setAvailableDrugs((current) => current.filter((drug) => drug.id !== targetId));
       setRelationshipPicker(undefined);
     } finally { setRelationshipPending((current) => Math.max(0, current - 1)); }
@@ -181,7 +182,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
       const response = await fetch(`/api/drugs/${id}/relationships`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ relationshipId }) });
       if (!response.ok) { window.alert("연결을 해제하지 못했습니다."); return; }
       const setter = type === "연관생약" ? setRelatedDrugs : setSimilarDrugs; setter((current) => current.filter((item) => item.id !== relationshipId));
-      if (related) setAvailableDrugs((current) => [...current, { id: related.drugId, catalogIndex: related.catalogIndex, referenceIndex: related.referenceIndex, name: related.name, latinName: related.latinName }].sort(sortDrug));
+      if (related) setAvailableDrugs((current) => [...current, { id: related.drugId, catalogIndex: related.catalogIndex, referenceIndex: related.referenceIndex, archive: related.archive, name: related.name, latinName: related.latinName }].sort(sortDrug));
     } finally { setRelationshipPending((current) => Math.max(0, current - 1)); }
   }
   function chooseConstituent(taxon: Taxon) {
@@ -225,6 +226,7 @@ function DrugEditorContent({ id, initial, family, identityTerms: initialIdentity
   return <div className={`drug-profile ${modal ? "in-modal" : "standalone"}`}>
     {showSaved ? <div className="data-card-saved-toast" role="status" aria-live="polite"><Check size={14}/> Saved!</div> : null}
     <section className="profile-identity indicator-field">
+      {archive ? <div className="data-card-archive-indicator">{formatDrugIndex(null, null, archive)} · {archive.name}</div> : null}
       <div className="profile-name-row">
         <div className="profile-name-fields"><AnchorableInput className="profile-korean-name" value={draft.koreanName} onChange={(value) => setField("koreanName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "koreanName" } }} aria-label="생약명"/><AnchorableInput className="profile-latin-name" value={draft.latinName ?? ""} onChange={(value) => setField("latinName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "latinName" } }} placeholder="Latin name" aria-label="Latin name"/></div>
         <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><label className={`importance-control importance-${importanceClass(draft.importance)}`}><span className="importance-dot" aria-hidden="true"/><select className="importance-select" aria-label="중요도" value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
@@ -266,7 +268,7 @@ function IdentityTermsEditor({ drugId, terms, onChange, onBusyChange }: { drugId
 }
 function RelationshipList({ drugId, items, type, onRemove, onAdd }: { drugId: string; items: RelatedDrug[]; type: RelationshipType; onRemove: (id: string, type: RelationshipType) => void; onAdd: () => void }) {
   const concepts = useConceptEngine();
-  return <div className="related-editor relationship-list">{[...items].sort(sortDrug).map((related, index) => { const target: ConceptTarget = { ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: type, relationId: related.id } }; return <span className="relationship-item" key={related.id}><b>{circledNumber(index + 1)}</b><Link {...conceptTargetAttributes(target)} onContextMenu={(event) => concepts?.openMenu(event, target)} href={`/drugs/${related.drugId}`} scroll={false}>({formatDrugIndex(related.catalogIndex, related.referenceIndex)}, {related.name})</Link><button onClick={() => onRemove(related.id, type)} aria-label={`${related.name} 연결 해제`}><X size={13}/></button></span>; })}<button className="inline-add" onClick={onAdd}><Plus size={14}/> 연결</button></div>;
+  return <div className="related-editor relationship-list">{[...items].sort(sortDrug).map((related, index) => { const target: ConceptTarget = { ownerType: "drug", ownerId: drugId, targetType: "drug_identifier", targetRef: { key: type, relationId: related.id } }; return <span className="relationship-item" key={related.id}><b>{circledNumber(index + 1)}</b><Link {...conceptTargetAttributes(target)} onContextMenu={(event) => concepts?.openMenu(event, target)} href={`/drugs/${related.drugId}`} scroll={false}>({formatDrugIndex(related.catalogIndex, related.referenceIndex, related.archive)}, {related.name})</Link><button onClick={() => onRemove(related.id, type)} aria-label={`${related.name} 연결 해제`}><X size={13}/></button></span>; })}<button className="inline-add" onClick={onAdd}><Plus size={14}/> 연결</button></div>;
 }
 function circledNumber(value: number) { return value <= 20 ? String.fromCodePoint(0x2460 + value - 1) : `(${value})`; }
 function OriginEditor({ drugId, origins, legacyOrigin, suggestions, onChange }: { drugId: string; origins: OriginPlant[]; legacyOrigin: string | null; suggestions: OriginSuggestion[]; onChange: (value: OriginPlant[]) => void }) {
@@ -314,7 +316,7 @@ async function downloadBackup(response: Response) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function hasContent(items: StudyItem[]): boolean { return items.some((item) => item.text.trim() || hasContent(item.children ?? [])); }
-function sortDrug(a: { catalogIndex: number | null; referenceIndex?: number | null; name: string }, b: { catalogIndex: number | null; referenceIndex?: number | null; name: string }) { return compareDrugIndexes(a, b); }
+function sortDrug(a: { catalogIndex: number | null; referenceIndex?: number | null; archive?: DrugArchive; name: string }, b: { catalogIndex: number | null; referenceIndex?: number | null; archive?: DrugArchive; name: string }) { return compareDrugIndexes(a, b); }
 function appendItem(section: StudySection, item: StudyItem): Partial<StudySection> {
   if (!section.blocks?.length) return { items: hasContent(section.items) ? [...section.items, item] : [item] };
   const blocks = appendStudyItem(section.blocks, item, () => crypto.randomUUID());
@@ -353,8 +355,8 @@ function kindLabel(kind: string) { return { pathway: "생합성 경로", class: 
 function RelatedDrugPicker({ type, drugs, onChoose, onCreate, onClose }: { type: RelationshipType; drugs: AvailableDrug[]; onChoose: (id: string) => void; onCreate: (name: string) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLocaleLowerCase();
-  const visible = drugs.filter((drug) => !needle || drug.name.toLocaleLowerCase().includes(needle) || drug.latinName?.toLocaleLowerCase().includes(needle) || formatDrugIndex(drug.catalogIndex, drug.referenceIndex).toLocaleLowerCase().includes(needle)).sort(sortDrug);
-  return <PickerShell title={`${type} 추가`} onClose={onClose}><div className="search-wrap picker-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="인덱스, 생약명 또는 Latin name 검색" autoFocus/></div><div className="related-picker-list">{visible.map((drug) => <button key={drug.id} onClick={() => onChoose(drug.id)}><span><strong>({formatDrugIndex(drug.catalogIndex, drug.referenceIndex)}, {drug.name})</strong>{drug.latinName ? <em>{drug.latinName}</em> : null}</span><small>{type}으로 추가</small></button>)}{needle && !visible.length ? <button className="create-reference-result" onClick={() => onCreate(query.trim())}><span><strong>+ “{query.trim()}”를 새로운 생약으로 추가</strong><em>시험범위 외 참고류 · 새 R 인덱스</em></span></button> : null}</div></PickerShell>;
+  const visible = drugs.filter((drug) => !needle || drug.name.toLocaleLowerCase().includes(needle) || drug.latinName?.toLocaleLowerCase().includes(needle) || formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archive).toLocaleLowerCase().includes(needle)).sort(sortDrug);
+  return <PickerShell title={`${type} 추가`} onClose={onClose}><div className="search-wrap picker-search"><Search size={17}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="인덱스, 생약명 또는 Latin name 검색" autoFocus/></div><div className="related-picker-list">{visible.map((drug) => <button key={drug.id} onClick={() => onChoose(drug.id)}><span><strong>({formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archive)}, {drug.name})</strong>{drug.latinName ? <em>{drug.latinName}</em> : null}</span><small>{type}으로 추가</small></button>)}{needle && !visible.length ? <button className="create-reference-result" onClick={() => onCreate(query.trim())}><span><strong>+ “{query.trim()}”를 새로운 생약으로 추가</strong><em>시험범위 외 참고류 · 새 R 인덱스</em></span></button> : null}</div></PickerShell>;
 }
 
 function FieldPicker({ definitions, sections, onDefinitionsChange, onSave, onClose }: { definitions: FieldDefinition[]; sections: StudySection[]; onDefinitionsChange: (value: FieldDefinition[]) => void; onSave: (ids: string[]) => void; onClose: () => void }) {

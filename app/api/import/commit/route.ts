@@ -1,4 +1,4 @@
-import { desc, eq, or } from "drizzle-orm";
+import { desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { db } from "@/lib/db";
@@ -7,6 +7,7 @@ import { mergeImportedMnemonic, mergeImportedSections, prepareImport, scalarMerg
 import { normalizeKey } from "@/lib/import-normalization";
 import { pharmacognosyImportV1Schema } from "@/lib/import-schema";
 import { z } from "zod";
+import { allocateCatalogIndex } from "@/lib/catalog-index";
 
 const requestSchema = z.object({ payload: pharmacognosyImportV1Schema, existingStrategy: z.enum(["merge", "skip"]) });
 
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   try {
     const result = await db.transaction(async (tx) => {
+      // Serialize active-index allocation with Archive/Unarchive operations.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('herboverflow-archive-catalog'))`);
       let [fallback] = await tx.select().from(fieldDefinitions).where(eq(fieldDefinitions.name, "기타")).limit(1);
       if (!fallback) {
         const [last] = await tx.select({ position: fieldDefinitions.position }).from(fieldDefinitions).orderBy(desc(fieldDefinitions.position)).limit(1);
@@ -39,6 +42,11 @@ export async function POST(request: Request) {
       const drugByName = new Map(existingDrugs.map((drug) => [normalizeKey(drug.koreanName), drug]));
       const applied: { prepared: typeof prepared.drugs[number]; drugId: string }[] = [];
       let inserted = 0, updated = 0, skipped = 0;
+      const usedCatalogIndexes = new Set((await tx.select({ value: crudeDrugs.catalogIndex }).from(crudeDrugs).where(isNotNull(crudeDrugs.catalogIndex))).map((row) => row.value!));
+      const allocate = (requested?: number) => {
+        try { return allocateCatalogIndex(usedCatalogIndexes, requested); }
+        catch { throw new ImportBlockedError([{ koreanName: "Catalog Index", errors: [`활성 인덱스 ${requested}은(는) 이미 사용 중입니다.`] }]); }
+      };
 
       for (const drug of prepared.drugs) {
         const existing = drug.existing;
@@ -65,7 +73,7 @@ export async function POST(request: Request) {
           [saved] = await tx.update(crudeDrugs).set({ ...scalars, ...(Object.hasOwn(drug.input, "sections") ? { sections } : {}), updatedAt: new Date() }).where(eq(crudeDrugs.id, existing.id)).returning();
           updated++;
         } else {
-          [saved] = await tx.insert(crudeDrugs).values({ koreanName: drug.input.koreanName, categoryId: category!.id, importance: drug.input.importance ?? "중간", sections, ...(Object.hasOwn(drug.input, "latinName") ? { latinName: drug.input.latinName } : {}), ...(Object.hasOwn(drug.input, "origin") ? { origin: drug.input.origin } : {}), ...(Object.hasOwn(drug.input, "origins") ? { origins: drug.input.origins } : {}), ...(Object.hasOwn(drug.input, "scientificName") ? { scientificName: drug.input.scientificName } : {}), ...(Object.hasOwn(drug.input, "medicinalPart") ? { medicinalPart: drug.input.medicinalPart } : {}), ...(drug.input.family ? { familyId: familyId ?? null } : {}) }).returning();
+          [saved] = await tx.insert(crudeDrugs).values({ koreanName: drug.input.koreanName, catalogIndex: allocate(drug.input.catalogIndex), categoryId: category!.id, importance: drug.input.importance ?? "중간", sections, ...(Object.hasOwn(drug.input, "latinName") ? { latinName: drug.input.latinName } : {}), ...(Object.hasOwn(drug.input, "origin") ? { origin: drug.input.origin } : {}), ...(Object.hasOwn(drug.input, "origins") ? { origins: drug.input.origins } : {}), ...(Object.hasOwn(drug.input, "scientificName") ? { scientificName: drug.input.scientificName } : {}), ...(Object.hasOwn(drug.input, "medicinalPart") ? { medicinalPart: drug.input.medicinalPart } : {}), ...(drug.input.family ? { familyId: familyId ?? null } : {}) }).returning();
           inserted++;
         }
         drugByName.set(normalizeKey(saved.koreanName), saved);

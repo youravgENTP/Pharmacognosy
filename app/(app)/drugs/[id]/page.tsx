@@ -9,5 +9,5 @@ export default async function DrugPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const [drug, current] = await Promise.all([getDrugProfile(id), requireUser()]);
   if (!drug) notFound();
-  return <DrugEditor admin={current.role === "admin"} id={drug.id} family={drug.family} identityTerms={drug.identityTerms} relatedDrugs={drug.relatedDrugs} similarDrugs={drug.similarDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, familyId: drug.familyId, importance: drug.importance, sections: drug.sections }}/>;
+  return <DrugEditor admin={current.role === "admin"} archive={drug.archive} id={drug.id} family={drug.family} identityTerms={drug.identityTerms} relatedDrugs={drug.relatedDrugs} similarDrugs={drug.similarDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, familyId: drug.familyId, importance: drug.importance, sections: drug.sections }}/>;
 }

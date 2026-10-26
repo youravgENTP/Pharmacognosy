@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { categories, crudeDrugs, families } from "@/lib/db/schema";
+import { archiveEntries, archiveGroups, categories, crudeDrugs, families } from "@/lib/db/schema";
 
 export async function getFamilyExplorerData() {
   const rows = await db.select({
@@ -13,6 +13,9 @@ export async function getFamilyExplorerData() {
     drugId: crudeDrugs.id,
     catalogIndex: crudeDrugs.catalogIndex,
     referenceIndex: crudeDrugs.referenceIndex,
+    archivePrefix: archiveGroups.prefix,
+    archiveName: archiveGroups.name,
+    archiveOriginalIndex: archiveEntries.originalIndex,
     drugKoreanName: crudeDrugs.koreanName,
     drugLatinName: crudeDrugs.latinName,
     categoryId: categories.id,
@@ -21,6 +24,8 @@ export async function getFamilyExplorerData() {
   }).from(families)
     .leftJoin(crudeDrugs, eq(crudeDrugs.familyId, families.id))
     .leftJoin(categories, eq(crudeDrugs.categoryId, categories.id))
+    .leftJoin(archiveEntries, eq(archiveEntries.drugId, crudeDrugs.id))
+    .leftJoin(archiveGroups, eq(archiveGroups.id, archiveEntries.archiveGroupId))
     .orderBy(asc(families.koreanName), asc(categories.position), asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex));
 
   return Array.from(rows.reduce((map, row) => {
@@ -31,12 +36,13 @@ export async function getFamilyExplorerData() {
       acceptedScientificName: row.acceptedScientificName,
       summary: row.summary,
       summaryBlocks: row.summaryBlocks,
-      drugs: [] as { id: string; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[],
+      drugs: [] as { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[],
     });
     if (row.drugId && row.drugKoreanName) map.get(row.familyId)!.drugs.push({
       id: row.drugId,
       catalogIndex: row.catalogIndex,
       referenceIndex: row.referenceIndex,
+      archive: row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, name: row.archiveName!, originalIndex: row.archiveOriginalIndex } : null,
       koreanName: row.drugKoreanName,
       latinName: row.drugLatinName,
       categoryId: row.categoryId,
@@ -50,6 +56,6 @@ export async function getFamilyExplorerData() {
     acceptedScientificName: string | null;
     summary: typeof rows[number]["summary"];
     summaryBlocks: typeof rows[number]["summaryBlocks"];
-    drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[];
+    drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[];
   }>()).values());
 }

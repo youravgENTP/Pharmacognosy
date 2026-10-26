@@ -20,10 +20,19 @@ export async function POST(request: Request) {
   ]);
   const previewFields = fields.some((field) => field.active && normalizeKey(field.name) === normalizeKey("기타")) ? fields : [...fields.filter((field) => normalizeKey(field.name) !== normalizeKey("기타")), { id: "pending-other-field", name: "기타", kind: "custom" as const, inputMode: "hierarchy4" as const, position: Math.max(70, ...fields.map((field) => field.position)) + 10, active: true, createdAt: new Date(), updatedAt: new Date() }];
   const prepared = prepareImport(parsed.data, { fields: previewFields, existingDrugs, categories: categoryRows, families: familyRows, users: userRows, currentUser: { id: current.id, name: current.name }, mnemonicVersions: mnemonicRows });
+  const used = new Set(existingDrugs.flatMap((drug) => drug.catalogIndex == null ? [] : [drug.catalogIndex]));
+  const allocations = new Map<number, number>();
+  prepared.drugs.forEach((drug, index) => {
+    if (drug.existing) return;
+    let value = drug.input.catalogIndex;
+    if (value === undefined) { value = 1; while (used.has(value)) value++; }
+    if (used.has(value)) drug.errors.push({ code: "catalog-index-conflict", field: "catalogIndex", message: `활성 인덱스 ${value}은(는) 이미 사용 중입니다.` });
+    else { used.add(value); allocations.set(index, value); }
+  });
   return NextResponse.json({
     valid: true,
-    canCommit: prepared.canCommit,
+    canCommit: prepared.drugs.every((drug) => !drug.errors.length),
     summary: { total: prepared.drugs.length, new: prepared.drugs.filter((drug) => !drug.existing).length, existing: prepared.drugs.filter((drug) => drug.existing).length, errors: prepared.drugs.reduce((sum, drug) => sum + drug.errors.length, 0), warnings: prepared.drugs.reduce((sum, drug) => sum + drug.warnings.length, 0) },
-    drugs: prepared.drugs.map((drug) => ({ koreanName: drug.input.koreanName, category: drug.input.category, exists: Boolean(drug.existing), ...drug.preview, correctionCount: drug.corrections.length, corrections: drug.corrections, warnings: drug.warnings, errors: drug.errors })),
+    drugs: prepared.drugs.map((drug, index) => ({ koreanName: drug.input.koreanName, category: drug.input.category, exists: Boolean(drug.existing), assignedCatalogIndex: allocations.get(index) ?? drug.existing?.catalogIndex ?? null, ...drug.preview, correctionCount: drug.corrections.length, corrections: drug.corrections, warnings: drug.warnings, errors: drug.errors })),
   });
 }

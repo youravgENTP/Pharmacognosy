@@ -7,6 +7,7 @@ import { hierarchyMarkerForMode } from "@/lib/hierarchy-marker";
 export type ExportDrugProfile = {
   catalogIndex?: number | null;
   referenceIndex?: number | null;
+  archive?: { prefix: string; originalIndex: number } | null;
   koreanName: string;
   latinName: string | null;
   importance: ImportanceLevel;
@@ -48,7 +49,7 @@ export async function prepareDrugExportCard(
     sourceId: drugId,
     title: drug.koreanName,
     subtitle: [drug.latinName, drug.importance].filter(Boolean).join(" · "),
-    exportIndex: drug.catalogIndex != null || drug.referenceIndex != null ? formatDrugIndex(drug.catalogIndex ?? null, drug.referenceIndex ?? null) : undefined,
+    exportIndex: drug.catalogIndex != null || drug.referenceIndex != null || drug.archive ? formatDrugIndex(drug.catalogIndex ?? null, drug.referenceIndex ?? null, drug.archive) : undefined,
     latinName: drug.latinName ?? undefined,
     fields: fields.filter((field) => field.lines.length || field.images?.length),
   };

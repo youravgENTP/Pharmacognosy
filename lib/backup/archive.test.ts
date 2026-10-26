@@ -95,3 +95,19 @@ test("older v1 backups without the optional mnemonic preference table remain imp
   const parsed = await parseBackupArchive(await zip.generateAsync({ type: "nodebuffer" }));
   assert.deepEqual(parsed.tables["user-mnemonic-preferences"], []);
 });
+
+test("older v1 backups without archive tables remain importable", async () => {
+  const { tables } = fixture();
+  const { buffer } = await createBackupArchive(tables, []);
+  const zip = await JSZip.loadAsync(buffer);
+  const manifest = JSON.parse(await zip.file("manifest.json")!.async("string"));
+  for (const name of ["archive-groups", "archive-entries"]) {
+    zip.remove(`database/${name}.json`);
+    delete manifest.counts[name];
+    delete manifest.files[`database/${name}.json`];
+  }
+  zip.file("manifest.json", JSON.stringify(manifest));
+  const parsed = await parseBackupArchive(await zip.generateAsync({ type: "nodebuffer" }));
+  assert.deepEqual(parsed.tables["archive-groups"], []);
+  assert.deepEqual(parsed.tables["archive-entries"], []);
+});

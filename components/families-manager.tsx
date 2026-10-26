@@ -8,7 +8,7 @@ import type { ImportanceLevel, OriginPlant, StudyBlock, StudyItem, StudySection 
 import { formatDrugIndex } from "@/lib/drug-index";
 import { includesSearch, normalizeSearch } from "@/lib/search";
 
-type FamilyDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string };
+type FamilyDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string };
 type Family = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null; summary: StudyItem[]; summaryBlocks: StudyBlock[]; drugs: FamilyDrug[] };
 type Selection = { type: "family"; id: string } | { type: "drug"; id: string };
 type DrugProfile = {
@@ -35,7 +35,7 @@ export function FamiliesManager({ initialFamilies }: { initialFamilies: Family[]
       const familyMatch = includesSearch(needle, [family.koreanName, family.scientificName, family.acceptedScientificName]);
       if (familyMatch) return [family];
       const categoryMatches = new Set(family.drugs.filter((drug) => includesSearch(needle, [drug.categoryName])).map((drug) => drug.categoryId ?? "uncategorized"));
-      const drugs = family.drugs.filter((drug) => categoryMatches.has(drug.categoryId ?? "uncategorized") || includesSearch(needle, [drug.koreanName, drug.latinName, formatDrugIndex(drug.catalogIndex, drug.referenceIndex)]));
+      const drugs = family.drugs.filter((drug) => categoryMatches.has(drug.categoryId ?? "uncategorized") || includesSearch(needle, [drug.koreanName, drug.latinName, formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archive)]));
       return drugs.length ? [{ ...family, drugs }] : [];
     });
   }, [families, query]);
@@ -71,7 +71,7 @@ export function FamiliesManager({ initialFamilies }: { initialFamilies: Family[]
             const key = `${family.id}:${category.id}`; const categoryOpen = query.trim() ? true : expandedCategories.has(key);
             return <div className="family-category-branch" key={key}>
               <div className="family-tree-row level-category"><span className="family-elbow"/><button className="family-chevron" onClick={() => toggle(setExpandedCategories, key)}>{categoryOpen ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}</button><button className="family-entity" onClick={() => toggle(setExpandedCategories, key)}><span>{category.name}</span><small>{category.drugs.length}</small></button></div>
-              {categoryOpen ? <div className="family-drug-children">{category.drugs.map((drug) => <div className={`family-tree-row level-drug ${selection?.type === "drug" && selection.id === drug.id ? "selected" : ""}`} key={drug.id}><span className="family-elbow"/><span className="family-leaf-space"/><button className="family-entity" onClick={() => setSelection({ type: "drug", id: drug.id })}><span><b>{formatDrugIndex(drug.catalogIndex, drug.referenceIndex)}</b>{drug.koreanName}<em>{drug.latinName}</em></span></button></div>)}</div> : null}
+              {categoryOpen ? <div className="family-drug-children">{category.drugs.map((drug) => <div className={`family-tree-row level-drug ${selection?.type === "drug" && selection.id === drug.id ? "selected" : ""}`} key={drug.id}><span className="family-elbow"/><span className="family-leaf-space"/><button className="family-entity" onClick={() => setSelection({ type: "drug", id: drug.id })}><span><b>{formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archive)}</b>{drug.koreanName}<em>{drug.latinName}</em></span></button></div>)}</div> : null}
             </div>;
           })}</div> : null}
         </div>;

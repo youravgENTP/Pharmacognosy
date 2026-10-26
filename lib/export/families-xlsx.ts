@@ -8,7 +8,7 @@ export type FamilyWorkbookRow = {
   acceptedScientificName: string | null;
   summary: StudyItem[];
   summaryBlocks: StudyBlock[];
-  drugs: { catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; categoryName: string }[];
+  drugs: { catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryName: string }[];
 };
 
 export async function createFamiliesXlsx(families: FamilyWorkbookRow[]) {
@@ -35,7 +35,7 @@ export async function createFamiliesXlsx(families: FamilyWorkbookRow[]) {
     { header: "생약명", key: "koreanName", width: 20 },
     { header: "Latin name", key: "latinName", width: 28 },
   ];
-  for (const family of families) for (const drug of family.drugs) memberSheet.addRow({ familyKorean: family.koreanName, familyScientific: family.scientificName, category: drug.categoryName, index: formatDrugIndex(drug.catalogIndex, drug.referenceIndex), koreanName: drug.koreanName, latinName: drug.latinName ?? "" });
+  for (const family of families) for (const drug of family.drugs) memberSheet.addRow({ familyKorean: family.koreanName, familyScientific: family.scientificName, category: drug.categoryName, index: formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archive), koreanName: drug.koreanName, latinName: drug.latinName ?? "" });
   styleSheet(memberSheet);
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

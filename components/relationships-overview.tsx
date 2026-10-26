@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DrugEditor } from "@/components/drug-editor";
 import type { ImportanceLevel, OriginPlant, StudySection } from "@/lib/db/schema";
-import { formatDrugIndex } from "@/lib/drug-index";
+import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
 
 type RelationshipType = "연관생약" | "유사생약";
-type DrugNode = { id: string; name: string; catalogIndex: number | null; referenceIndex: number | null };
+type DrugNode = { id: string; name: string; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndex: number } | null };
 export type RelationshipEdge = { id: string; type: RelationshipType; source: DrugNode; target: DrugNode };
 type Filter = "전체" | RelationshipType;
 type Cluster = { key: string; type: RelationshipType; nodes: DrugNode[]; edges: RelationshipEdge[] };
@@ -29,7 +29,7 @@ export function RelationshipsOverview({ edges }: { edges: RelationshipEdge[] }) 
   const clusters = useMemo(() => buildClusters(edges), [edges]);
   const visible = useMemo(() => {
     const needle = normalize(query);
-    return clusters.filter((cluster) => (filter === "전체" || cluster.type === filter) && (!needle || cluster.nodes.some((node) => normalize(node.name).includes(needle) || normalize(formatDrugIndex(node.catalogIndex, node.referenceIndex)).includes(needle))));
+    return clusters.filter((cluster) => (filter === "전체" || cluster.type === filter) && (!needle || cluster.nodes.some((node) => normalize(node.name).includes(needle) || normalize(formatDrugIndex(node.catalogIndex, node.referenceIndex, node.archive)).includes(needle))));
   }, [clusters, filter, query]);
   const relatedCount = edges.filter((edge) => edge.type === "연관생약").length;
   const similarCount = edges.filter((edge) => edge.type === "유사생약").length;
@@ -41,7 +41,7 @@ export function RelationshipsOverview({ edges }: { edges: RelationshipEdge[] }) 
     {visible.length ? <div className="relationship-cluster-grid">{visible.map((cluster) => <article className={`relationship-cluster ${cluster.type === "유사생약" ? "similar" : "related"}`} key={cluster.key}>
       <header><span>{cluster.type}</span><div><small>{cluster.nodes.length}개 생약 · {cluster.edges.length}개 연결</small>{cluster.nodes.length >= 3 ? <button className={mapKey === cluster.key ? "active" : ""} onClick={() => setMapKey((current) => current === cluster.key ? undefined : cluster.key)} aria-label={`${cluster.type} 네트워크 지도`}><Network size={14}/> 연결 지도</button> : null}</div></header>
       {mapKey === cluster.key ? <RelationshipMap cluster={cluster} onClose={() => setMapKey(undefined)}/> : null}
-      <div className="relationship-cluster-members">{cluster.nodes.map((node) => <Link href={`/drugs/${node.id}`} scroll={false} key={node.id}><small>{formatDrugIndex(node.catalogIndex, node.referenceIndex)}</small><strong>{node.name}</strong></Link>)}</div>
+      <div className="relationship-cluster-members">{cluster.nodes.map((node) => <Link href={`/drugs/${node.id}`} scroll={false} key={node.id}><small>{formatDrugIndex(node.catalogIndex, node.referenceIndex, node.archive)}</small><strong>{node.name}</strong></Link>)}</div>
       <div className="relationship-edge-list">{cluster.edges.map((edge) => <button type="button" onClick={() => setComparison(edge)} key={edge.id}><span>{edge.source.name}</span><b>↔</b><span>{edge.target.name}</span></button>)}</div>
     </article>)}</div> : <div className="empty">검색 조건에 맞는 관계가 없습니다.</div>}
     {comparison ? <RelationshipComparison edge={comparison} onClose={() => setComparison(undefined)}/> : null}
@@ -101,6 +101,6 @@ function buildClusters(edges: RelationshipEdge[]): Cluster[] {
   }).sort((a, b) => a.type.localeCompare(b.type, "ko") || sortDrug(a.nodes[0], b.nodes[0]));
 }
 
-function sortDrug(a: DrugNode, b: DrugNode) { return (a.catalogIndex ?? Number.MAX_SAFE_INTEGER) - (b.catalogIndex ?? Number.MAX_SAFE_INTEGER) || (a.referenceIndex ?? Number.MAX_SAFE_INTEGER) - (b.referenceIndex ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name, "ko"); }
+function sortDrug(a: DrugNode, b: DrugNode) { return compareDrugIndexes(a, b); }
 function normalize(value: string) { return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/\s/g, ""); }
 function shortName(value: string) { return value.length > 7 ? `${value.slice(0, 6)}…` : value; }

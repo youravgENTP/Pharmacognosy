@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { DataCardExport } from "@/components/data-card-export";
 import { db } from "@/lib/db";
-import { categories, constituentMemberships, constituents, constituentTaxa, constituentTaxonEdges, crudeDrugConstituents, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, relationshipTypes } from "@/lib/db/schema";
+import { archiveEntries, archiveGroups, categories, constituentMemberships, constituents, constituentTaxa, constituentTaxonEdges, crudeDrugConstituents, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, relationshipTypes } from "@/lib/db/schema";
 import { formatDrugIndex } from "@/lib/drug-index";
 import { buildHerbSearchDocument } from "@/lib/herb-search";
 import { assignedDrugIds, mnemonicAssignments } from "@/lib/mnemonic-assignments";
@@ -15,6 +15,9 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
       id: crudeDrugs.id,
       catalogIndex: crudeDrugs.catalogIndex,
       referenceIndex: crudeDrugs.referenceIndex,
+      archivePrefix: archiveGroups.prefix,
+      archiveName: archiveGroups.name,
+      archiveOriginalIndex: archiveEntries.originalIndex,
       koreanName: crudeDrugs.koreanName,
       latinName: crudeDrugs.latinName,
       importance: crudeDrugs.importance,
@@ -29,7 +32,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
       familyKoreanName: families.koreanName,
       familyScientificName: families.scientificName,
       familyAcceptedScientificName: families.acceptedScientificName,
-    }).from(crudeDrugs).leftJoin(categories, eq(crudeDrugs.categoryId, categories.id)).leftJoin(families, eq(crudeDrugs.familyId, families.id)).orderBy(asc(categories.position), asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex)),
+    }).from(crudeDrugs).leftJoin(categories, eq(crudeDrugs.categoryId, categories.id)).leftJoin(families, eq(crudeDrugs.familyId, families.id)).leftJoin(archiveEntries, eq(archiveEntries.drugId, crudeDrugs.id)).leftJoin(archiveGroups, eq(archiveGroups.id, archiveEntries.archiveGroupId)).orderBy(asc(categories.position), asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex), asc(archiveEntries.originalIndex)),
     db.select({ drugId: crudeDrugIdentityTerms.crudeDrugId, name: drugIdentityTerms.name }).from(crudeDrugIdentityTerms).innerJoin(drugIdentityTerms, eq(drugIdentityTerms.id, crudeDrugIdentityTerms.termId)),
     db.select({ sourceId: crudeDrugRelationships.sourceId, targetId: crudeDrugRelationships.targetId, type: relationshipTypes.name, notes: crudeDrugRelationships.notes }).from(crudeDrugRelationships).innerJoin(relationshipTypes, eq(relationshipTypes.id, crudeDrugRelationships.typeId)),
     db.select({ drugId: crudeDrugConstituents.crudeDrugId, name: constituents.name, aliases: constituents.aliases, notes: crudeDrugConstituents.notes, taxonId: constituentTaxa.id }).from(crudeDrugConstituents).innerJoin(constituents, eq(constituents.id, crudeDrugConstituents.constituentId)).leftJoin(constituentMemberships, eq(constituentMemberships.constituentId, constituents.id)).leftJoin(constituentTaxa, eq(constituentTaxa.id, constituentMemberships.taxonId)),
@@ -58,10 +61,10 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
     if (row.taxonId) for (const name of lineage(row.taxonId)) if (!item.taxa.includes(name)) item.taxa.push(name);
   }
   const searchable = drugs.map((drug) => ({
-    id: drug.id, catalogIndex: drug.catalogIndex, referenceIndex: drug.referenceIndex, koreanName: drug.koreanName, latinName: drug.latinName, importance: drug.importance,
+    id: drug.id, catalogIndex: drug.catalogIndex, referenceIndex: drug.referenceIndex, archive: drug.archivePrefix && drug.archiveOriginalIndex != null ? { prefix: drug.archivePrefix, name: drug.archiveName!, originalIndex: drug.archiveOriginalIndex } : null, koreanName: drug.koreanName, latinName: drug.latinName, importance: drug.importance,
     categoryId: drug.categoryId, categoryName: drug.categoryName, categoryPosition: drug.categoryPosition,
     searchDocument: buildHerbSearchDocument({
-      index: formatDrugIndex(drug.catalogIndex, drug.referenceIndex), koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins,
+      index: formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archivePrefix && drug.archiveOriginalIndex != null ? { prefix: drug.archivePrefix, originalIndex: drug.archiveOriginalIndex } : null), koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins,
       scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, categoryName: drug.categoryName,
       family: drug.familyKoreanName && drug.familyScientificName ? { koreanName: drug.familyKoreanName, scientificName: drug.familyScientificName, acceptedScientificName: drug.familyAcceptedScientificName } : null,
       sections: drug.sections, constituents: constituentsByDrug.get(drug.id), identityTerms: (identityByDrug.get(drug.id) ?? []).map((item) => item.name), relationships: relationshipsByDrug.get(drug.id),

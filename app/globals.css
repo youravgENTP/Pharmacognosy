@@ -115,6 +115,57 @@ h2, h3, p { margin-top: 0; }
   .side-card { position: static; }
 }
 
+/* Exam archive lifecycle. */
+.archive-manager { display: grid; gap: 14px; }
+.archive-manager .panel { margin: 0; }
+.archive-notice { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.archive-notice.error { background: var(--control-danger-bg, #fff0f0); color: var(--control-danger-text, #9c3838); }
+.archive-notice.success { background: var(--control-success-bg, #edf8f0); color: var(--control-success-text, #357049); }
+.archive-search-toggle { padding: 7px 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--control-border, var(--line)); border-radius: 8px; color: var(--text-secondary, var(--muted)); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.archive-row-badge { color: var(--text-muted, var(--muted)); font-size: 10px; font-style: normal; font-weight: 600; }
+.data-card-archive-indicator { width: fit-content; margin-bottom: 8px; padding: 4px 8px; border: 1px solid var(--accent); border-radius: 99px; background: var(--control-accent-bg, #e7f0ff); color: var(--control-accent-text, #34689f); font-size: 11px; font-weight: 800; }
+.archive-create > div { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin: 12px 0; }
+.archive-create label { display: grid; gap: 5px; color: var(--text-muted, var(--muted)); font-size: 11px; font-weight: 700; }
+.archive-create label.wide { grid-column: 1 / -1; }
+.archive-create input { width: 100%; padding: 9px 10px; border: 1px solid var(--control-border, var(--line)); border-radius: 8px; background: var(--control-bg, var(--panel)); color: var(--text-primary, var(--ink)); }
+.archive-active > header, .archive-preview > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.archive-active > header p, .archive-preview > header p { margin: 3px 0 0; color: var(--text-muted, var(--muted)); font-size: 12px; }
+.archive-active > header > div:last-child { display: flex; gap: 6px; }
+.archive-active button, .archive-browser button { display: inline-flex; align-items: center; gap: 5px; }
+.archive-toolbar { display: grid; grid-template-columns: minmax(210px, 1fr) 170px 220px auto; gap: 8px; margin: 14px 0 10px; }
+.archive-toolbar select { min-width: 0; padding: 8px; border: 1px solid var(--control-border, var(--line)); border-radius: 8px; background: var(--control-bg, var(--panel)); color: var(--text-primary, var(--ink)); }
+.archive-drug-list { max-height: 360px; overflow: auto; border: 1px solid var(--border, var(--line)); border-radius: 9px; }
+.archive-drug-list label { padding: 8px 10px; display: grid; grid-template-columns: 18px 24px minmax(0, 1fr); align-items: center; gap: 8px; border-bottom: 1px solid var(--border, var(--line)); cursor: pointer; }
+.archive-drug-list label:last-child { border-bottom: 0; }
+.archive-drug-list label.selected { background: var(--control-accent-bg, #e7f0ff); }
+.archive-drug-list input { position: absolute; opacity: 0; }
+.archive-check { width: 17px; height: 17px; border: 1px solid var(--control-border, var(--line)); border-radius: 4px; display: grid; place-items: center; }
+.archive-drug-list label.selected .archive-check { border-color: var(--accent); background: var(--accent); color: white; }
+.archive-drug-list label > b { text-align: right; font-variant-numeric: tabular-nums; }
+.archive-drug-list label > span:last-child { display: grid; }
+.archive-drug-list small, .archive-entry-list small, .archive-group-heading small { color: var(--text-muted, var(--muted)); font-size: 11px; }
+.archive-preview { margin-top: 12px; padding: 13px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface-muted, #f4f5f6); }
+.archive-preview > div { max-height: 280px; margin-top: 10px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+.archive-preview > div > span { padding: 8px; border: 1px solid var(--border, var(--line)); border-radius: 7px; background: var(--surface, var(--panel)); display: grid; grid-template-columns: 84px 1fr; gap: 3px 8px; font-size: 12px; }
+.archive-preview > div b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.archive-preview > div small { grid-column: 2; color: var(--text-muted, var(--muted)); }
+.archive-conflicts { color: var(--control-danger-text, #9c3838); font-size: 12px; }
+.archive-browser { display: grid; gap: 8px; }
+.archive-browser > section { overflow: hidden; border: 1px solid var(--border, var(--line)); border-radius: 9px; }
+.archive-group-heading { width: 100%; padding: 10px 12px; display: grid !important; grid-template-columns: 18px 42px minmax(0, 1fr) auto; text-align: left; background: var(--surface-muted, #f4f5f6); color: var(--text-primary, var(--ink)); }
+.archive-group-heading > b { color: var(--accent); }
+.archive-group-heading > span { display: grid; }
+.archive-group-heading > em { font-style: normal; }
+.archive-entry-list > div { padding: 9px 12px; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-top: 1px solid var(--border, var(--line)); }
+.archive-entry-list > div > span { display: grid; }
+.archive-entry-list a { color: var(--text-primary, var(--ink)); font-weight: 750; }
+@media (max-width: 760px) {
+  .archive-create > div, .archive-toolbar { grid-template-columns: 1fr; }
+  .archive-active > header, .archive-preview > header { align-items: stretch; flex-direction: column; }
+  .archive-entry-list > div { grid-template-columns: 48px minmax(0, 1fr); }
+  .archive-entry-list > div > button { grid-column: 2; width: fit-content; }
+}
+
 /* Taxonomy explorer: inline CRUD + constituent leaves */
 .explorer-layout { grid-template-columns: minmax(520px, 1fr) minmax(300px, 360px); gap: 18px; align-items: start; }
 .taxonomy-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }

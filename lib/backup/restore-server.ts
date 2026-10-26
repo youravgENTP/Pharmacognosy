@@ -58,6 +58,8 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
   const backupTaxonEdges = archive.tables["constituent-taxon-edges"].map(record);
   const backupMnemonics = archive.tables["user-drug-mnemonics"].map(record);
   const backupMnemonicPreferences = archive.tables["user-mnemonic-preferences"].map(record);
+  const backupArchiveGroups = archive.tables["archive-groups"].map(record);
+  const backupArchiveEntries = archive.tables["archive-entries"].map(record);
   const hasMnemonicPreferenceSnapshot = archive.manifest.counts["user-mnemonic-preferences"] !== undefined;
   const mnemonicDrugIds = new Set(backupMnemonics.map((row) => string(row.drugId)));
 
@@ -157,6 +159,22 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
 
       const restored = applySelectedDrugFields(current, backup, selection.fields, { categoryId, familyId });
       await tx.update(schema.crudeDrugs).set({ catalogIndex: restored.catalogIndex, referenceIndex: restored.referenceIndex, koreanName: restored.koreanName, latinName: restored.latinName, origin: restored.origin, origins: restored.origins, scientificName: restored.scientificName, medicinalPart: restored.medicinalPart, categoryId: restored.categoryId, familyId: restored.familyId, importance: restored.importance, sections: restored.sections, updatedAt: new Date() }).where(eq(schema.crudeDrugs.id, selection.drugId));
+
+      if (selection.fields.includes("basic")) {
+        await tx.delete(schema.archiveEntries).where(eq(schema.archiveEntries.drugId, selection.drugId));
+        const archived = backupArchiveEntries.find((row) => row.drugId === selection.drugId);
+        if (archived) {
+          const sourceGroup = backupArchiveGroups.find((row) => row.id === archived.archiveGroupId);
+          if (!sourceGroup) throw new Error(`${backup.koreanName}의 Archive Group dependency가 백업에 없습니다.`);
+          const groupId = string(sourceGroup.id);
+          const [sameId] = await tx.select().from(schema.archiveGroups).where(eq(schema.archiveGroups.id, groupId)).limit(1);
+          let group = sameId;
+          if (!group) [group] = await tx.select().from(schema.archiveGroups).where(eq(schema.archiveGroups.prefix, string(sourceGroup.prefix))).limit(1);
+          if (!group) [group] = await tx.insert(schema.archiveGroups).values({ id: groupId, name: string(sourceGroup.name), prefix: string(sourceGroup.prefix), description: nullableString(sourceGroup.description) }).returning();
+          await tx.update(schema.crudeDrugs).set({ catalogIndex: null }).where(eq(schema.crudeDrugs.id, selection.drugId));
+          await tx.insert(schema.archiveEntries).values({ id: string(archived.id), archiveGroupId: group.id, drugId: selection.drugId, originalIndex: number(archived.originalIndex), archivedAt: new Date(string(archived.archivedAt)) });
+        }
+      }
 
       if (selection.fields.includes("identification")) {
         await tx.delete(schema.crudeDrugRelationships).where(eq(schema.crudeDrugRelationships.sourceId, selection.drugId));

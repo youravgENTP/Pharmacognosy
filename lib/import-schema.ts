@@ -38,6 +38,7 @@ export const importRelationshipSchema = z.object({
 
 export const importDrugSchema = z.object({
   koreanName: z.string().trim().min(1),
+  catalogIndex: z.number().int().positive().optional(),
   latinName: z.string().trim().nullable().optional(),
   origin: z.string().trim().nullable().optional(),
   origins: z.array(z.object({ nameKo: z.string().trim().nullable(), scientificName: z.string().trim().nullable() })).optional(),

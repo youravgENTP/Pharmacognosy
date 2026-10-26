@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { DrugBoard } from "@/components/drug-board";
 import { db } from "@/lib/db";
-import { categories, constituentMemberships, constituents, constituentTaxa, constituentTaxonEdges, crudeDrugConstituents, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, relationshipTypes } from "@/lib/db/schema";
+import { archiveEntries, archiveGroups, categories, constituentMemberships, constituents, constituentTaxa, constituentTaxonEdges, crudeDrugConstituents, crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, drugIdentityTerms, families, relationshipTypes } from "@/lib/db/schema";
 import { formatDrugIndex } from "@/lib/drug-index";
 import { buildHerbSearchDocument } from "@/lib/herb-search";
 
@@ -12,9 +12,10 @@ export default async function HomePage() {
     db.select({
       categoryId: categories.id, categoryName: categories.name, categorySlug: categories.slug, categoryPosition: categories.position,
       id: crudeDrugs.id, catalogIndex: crudeDrugs.catalogIndex, referenceIndex: crudeDrugs.referenceIndex, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName,
+      archivePrefix: archiveGroups.prefix, archiveName: archiveGroups.name, archiveOriginalIndex: archiveEntries.originalIndex,
       origin: crudeDrugs.origin, origins: crudeDrugs.origins, scientificName: crudeDrugs.scientificName, medicinalPart: crudeDrugs.medicinalPart, importance: crudeDrugs.importance, sections: crudeDrugs.sections,
       familyKoreanName: families.koreanName, familyScientificName: families.scientificName, familyAcceptedScientificName: families.acceptedScientificName,
-    }).from(categories).leftJoin(crudeDrugs, eq(crudeDrugs.categoryId, categories.id)).leftJoin(families, eq(crudeDrugs.familyId, families.id)).orderBy(asc(categories.position), asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex)),
+    }).from(categories).leftJoin(crudeDrugs, eq(crudeDrugs.categoryId, categories.id)).leftJoin(families, eq(crudeDrugs.familyId, families.id)).leftJoin(archiveEntries, eq(archiveEntries.drugId, crudeDrugs.id)).leftJoin(archiveGroups, eq(archiveGroups.id, archiveEntries.archiveGroupId)).orderBy(asc(categories.position), asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex), asc(archiveEntries.originalIndex)),
     db.select({ drugId: crudeDrugIdentityTerms.crudeDrugId, name: drugIdentityTerms.name }).from(crudeDrugIdentityTerms).innerJoin(drugIdentityTerms, eq(drugIdentityTerms.id, crudeDrugIdentityTerms.termId)),
     db.select({ sourceId: crudeDrugRelationships.sourceId, targetId: crudeDrugRelationships.targetId, type: relationshipTypes.name, notes: crudeDrugRelationships.notes }).from(crudeDrugRelationships).innerJoin(relationshipTypes, eq(relationshipTypes.id, crudeDrugRelationships.typeId)),
     db.select({ drugId: crudeDrugConstituents.crudeDrugId, name: constituents.name, aliases: constituents.aliases, notes: crudeDrugConstituents.notes, taxonId: constituentTaxa.id }).from(crudeDrugConstituents).innerJoin(constituents, eq(constituents.id, crudeDrugConstituents.constituentId)).leftJoin(constituentMemberships, eq(constituentMemberships.constituentId, constituents.id)).leftJoin(constituentTaxa, eq(constituentTaxa.id, constituentMemberships.taxonId)),
@@ -51,16 +52,16 @@ export default async function HomePage() {
   const grouped = Array.from(rows.reduce((map, row) => {
     if (!map.has(row.categoryId)) map.set(row.categoryId, { id: row.categoryId, name: row.categoryName, slug: row.categorySlug, drugs: [] });
     if (row.id && row.koreanName) map.get(row.categoryId)!.drugs.push({
-      id: row.id, catalogIndex: row.catalogIndex, referenceIndex: row.referenceIndex, koreanName: row.koreanName, latinName: row.latinName, importance: row.importance!,
+      id: row.id, catalogIndex: row.catalogIndex, referenceIndex: row.referenceIndex, archive: row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, name: row.archiveName!, originalIndex: row.archiveOriginalIndex } : null, koreanName: row.koreanName, latinName: row.latinName, importance: row.importance!,
       searchDocument: buildHerbSearchDocument({
-        index: formatDrugIndex(row.catalogIndex, row.referenceIndex), koreanName: row.koreanName, latinName: row.latinName, origin: row.origin, origins: row.origins ?? [],
+        index: formatDrugIndex(row.catalogIndex, row.referenceIndex, row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, originalIndex: row.archiveOriginalIndex } : null), koreanName: row.koreanName, latinName: row.latinName, origin: row.origin, origins: row.origins ?? [],
         scientificName: row.scientificName, medicinalPart: row.medicinalPart, categoryName: row.categoryName,
         family: row.familyKoreanName && row.familyScientificName ? { koreanName: row.familyKoreanName, scientificName: row.familyScientificName, acceptedScientificName: row.familyAcceptedScientificName } : null,
         sections: row.sections ?? [], constituents: constituentsByDrug.get(row.id), identityTerms: (identityByDrug.get(row.id) ?? []).map((item) => item.name), relationships: relationshipsByDrug.get(row.id),
       }),
     });
     return map;
-  }, new Map<string, { id: string; name: string; slug: string; drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; importance: "중요" | "중간" | "비중요"; searchDocument: ReturnType<typeof buildHerbSearchDocument> }[] }>()).values());
+  }, new Map<string, { id: string; name: string; slug: string; drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; importance: "중요" | "중간" | "비중요"; searchDocument: ReturnType<typeof buildHerbSearchDocument> }[] }>()).values());
   return <div className="page wide"><DrugBoard categories={grouped}/></div>;
 }
 

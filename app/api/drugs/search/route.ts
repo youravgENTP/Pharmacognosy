@@ -1,11 +1,13 @@
 import { authorizeApi } from "@/lib/auth/permissions";
-import { asc, ilike, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { crudeDrugs } from "@/lib/db/schema";
+import { archiveEntries, archiveGroups, crudeDrugs } from "@/lib/db/schema";
 
 export async function GET(request: Request) { const authError = await authorizeApi("user"); if (authError) return authError;
   const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-  const rows = await db.select({ id: crudeDrugs.id, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, catalogIndex: crudeDrugs.catalogIndex, referenceIndex: crudeDrugs.referenceIndex }).from(crudeDrugs).where(query ? or(ilike(crudeDrugs.koreanName, `%${query}%`), ilike(crudeDrugs.latinName, `%${query}%`), sql`CAST(${crudeDrugs.catalogIndex} AS TEXT) ILIKE ${`%${query}%`}`, sql`CAST(${crudeDrugs.referenceIndex} AS TEXT) ILIKE ${`%${query}%`}`) : undefined).orderBy(asc(crudeDrugs.koreanName)).limit(30);
-  return NextResponse.json(rows);
+  const includeArchived = new URL(request.url).searchParams.get("includeArchived") === "true";
+  const search = query ? or(ilike(crudeDrugs.koreanName, `%${query}%`), ilike(crudeDrugs.latinName, `%${query}%`), sql`CAST(${crudeDrugs.catalogIndex} AS TEXT) ILIKE ${`%${query}%`}`, sql`CAST(${crudeDrugs.referenceIndex} AS TEXT) ILIKE ${`%${query}%`}`, sql`(${archiveGroups.prefix} || LPAD(CAST(${archiveEntries.originalIndex} AS TEXT), 2, '0')) ILIKE ${`%${query}%`}`) : undefined;
+  const rows = await db.select({ id: crudeDrugs.id, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, catalogIndex: crudeDrugs.catalogIndex, referenceIndex: crudeDrugs.referenceIndex, archivePrefix: archiveGroups.prefix, archiveName: archiveGroups.name, archiveOriginalIndex: archiveEntries.originalIndex }).from(crudeDrugs).leftJoin(archiveEntries, eq(archiveEntries.drugId, crudeDrugs.id)).leftJoin(archiveGroups, eq(archiveGroups.id, archiveEntries.archiveGroupId)).where(and(includeArchived ? undefined : isNull(archiveEntries.id), search)).orderBy(asc(crudeDrugs.koreanName)).limit(30);
+  return NextResponse.json(rows.map((row) => ({ ...row, archive: row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, name: row.archiveName, originalIndex: row.archiveOriginalIndex } : null })));
 }

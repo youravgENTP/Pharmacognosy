@@ -14,7 +14,7 @@ export const BACKUP_TABLE_FILES = [
   "user-mnemonic-preferences", "legacy-drug-mnemonics", "collections",
   "collection-members", "collection-revisions", "decks", "word-cards",
   "concept-anchors", "concept-connections", "media-assets", "app-settings",
-  "user-attribution",
+  "archive-groups", "archive-entries", "user-attribution",
 ] as const;
 
 export type BackupTableName = typeof BACKUP_TABLE_FILES[number];
@@ -82,7 +82,7 @@ export async function parseBackupArchive(input: Buffer | ArrayBuffer) {
     const path = `database/${name}.json`;
     const file = zip.file(path);
     const expected = manifest.files[path];
-    if (name === "user-mnemonic-preferences" && !file && !expected && manifest.counts[name] === undefined) {
+    if (["user-mnemonic-preferences", "archive-groups", "archive-entries"].includes(name) && !file && !expected && manifest.counts[name] === undefined) {
       tables[name] = [];
       continue;
     }

@@ -46,6 +46,15 @@ test("archive round-trip preserves rich hierarchy, image references, and media m
   assert.deepEqual(parsed.manifest.media, { count: 0, bytes: 0, files: [] });
 });
 
+test("backup round-trip preserves Collection Archive state with document and revisions", async () => {
+  const { tables } = fixture();
+  tables.collections = [{ id: "30000000-0000-4000-8000-000000000003", name: "기말", archivedAt: "2026-10-27T00:00:00.000Z", document: { version: 1, blocks: [] }, revision: 2 }];
+  tables["collection-revisions"] = [{ id: "40000000-0000-4000-8000-000000000004", collectionId: "30000000-0000-4000-8000-000000000003", revision: 1, document: { version: 1, blocks: [{ id: "h", type: "heading" }] } }];
+  const parsed = await parseBackupArchive((await createBackupArchive(tables, [])).buffer);
+  assert.deepEqual(parsed.tables.collections, tables.collections);
+  assert.deepEqual(parsed.tables["collection-revisions"], tables["collection-revisions"]);
+});
+
 test("backup creation succeeds when media metadata has no actual bytes", async () => {
   const { tables } = fixture();
   const { buffer } = await createBackupArchive(tables, []);

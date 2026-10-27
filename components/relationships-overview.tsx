@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DrugEditor } from "@/components/drug-editor";
 import type { ImportanceLevel, OriginPlant, StudySection } from "@/lib/db/schema";
-import { compareDrugIndexes, formatDrugIndex } from "@/lib/drug-index";
+import { formatDrugIndex } from "@/lib/drug-index";
+import { buildRelationshipClusters, type RelationshipArchiveStatus } from "@/lib/relationship-archive";
 
 type RelationshipType = "연관생약" | "유사생약";
 type DrugNode = { id: string; name: string; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndex: number } | null };
-export type RelationshipEdge = { id: string; type: RelationshipType; source: DrugNode; target: DrugNode };
+export type RelationshipEdge = { id: string; type: RelationshipType; source: DrugNode; target: DrugNode; status: RelationshipArchiveStatus };
 type Filter = "전체" | RelationshipType;
-type Cluster = { key: string; type: RelationshipType; nodes: DrugNode[]; edges: RelationshipEdge[] };
+type Cluster = { key: string; type: RelationshipType; status: RelationshipArchiveStatus; nodes: DrugNode[]; edges: RelationshipEdge[] };
 type DrugProfile = {
   id: string; koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
   medicinalPart: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[]; family: string | null;
@@ -24,19 +25,23 @@ type DrugProfile = {
 export function RelationshipsOverview({ edges }: { edges: RelationshipEdge[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("전체");
+  const [scope, setScope] = useState<RelationshipArchiveStatus>("active");
   const [mapKey, setMapKey] = useState<string>();
   const [comparison, setComparison] = useState<RelationshipEdge>();
-  const clusters = useMemo(() => buildClusters(edges), [edges]);
+  const scopedEdges = useMemo(() => edges.filter((edge) => edge.status === scope), [edges, scope]);
+  const clusters = useMemo(() => buildRelationshipClusters(scopedEdges) as Cluster[], [scopedEdges]);
   const visible = useMemo(() => {
     const needle = normalize(query);
     return clusters.filter((cluster) => (filter === "전체" || cluster.type === filter) && (!needle || cluster.nodes.some((node) => normalize(node.name).includes(needle) || normalize(formatDrugIndex(node.catalogIndex, node.referenceIndex, node.archive)).includes(needle))));
   }, [clusters, filter, query]);
-  const relatedCount = edges.filter((edge) => edge.type === "연관생약").length;
-  const similarCount = edges.filter((edge) => edge.type === "유사생약").length;
+  const relatedCount = scopedEdges.filter((edge) => edge.type === "연관생약").length;
+  const similarCount = scopedEdges.filter((edge) => edge.type === "유사생약").length;
+  const scopeCounts = { active: edges.filter((edge) => edge.status === "active").length, mixed: edges.filter((edge) => edge.status === "mixed").length, archived: edges.filter((edge) => edge.status === "archived").length };
 
   return <>
     <header className="db-header relationships-header"><div><h1>Herb Relations</h1><p className="subtitle">유사·연관 생약의 연결을 묶음 단위로 한눈에 확인하세요.</p></div><div className="search-wrap"><Search size={18}/><input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="생약명 또는 인덱스 검색" aria-label="관계 생약 검색"/></div></header>
-    <div className="relationship-overview-summary"><span><b>{edges.length}</b>개 연결</span><span><b>{relatedCount}</b>개 연관</span><span><b>{similarCount}</b>개 유사</span><span><b>{clusters.length}</b>개 묶음</span></div>
+    <div className="relationship-overview-summary"><span><b>{scopedEdges.length}</b>개 연결</span><span><b>{relatedCount}</b>개 연관</span><span><b>{similarCount}</b>개 유사</span><span><b>{clusters.length}</b>개 묶음</span></div>
+    <div className="relationship-filter-tabs relationship-scope-tabs" role="group" aria-label="Archive 상태 필터">{([['active', 'Active'], ['mixed', 'Mixed'], ['archived', 'Archive']] as const).map(([value, label]) => <button className={scope === value ? "active" : ""} onClick={() => { setScope(value); setMapKey(undefined); }} key={value}>{label} <small>{scopeCounts[value]}</small></button>)}</div>
     <div className="relationship-filter-tabs" role="group" aria-label="관계 유형 필터">{(["전체", "연관생약", "유사생약"] as Filter[]).map((value) => <button className={filter === value ? "active" : ""} onClick={() => setFilter(value)} key={value}>{value}</button>)}</div>
     {visible.length ? <div className="relationship-cluster-grid">{visible.map((cluster) => <article className={`relationship-cluster ${cluster.type === "유사생약" ? "similar" : "related"}`} key={cluster.key}>
       <header><span>{cluster.type}</span><div><small>{cluster.nodes.length}개 생약 · {cluster.edges.length}개 연결</small>{cluster.nodes.length >= 3 ? <button className={mapKey === cluster.key ? "active" : ""} onClick={() => setMapKey((current) => current === cluster.key ? undefined : cluster.key)} aria-label={`${cluster.type} 네트워크 지도`}><Network size={14}/> 연결 지도</button> : null}</div></header>
@@ -71,36 +76,5 @@ function RelationshipComparison({ edge, onClose }: { edge: RelationshipEdge; onC
   return <div className="relationship-compare-backdrop" role="dialog" aria-modal="true" aria-label={`${edge.source.name}과 ${edge.target.name} 비교`} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="relationship-compare-dialog"><header><div><strong>{edge.source.name} ↔ {edge.target.name}</strong><span>{edge.type} 데이터카드 비교</span></div><button onClick={onClose} aria-label="비교 닫기"><X size={20}/></button></header>{error ? <div className="relationship-compare-status">데이터카드를 불러오지 못했습니다.</div> : !profiles ? <div className="relationship-compare-status">두 데이터카드를 불러오는 중…</div> : <div className="relationship-compare-grid">{profiles.map((profile) => <div className="relationship-compare-pane" key={profile.id}><DrugEditor modal id={profile.id} family={profile.family} identityTerms={profile.identityTerms} relatedDrugs={profile.relatedDrugs} similarDrugs={profile.similarDrugs} availableDrugs={profile.availableDrugs} initial={{ koreanName: profile.koreanName, latinName: profile.latinName, origin: profile.origin, origins: profile.origins, scientificName: profile.scientificName, medicinalPart: profile.medicinalPart, familyId: profile.familyId, importance: profile.importance, sections: profile.sections }}/></div>)}</div>}</section></div>;
 }
 
-function buildClusters(edges: RelationshipEdge[]): Cluster[] {
-  return (["유사생약", "연관생약"] as RelationshipType[]).flatMap((type) => {
-    const typed = edges.filter((edge) => edge.type === type);
-    const remaining = new Set(typed.map((edge) => edge.id));
-    const clusters: Cluster[] = [];
-    while (remaining.size) {
-      const firstId = remaining.values().next().value as string;
-      const clusterEdges: RelationshipEdge[] = [];
-      const nodeIds = new Set<string>();
-      const first = typed.find((edge) => edge.id === firstId)!;
-      const pending = [first.source.id, first.target.id];
-      while (pending.length) {
-        const nodeId = pending.pop()!;
-        if (nodeIds.has(nodeId)) continue;
-        nodeIds.add(nodeId);
-        for (const edge of typed) {
-          if (!remaining.has(edge.id) || edge.source.id !== nodeId && edge.target.id !== nodeId) continue;
-          remaining.delete(edge.id); clusterEdges.push(edge);
-          pending.push(edge.source.id === nodeId ? edge.target.id : edge.source.id);
-        }
-      }
-      const nodeMap = new Map<string, DrugNode>();
-      for (const edge of clusterEdges) { nodeMap.set(edge.source.id, edge.source); nodeMap.set(edge.target.id, edge.target); }
-      const nodes = [...nodeMap.values()].sort(sortDrug);
-      clusters.push({ key: `${type}-${nodes.map((node) => node.id).join("-")}`, type, nodes, edges: clusterEdges.sort((a, b) => sortDrug(a.source, b.source) || sortDrug(a.target, b.target)) });
-    }
-    return clusters;
-  }).sort((a, b) => a.type.localeCompare(b.type, "ko") || sortDrug(a.nodes[0], b.nodes[0]));
-}
-
-function sortDrug(a: DrugNode, b: DrugNode) { return compareDrugIndexes(a, b); }
 function normalize(value: string) { return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/\s/g, ""); }
 function shortName(value: string) { return value.length > 7 ? `${value.slice(0, 6)}…` : value; }

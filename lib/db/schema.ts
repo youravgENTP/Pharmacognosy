@@ -287,6 +287,7 @@ export const collections = pgTable("collections", {
   rule: jsonb("rule"),
   document: jsonb("document").$type<CollectionDocument>().notNull().default({ version: 1, blocks: [] }),
   revision: integer("revision").notNull().default(0),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

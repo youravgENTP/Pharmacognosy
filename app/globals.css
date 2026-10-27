@@ -115,6 +115,20 @@ h2, h3, p { margin-top: 0; }
   .side-card { position: static; }
 }
 
+.collection-archive-toolbar { margin: 0 0 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.collection-archive-toolbar .relationship-filter-tabs { margin: 0; }
+.collection-archive-toolbar > div:last-child { display: flex; gap: 8px; }
+.collection-select-row { margin-bottom: 9px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; }
+.collection-select-row label { display: inline-flex; align-items: center; gap: 6px; }
+.collection-index-card.archived { border-style: dashed; opacity: .9; }
+.collection-delete { color: #a84b43 !important; }
+.reindex-confirm { margin-top: 14px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: flex-start; gap: 8px; color: var(--ink); font-size: 13px; }
+.reindex-preview-list .preview-row header { display: flex; justify-content: space-between; gap: 12px; }
+@media (max-width: 760px) {
+  .collection-archive-toolbar { align-items: stretch; flex-direction: column; }
+  .collection-archive-toolbar > div:last-child { flex-wrap: wrap; }
+}
+
 /* Exam archive lifecycle. */
 .archive-manager { display: grid; gap: 14px; }
 .archive-manager .panel { margin: 0; }
@@ -2013,6 +2027,9 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 .relationship-filter-tabs { display: flex; gap: 7px; margin-bottom: 18px; }
 .relationship-filter-tabs button { padding: 8px 13px; border: 1px solid var(--control-border, var(--line)); border-radius: 99px; background: var(--control-bg, var(--panel)); color: var(--control-muted, var(--muted)); font-weight: 700; }
 .relationship-filter-tabs button.active { border-color: var(--accent); background: var(--control-accent-bg, #e7f0ff); color: var(--control-accent-text, #34689f); }
+.relationship-filter-tabs button small { margin-left: 4px; opacity: .72; }
+.relationship-scope-tabs { margin-bottom: 9px; }
+.relationship-scope-tabs + .relationship-filter-tabs { margin-top: 0; }
 .relationship-cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 13px; align-items: start; }
 .relationship-cluster { overflow: hidden; border: 1px solid var(--border, var(--line)); border-top: 3px solid #718eb5; border-radius: 12px; background: var(--surface, var(--panel)); }
 .relationship-cluster.similar { border-top-color: #9a79ba; }

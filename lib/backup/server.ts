@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { createBackupArchive, type BackupTables } from "@/lib/backup/archive";
+import { createBackupArchive, verifyGeneratedBackup, type BackupTables } from "@/lib/backup/archive";
 import { BACKUP_POLICY_KEY } from "@/lib/backup/policy";
 import { LATEX_SHORTCUTS_KEY } from "@/lib/data/latex-shortcuts";
 
@@ -45,5 +45,7 @@ export async function generateFullBackup(now = new Date()) {
 
   // Keep media metadata and references in the database snapshot, but temporarily
   // exclude original image binaries from the archive.
-  return createBackupArchive(tables, [], now);
+  const generated = await createBackupArchive(tables, [], now);
+  await verifyGeneratedBackup(generated.buffer, tables);
+  return generated;
 }

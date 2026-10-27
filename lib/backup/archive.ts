@@ -112,6 +112,12 @@ export async function parseBackupArchive(input: Buffer | ArrayBuffer) {
   return { manifest, tables, media };
 }
 
+export async function verifyGeneratedBackup(buffer: Buffer, expected: BackupTables) {
+  const parsed = await parseBackupArchive(buffer);
+  for (const name of BACKUP_TABLE_FILES) if (JSON.stringify(parsed.tables[name]) !== JSON.stringify(expected[name])) throw new Error(`생성된 Backup의 ${name} 데이터 검증에 실패했습니다.`);
+  return parsed.manifest;
+}
+
 export function sha256(value: string | Buffer) { return createHash("sha256").update(value).digest("hex"); }
 
 export function backupFilename(prefix = "HerbOverflow-Backup", date = new Date()) {

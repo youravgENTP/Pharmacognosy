@@ -8,6 +8,7 @@ import { normalizeKey } from "@/lib/import-normalization";
 import { pharmacognosyImportV1Schema } from "@/lib/import-schema";
 import { z } from "zod";
 import { allocateCatalogIndex } from "@/lib/catalog-index";
+import { createEmptyFieldSections } from "@/lib/empty-field-initialization";
 
 const requestSchema = z.object({ payload: pharmacognosyImportV1Schema, existingStrategy: z.enum(["merge", "skip"]) });
 
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
           familyId = family.id;
         }
         const replaceExisting = Boolean(existing && parsed.data.payload.replaceExisting);
-        const sections = mergeImportedSections(replaceExisting ? [] : existing?.sections ?? [], drug.sections, fields, (!existing || replaceExisting) && Boolean(drug.input.mnemonic));
+        const sections = !existing && drug.preview.defaultFieldsInitialized ? createEmptyFieldSections(fields) : mergeImportedSections(replaceExisting ? [] : existing?.sections ?? [], drug.sections, fields, (!existing || replaceExisting) && Boolean(drug.input.mnemonic));
         const scalars = scalarMergePatch(drug.input, { categoryId: drug.input.category === null ? null : category?.id, familyId });
         let saved: typeof existingDrugs[number];
         if (existing) {

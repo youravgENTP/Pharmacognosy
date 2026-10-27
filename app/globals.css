@@ -124,9 +124,20 @@ h2, h3, p { margin-top: 0; }
 .collection-delete { color: #a84b43 !important; }
 .reindex-confirm { margin-top: 14px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: flex-start; gap: 8px; color: var(--ink); font-size: 13px; }
 .reindex-preview-list .preview-row header { display: flex; justify-content: space-between; gap: 12px; }
+.empty-fields-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.empty-fields-summary { margin: 16px 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.empty-fields-summary span { padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); display: grid; gap: 3px; font-size: 12px; }
+.empty-fields-summary strong { color: var(--ink); font-size: 20px; }
+.empty-fields-list { max-height: 420px; overflow: auto; display: grid; gap: 7px; }
+.empty-fields-list article { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.empty-fields-list header { display: flex; justify-content: space-between; gap: 10px; }
+.empty-fields-list p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.empty-fields-review { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.empty-fields-review p { margin: 7px 0 0; font-size: 12px; }
 @media (max-width: 760px) {
   .collection-archive-toolbar { align-items: stretch; flex-direction: column; }
   .collection-archive-toolbar > div:last-child { flex-wrap: wrap; }
+  .empty-fields-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Exam archive lifecycle. */

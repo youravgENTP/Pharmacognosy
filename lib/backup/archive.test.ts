@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import JSZip from "jszip";
-import { BACKUP_TABLE_FILES, collectReferencedMediaIds, createBackupArchive, parseBackupArchive, sha256, type BackupTables } from "@/lib/backup/archive";
+import { BACKUP_TABLE_FILES, collectReferencedMediaIds, createBackupArchive, parseBackupArchive, sha256, verifyGeneratedBackup, type BackupTables } from "@/lib/backup/archive";
 import { backupDrugSchema } from "@/lib/backup/restore";
 
 const drugId = "10000000-0000-4000-8000-000000000001";
@@ -53,6 +53,18 @@ test("backup round-trip preserves Collection Archive state with document and rev
   const parsed = await parseBackupArchive((await createBackupArchive(tables, [])).buffer);
   assert.deepEqual(parsed.tables.collections, tables.collections);
   assert.deepEqual(parsed.tables["collection-revisions"], tables["collection-revisions"]);
+});
+
+test("backup verification preserves mnemonics, canonical preferences, relationships, and concept anchors", async () => {
+  const { tables } = fixture();
+  tables["user-drug-mnemonics"] = [{ id: "m", drugId, userId: "u", items: [{ id: "i", text: "암기" }], blocks: [] }];
+  tables["user-mnemonic-preferences"] = [{ userId: "u", drugId, preferredMnemonicUserId: "u", active: true }];
+  tables["crude-drug-relationships"] = [{ id: "r", sourceId: drugId, targetId: "other", typeId: "type" }];
+  tables["concept-anchors"] = [{ id: "a", ownerType: "drug", ownerId: drugId, targetType: "study_item", targetRef: { sectionId: "s" } }];
+  const generated = await createBackupArchive(tables, []);
+  await verifyGeneratedBackup(generated.buffer, tables);
+  const parsed = await parseBackupArchive(generated.buffer);
+  for (const name of ["user-drug-mnemonics", "user-mnemonic-preferences", "crude-drug-relationships", "concept-anchors"] as const) assert.deepEqual(parsed.tables[name], tables[name]);
 });
 
 test("backup creation succeeds when media metadata has no actual bytes", async () => {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/current-user";
-import { canAttemptCatchUpPeriod, duePeriod } from "@/lib/backup/policy";
+import { canAttemptCatchUpPeriod, duePeriod, recordBackupAttempt, recordBackupSuccess } from "@/lib/backup/policy";
 import { createRestoreSafetyTicket, loadBackupPolicy, saveBackupPolicy } from "@/lib/backup/settings";
 
 const policySchema = z.object({ enabled: z.boolean(), frequency: z.enum(["daily", "weekly"]), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), timezone: z.string().min(1).max(100), catchUp: z.boolean() });
@@ -44,6 +44,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "완료할 자동 백업 시도를 찾을 수 없습니다." }, { status: 409 });
   }
   const now = new Date().toISOString();
-  const updated = await saveBackupPolicy({ ...policy, lastAttemptAt: now, ...(parsed.data.action === "attempt" && parsed.data.periodKey ? { lastAttemptPeriodKey: parsed.data.periodKey } : {}), ...(parsed.data.action === "success" ? { lastSuccessfulLocalBackupAt: now } : {}) });
+  const updated = await saveBackupPolicy(parsed.data.action === "success" ? recordBackupSuccess(policy, now) : recordBackupAttempt(policy, now, parsed.data.periodKey));
   return NextResponse.json({ policy: updated, schedule: duePeriod(updated) });
 }

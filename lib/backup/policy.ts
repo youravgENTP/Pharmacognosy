@@ -21,6 +21,14 @@ export function canAttemptCatchUpPeriod(policy: BackupPolicy, periodKey: string)
 
 export function catchUpAttemptKey(periodKey: string) { return `backup-catchup-attempt:${periodKey}`; }
 
+export function recordBackupAttempt(policy: BackupPolicy, now: string, periodKey?: string): BackupPolicy {
+  return { ...policy, lastAttemptAt: now, ...(periodKey ? { lastAttemptPeriodKey: periodKey } : {}) };
+}
+
+export function recordBackupSuccess(policy: BackupPolicy, now: string): BackupPolicy {
+  return { ...policy, lastAttemptAt: now, lastSuccessfulLocalBackupAt: now };
+}
+
 export function isValidRestoreSafetyTicket(value: { token?: string; createdAt?: string; consumed?: boolean } | undefined, token: string, now = new Date()) {
   return Boolean(value?.token && value.token === token && !value.consumed && value.createdAt && now.getTime() - new Date(value.createdAt).getTime() <= 15 * 60_000 && now.getTime() >= new Date(value.createdAt).getTime());
 }

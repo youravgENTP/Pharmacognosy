@@ -43,7 +43,8 @@ test("mnemonic import preserves html for userDrugMnemonics conversion", () => {
   const prepared = prepare({ text: "기억", html: "<span style=\"color:#c00000\">기억</span>" }, "mnemonic");
   const stored = importItemsWithIds(prepared.drugs[0].input.mnemonic!.items!, () => "id");
   assert.equal(stored[0].html, '<span style="color:#C00000">기억</span>');
-  assert.equal(prepared.drugs[0].sections.length, 0);
+  assert.equal(prepared.drugs[0].sections.length, fields.length);
+  assert.equal(prepared.drugs[0].preview.defaultFieldsInitialized, true);
 });
 
 test("unknown heading fallback to 기타 preserves child html", () => {

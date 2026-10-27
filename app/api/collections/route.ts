@@ -5,17 +5,23 @@ import { db } from "@/lib/db";
 import { collections, collectionMembers, conceptAnchors, conceptConnections, crudeDrugs } from "@/lib/db/schema";
 import { collectionCreateSchema } from "@/lib/validators";
 import { initialCollectionDocument } from "@/lib/collections";
+import { isUndefinedColumnError } from "@/lib/db/migration-health";
 
 export async function GET(request: Request) { const authError = await authorizeApi("user"); if (authError) return authError;
-  const view = new URL(request.url).searchParams.get("view") ?? "active";
-  if (!["active", "archived", "all"].includes(view)) return NextResponse.json({ error: "Invalid archive filter" }, { status: 400 });
-  const query = db.select({ id: collections.id, name: collections.name, description: collections.description, kind: collections.kind, revision: collections.revision, archivedAt: collections.archivedAt, createdAt: collections.createdAt, updatedAt: collections.updatedAt }).from(collections);
-  const rows = await (view === "all" ? query : query.where(view === "archived" ? isNotNull(collections.archivedAt) : isNull(collections.archivedAt))).orderBy(asc(collections.createdAt));
-  const members = await db.select({ collectionId: collectionMembers.collectionId, id: crudeDrugs.id, koreanName: crudeDrugs.koreanName }).from(collectionMembers).innerJoin(crudeDrugs, eq(collectionMembers.crudeDrugId, crudeDrugs.id));
-  const anchors = rows.length ? await db.select().from(conceptAnchors).where(inArray(conceptAnchors.ownerId, rows.map((row) => row.id))) : [];
-  const ids = anchors.map((anchor) => anchor.id); const connections = ids.length ? await db.select().from(conceptConnections).where(or(inArray(conceptConnections.anchorAId, ids), inArray(conceptConnections.anchorBId, ids))) : [];
-  const relatedIds = [...new Set(connections.flatMap((edge) => [edge.anchorAId, edge.anchorBId]))]; const graphAnchors = relatedIds.length ? await db.select().from(conceptAnchors).where(inArray(conceptAnchors.id, relatedIds)) : anchors;
-  return NextResponse.json(rows.map((row) => { const owned = anchors.filter((anchor) => anchor.ownerType === "collection" && anchor.ownerId === row.id); const ownedIds = new Set(owned.map((anchor) => anchor.id)); const unresolved = connections.some((edge) => { if (!ownedIds.has(edge.anchorAId) && !ownedIds.has(edge.anchorBId)) return false; const ownAnchor = graphAnchors.find((anchor) => anchor.id === (ownedIds.has(edge.anchorAId) ? edge.anchorAId : edge.anchorBId)); const otherIsA = ownedIds.has(edge.anchorBId); const otherAnchor = graphAnchors.find((anchor) => anchor.id === (otherIsA ? edge.anchorAId : edge.anchorBId)); return Boolean((ownAnchor?.status === "broken" || ownAnchor?.status === "updated") && (ownedIds.has(edge.anchorAId) ? !edge.historicalA : !edge.historicalB) || (otherAnchor?.status === "broken" || otherAnchor?.status === "updated") && (otherIsA ? !edge.historicalA : !edge.historicalB)); }); return { ...row, unresolved, members: members.filter((m) => m.collectionId === row.id) }; }));
+  try {
+    const view = new URL(request.url).searchParams.get("view") ?? "active";
+    if (!["active", "archived", "all"].includes(view)) return NextResponse.json({ error: "Invalid archive filter" }, { status: 400 });
+    const query = db.select({ id: collections.id, name: collections.name, description: collections.description, kind: collections.kind, revision: collections.revision, archivedAt: collections.archivedAt, createdAt: collections.createdAt, updatedAt: collections.updatedAt }).from(collections);
+    const rows = await (view === "all" ? query : query.where(view === "archived" ? isNotNull(collections.archivedAt) : isNull(collections.archivedAt))).orderBy(asc(collections.createdAt));
+    const members = await db.select({ collectionId: collectionMembers.collectionId, id: crudeDrugs.id, koreanName: crudeDrugs.koreanName }).from(collectionMembers).innerJoin(crudeDrugs, eq(collectionMembers.crudeDrugId, crudeDrugs.id));
+    const anchors = rows.length ? await db.select().from(conceptAnchors).where(inArray(conceptAnchors.ownerId, rows.map((row) => row.id))) : [];
+    const ids = anchors.map((anchor) => anchor.id); const connections = ids.length ? await db.select().from(conceptConnections).where(or(inArray(conceptConnections.anchorAId, ids), inArray(conceptConnections.anchorBId, ids))) : [];
+    const relatedIds = [...new Set(connections.flatMap((edge) => [edge.anchorAId, edge.anchorBId]))]; const graphAnchors = relatedIds.length ? await db.select().from(conceptAnchors).where(inArray(conceptAnchors.id, relatedIds)) : anchors;
+    return NextResponse.json(rows.map((row) => { const owned = anchors.filter((anchor) => anchor.ownerType === "collection" && anchor.ownerId === row.id); const ownedIds = new Set(owned.map((anchor) => anchor.id)); const unresolved = connections.some((edge) => { if (!ownedIds.has(edge.anchorAId) && !ownedIds.has(edge.anchorBId)) return false; const ownAnchor = graphAnchors.find((anchor) => anchor.id === (ownedIds.has(edge.anchorAId) ? edge.anchorAId : edge.anchorBId)); const otherIsA = ownedIds.has(edge.anchorBId); const otherAnchor = graphAnchors.find((anchor) => anchor.id === (otherIsA ? edge.anchorAId : edge.anchorBId)); return Boolean((ownAnchor?.status === "broken" || ownAnchor?.status === "updated") && (ownedIds.has(edge.anchorAId) ? !edge.historicalA : !edge.historicalB) || (otherAnchor?.status === "broken" || otherAnchor?.status === "updated") && (otherIsA ? !edge.historicalA : !edge.historicalB)); }); return { ...row, unresolved, members: members.filter((m) => m.collectionId === row.id) }; }));
+  } catch (error) {
+    if (isUndefinedColumnError(error, "archived_at")) return NextResponse.json({ error: "Database Migration 0015가 필요합니다.", code: "DATABASE_MIGRATION_REQUIRED" }, { status: 503 });
+    throw error;
+  }
 }
 
 export async function POST(request: Request) { const authError = await authorizeApi("editor"); if (authError) return authError;

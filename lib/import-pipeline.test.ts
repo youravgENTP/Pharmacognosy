@@ -149,12 +149,13 @@ test("omitted sections remain omitted and preserve every existing section", () =
   assert.deepEqual(merged, existing.sections);
 });
 
-test("mnemonic stays out of crude-drug content and only adds an empty field shell", () => {
+test("mnemonic stays out of crude-drug content while a new card receives empty default field shells", () => {
   const prepared = prepare([{ koreanName: "A", category: "분류", mnemonic: { items: [{ text: "remember" }] } }]);
-  assert.equal(prepared.drugs[0].sections.length, 0);
+  assert.equal(prepared.drugs[0].preview.defaultFieldsInitialized, true);
+  assert.ok(prepared.drugs[0].sections.length > 1);
   const merged = mergeImportedSections([], prepared.drugs[0].sections, fields, true, () => "generated");
-  assert.deepEqual(merged[0].items, []);
-  assert.equal(merged[0].fieldDefinitionId, ids.mnemonic);
+  const mnemonic = merged.find((section) => section.fieldDefinitionId === ids.mnemonic);
+  assert.deepEqual(mnemonic?.items, []);
 });
 
 test("relationships between payload drugs resolve regardless of order", () => {

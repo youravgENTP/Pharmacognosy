@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canAttemptCatchUpPeriod, catchUpAttemptKey, defaultBackupPolicy, duePeriod, isValidRestoreSafetyTicket } from "@/lib/backup/policy";
+import { canAttemptCatchUpPeriod, catchUpAttemptKey, defaultBackupPolicy, duePeriod, isValidRestoreSafetyTicket, recordBackupAttempt, recordBackupSuccess } from "@/lib/backup/policy";
 
 test("daily overdue is calculated from explicit local timezone and scheduled wall time", () => {
   const policy = { ...defaultBackupPolicy, enabled: true, frequency: "daily" as const, time: "03:00", timezone: "Asia/Seoul" };
@@ -39,4 +39,11 @@ test("restore safety backup ticket is required, one-time, and expires", () => {
   assert.equal(isValidRestoreSafetyTicket(ticket, "wrong", now), false);
   assert.equal(isValidRestoreSafetyTicket({ ...ticket, consumed: true }, "safety-token", now), false);
   assert.equal(isValidRestoreSafetyTicket({ ...ticket, createdAt: "2026-09-23T07:40:00.000Z" }, "safety-token", now), false);
+});
+
+test("a failed backup attempt never overwrites the last successful backup", () => {
+  const previous = { ...defaultBackupPolicy, lastSuccessfulLocalBackupAt: "2026-10-26T01:00:00.000Z" };
+  const attempted = recordBackupAttempt(previous, "2026-10-27T01:00:00.000Z");
+  assert.equal(attempted.lastSuccessfulLocalBackupAt, previous.lastSuccessfulLocalBackupAt);
+  assert.equal(recordBackupSuccess(attempted, "2026-10-27T01:05:00.000Z").lastSuccessfulLocalBackupAt, "2026-10-27T01:05:00.000Z");
 });

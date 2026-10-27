@@ -26,7 +26,7 @@ export type PreparedImportDrug = {
   warnings: ImportIssue[];
   preview: {
     fieldsAdded: string[]; fieldsUpdated: string[]; fieldsPreserved: string[];
-    categoryAction: string; familyAction: string; relationshipAction: string; mnemonicAction: string; identityAction: string; richTextCount: number;
+    categoryAction: string; familyAction: string; relationshipAction: string; mnemonicAction: string; identityAction: string; richTextCount: number; defaultFieldsInitialized: boolean;
   };
 };
 export type PreparedImport = { payload: PharmacognosyImportV1; drugs: PreparedImportDrug[]; canCommit: boolean };
@@ -56,6 +56,7 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
   const drugs = normalized.payload.drugs.map((input, index): PreparedImportDrug => {
     const errors: ImportIssue[] = normalized.issues[index].map((issue) => ({ code: issue.code, field: issue.path, message: issue.message }));
     const warnings: ImportIssue[] = [];
+    const existing = existingByName.get(normalizeKey(input.koreanName));
     const sectionGroups = new Map<string, ResolvedImportSection>();
     for (const section of input.sections ?? []) {
       const sourceHeading = (section.field ?? section.title)!;
@@ -80,13 +81,13 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
       if (current) { current.items.push(...items); current.sourceHeadings.push(sourceHeading); }
       else sectionGroups.set(key, { fieldDefinitionId: field.id, title: field.name, inputMode: field.inputMode, position: field.position, items: structuredClone(items), sourceHeadings: [sourceHeading] });
     }
-    const sections = [...sectionGroups.values()].sort((left, right) => left.position - right.position);
+    const defaultFieldsInitialized = !existing && (input.sections?.length ?? 0) === 0;
+    const sections = (defaultFieldsInitialized ? activeFields.map((field) => ({ fieldDefinitionId: field.id, title: field.name, inputMode: field.inputMode, position: field.position, items: [], sourceHeadings: [] })) : [...sectionGroups.values()]).sort((left, right) => left.position - right.position);
     for (const section of sections) errors.push(...validateHierarchy(section.title, section.items, section.inputMode));
     if (input.mnemonic) {
       if (!mnemonicField) errors.push({ code: "missing-mnemonic-field", field: "암기법", message: "활성 암기법 필드 정의가 없습니다." });
       if (input.mnemonic.items) errors.push(...validateHierarchy("암기법", input.mnemonic.items, "hierarchy3"));
     }
-    const existing = existingByName.get(normalizeKey(input.koreanName));
     if (!existing && !input.category) errors.push({ code: "missing-category", field: "category", message: "신규 생약은 category가 필요합니다." });
     const incomingIds = new Set(sections.map((section) => section.fieldDefinitionId));
     const incomingNames = new Set(sections.map((section) => normalizeKey(section.title)));
@@ -134,7 +135,7 @@ export function prepareImport(payload: PharmacognosyImportV1, context: {
     const identityAction = input.identityTerms !== undefined ? `${input.identityTerms.length}개 식별 용어 교체` : "변경 없음";
     return {
       input, existing, sections, relationships, mnemonic, corrections: normalized.corrections[index], errors, warnings,
-      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, categoryAction, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction, richTextCount: sections.reduce((sum, section) => sum + countRichItems(section.items), 0) + countRichItems(input.mnemonic?.items ?? []) + (input.mnemonic?.text?.html === undefined ? 0 : 1) },
+      preview: { fieldsAdded, fieldsUpdated, fieldsPreserved, categoryAction, familyAction, relationshipAction: `${relationships.filter((item) => item.resolvable).length}개 적용${relationships.some((item) => !item.resolvable) ? ` · ${relationships.filter((item) => !item.resolvable).length}개 건너뜀` : ""}`, mnemonicAction, identityAction, richTextCount: sections.reduce((sum, section) => sum + countRichItems(section.items), 0) + countRichItems(input.mnemonic?.items ?? []) + (input.mnemonic?.text?.html === undefined ? 0 : 1), defaultFieldsInitialized },
     };
   });
   return { payload: normalized.payload, drugs, canCommit: drugs.every((drug) => !drug.errors.length) };

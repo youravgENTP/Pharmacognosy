@@ -4,7 +4,7 @@ import { archiveEntries, archiveGroups, categories, crudeDrugIdentityTerms, crud
 
 export async function getDrugProfile(id: string) {
   const [drug] = await db.select({
-    id: crudeDrugs.id, catalogIndex: crudeDrugs.catalogIndex, referenceIndex: crudeDrugs.referenceIndex, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, origin: crudeDrugs.origin, origins: crudeDrugs.origins,
+    id: crudeDrugs.id, dataRevision: crudeDrugs.dataRevision, catalogIndex: crudeDrugs.catalogIndex, referenceIndex: crudeDrugs.referenceIndex, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, origin: crudeDrugs.origin, origins: crudeDrugs.origins,
     scientificName: crudeDrugs.scientificName, medicinalPart: crudeDrugs.medicinalPart, familyId: crudeDrugs.familyId, importance: crudeDrugs.importance,
     sections: crudeDrugs.sections, category: categories.name, familyKorean: families.koreanName, familyScientific: families.scientificName,
     archivePrefix: archiveGroups.prefix, archiveName: archiveGroups.name, archiveOriginalIndexType: archiveEntries.originalIndexType, archiveOriginalIndex: archiveEntries.originalIndex,

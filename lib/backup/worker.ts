@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { loadBackupTables } from "@/lib/backup/server";
 import { backupFreshness, backupRetryDelayMs, shouldScheduleSnapshot, snapshotDownloadState, snapshotIdsBeyondRetention } from "@/lib/backup/incremental";
+import { dataCardBackupEligibility } from "@/lib/backup/data-card-lifecycle";
 import { buildStreamingBackupArchive, inspectByteStream, sha256File, verifyStreamingBackupArchive, type CachedSnapshotMedia } from "@/lib/backup/streaming-archive";
 import { backupStorageConfigured, getBackupStorage, incrementalBackupEnabled } from "@/lib/backup/storage";
 import { MediaReadError, readMediaAssetBytesDetailed } from "@/lib/media/read";
@@ -61,6 +62,7 @@ export async function runBackupWorker(options: { mediaLimit?: number; outboxLimi
   let processed = 0;
   try {
     await reconcileBackupState();
+    processed += await processDataCardBackupSnapshots();
     processed += await processMediaJobs(options.mediaLimit ?? 6);
     processed += await acknowledgeOutbox(options.outboxLimit ?? 500);
     await scheduleSnapshotIfNeeded(Boolean(options.forceSnapshot));
@@ -84,13 +86,86 @@ export async function reconcileBackupState() {
   const stale = new Date(Date.now() - 15 * 60_000);
   const [state] = await db.select().from(schema.backupWorkerState).where(eq(schema.backupWorkerState.id, "primary")).limit(1);
   const reconciliationInterval = Number(process.env.BACKUP_RECONCILIATION_INTERVAL_MS ?? 60 * 60_000);
-  if (!state?.lastReconciledAt || Date.now() - state.lastReconciledAt.getTime() >= reconciliationInterval) await db.insert(schema.backupOutbox).values({ tableName: "system", operation: "RECONCILE", entityId: `reconcile-${Date.now()}` });
+  const fullReconciliationDue = !state?.lastReconciledAt || Date.now() - state.lastReconciledAt.getTime() >= reconciliationInterval;
+  if (fullReconciliationDue) await db.insert(schema.backupOutbox).values({ tableName: "system", operation: "RECONCILE", entityId: `reconcile-${Date.now()}` });
   await db.update(schema.backupOutbox).set({ status: "retrying", availableAt: new Date(), claimedAt: null, lastError: "abandoned job recovered" }).where(and(eq(schema.backupOutbox.status, "processing"), lte(schema.backupOutbox.claimedAt, stale)));
   await db.update(schema.backupMediaAssets).set({ status: "retrying", availableAt: new Date(), claimedAt: null, lastError: "abandoned media job recovered", updatedAt: new Date() }).where(and(eq(schema.backupMediaAssets.status, "processing"), lte(schema.backupMediaAssets.claimedAt, stale)));
   await db.update(schema.backupSnapshots).set({ status: "retrying", availableAt: new Date(), lastError: "interrupted snapshot recovered" }).where(and(inArray(schema.backupSnapshots.status, ["collecting", "building", "verifying"]), lte(schema.backupSnapshots.startedAt, stale)));
-  const assets = await db.select({ id: schema.mediaAssets.id }).from(schema.mediaAssets);
-  if (assets.length) await db.insert(schema.backupMediaAssets).values(assets.map((asset) => ({ mediaAssetId: asset.id }))).onConflictDoNothing();
-  await db.update(schema.backupWorkerState).set({ lastReconciledAt: new Date(), heartbeatAt: new Date() }).where(eq(schema.backupWorkerState.id, "primary"));
+  if (fullReconciliationDue) {
+    const assets = await db.select({ id: schema.mediaAssets.id }).from(schema.mediaAssets);
+    if (assets.length) await db.insert(schema.backupMediaAssets).values(assets.map((asset) => ({ mediaAssetId: asset.id }))).onConflictDoNothing();
+    // A successful card save must never be rolled back merely because its
+    // immutable revision record could not be written immediately afterwards.
+    // Reconciliation closes that (rare) gap from the primary record, without
+    // putting storage, ZIP, or outbox work back on the user's save path.
+    const [cards, recordedRevisions] = await Promise.all([
+      db.select().from(schema.crudeDrugs),
+      db.select({ drugId: schema.dataCardRevisions.drugId, revision: schema.dataCardRevisions.revision }).from(schema.dataCardRevisions),
+    ]);
+    const recorded = new Set(recordedRevisions.map((row) => `${row.drugId}:${row.revision}`));
+    const missingRevisions = cards.filter((card) => !recorded.has(`${card.id}:${card.dataRevision}`));
+    if (missingRevisions.length) {
+      await db.insert(schema.dataCardRevisions).values(missingRevisions.map((card) => ({
+        drugId: card.id,
+        revision: card.dataRevision,
+        content: card,
+        savedAt: card.updatedAt,
+      }))).onConflictDoNothing();
+    }
+  }
+  await db.update(schema.backupWorkerState).set({ ...(fullReconciliationDue ? { lastReconciledAt: new Date() } : {}), heartbeatAt: new Date() }).where(eq(schema.backupWorkerState.id, "primary"));
+}
+
+async function processDataCardBackupSnapshots() {
+  const now = new Date();
+  const [revisions, sessions, snapshots] = await Promise.all([
+    db.select().from(schema.dataCardRevisions).orderBy(desc(schema.dataCardRevisions.revision)),
+    db.select().from(schema.dataCardEditSessions),
+    db.select().from(schema.dataCardBackupSnapshots),
+  ]);
+  const latestByDrug = new Map<string, typeof revisions[number]>();
+  for (const revision of revisions) if (!latestByDrug.has(revision.drugId)) latestByDrug.set(revision.drugId, revision);
+  const sessionsByDrug = new Map<string, typeof sessions>();
+  for (const session of sessions) sessionsByDrug.set(session.drugId, [...(sessionsByDrug.get(session.drugId) ?? []), session]);
+  const existing = new Set(snapshots.map((snapshot) => `${snapshot.drugId}:${snapshot.revision}`));
+  let processed = 0;
+  for (const revision of latestByDrug.values()) {
+    if (existing.has(`${revision.drugId}:${revision.revision}`)) continue;
+    const cardSessions = sessionsByDrug.get(revision.drugId) ?? [];
+    const eligibility = dataCardBackupEligibility({ savedAt: revision.savedAt, sessions: cardSessions, now });
+    if (!eligibility.eligible) continue;
+    const eligibleAt = eligibility.eligibleAt;
+    const [created] = await db.insert(schema.dataCardBackupSnapshots).values({ drugId: revision.drugId, revision: revision.revision, content: revision.content, eligibleAt, frozenAt: now, status: "pending" }).onConflictDoNothing().returning();
+    if (created) processed++;
+  }
+  const pending = await db.select().from(schema.dataCardBackupSnapshots).where(and(inArray(schema.dataCardBackupSnapshots.status, ["pending", "retrying"]), lte(schema.dataCardBackupSnapshots.availableAt, now))).orderBy(asc(schema.dataCardBackupSnapshots.eligibleAt)).limit(20);
+  for (const candidate of pending) {
+    const [snapshot] = await db.update(schema.dataCardBackupSnapshots).set({ status: "pending", attempts: sql`${schema.dataCardBackupSnapshots.attempts} + 1` }).where(and(eq(schema.dataCardBackupSnapshots.id, candidate.id), inArray(schema.dataCardBackupSnapshots.status, ["pending", "retrying"]))).returning();
+    if (!snapshot) continue;
+    try { await publishDataCardSnapshot(snapshot); processed++; }
+    catch (error) {
+      const terminal = snapshot.attempts >= Number(process.env.BACKUP_MAX_RETRIES ?? 8);
+      await db.update(schema.dataCardBackupSnapshots).set({ status: terminal ? "failed" : "retrying", availableAt: new Date(Date.now() + backupRetryDelayMs(snapshot.attempts)), lastError: safeError(error) }).where(eq(schema.dataCardBackupSnapshots.id, snapshot.id));
+    }
+  }
+  return processed;
+}
+
+async function publishDataCardSnapshot(snapshot: typeof schema.dataCardBackupSnapshots.$inferSelect) {
+  const storage = getBackupStorage();
+  const frozenAt = snapshot.frozenAt ?? snapshot.createdAt;
+  const payload = Buffer.from(JSON.stringify({ schema: "herboverflow.data-card-snapshot", version: 1, drugId: snapshot.drugId, revision: snapshot.revision, frozenAt: frozenAt.toISOString(), content: snapshot.content }));
+  const digest = createHash("sha256").update(payload).digest("hex");
+  const storageKey = `data-card-snapshots/${snapshot.drugId}/${snapshot.revision}-${digest}.json`;
+  await storage.putBuffer(storageKey, payload, { sha256: digest, "data-card-revision": String(snapshot.revision) });
+  const verified = await inspectByteStream(await storage.readStream(storageKey));
+  if (verified.size !== payload.length || verified.sha256 !== digest) throw new Error("data card snapshot verification failed");
+  await db.transaction(async (tx) => {
+    await tx.update(schema.dataCardBackupSnapshots).set({ status: "ready", storageKey, sha256: digest, completedAt: new Date(), lastError: null }).where(eq(schema.dataCardBackupSnapshots.id, snapshot.id));
+    // This is emitted by the worker after the immutable object is safe; it never
+    // participates in the editor's primary save transaction.
+    await tx.insert(schema.backupOutbox).values({ tableName: "data_card_backup_snapshots", operation: "INSERT", entityId: snapshot.id });
+  });
 }
 
 async function processMediaJobs(limit: number) {

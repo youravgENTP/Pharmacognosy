@@ -27,11 +27,12 @@ type AvailableDrug = { id: string; catalogIndex: number | null; referenceIndex: 
 type OriginSuggestion = OriginPlant & { drugs: { id: string; name: string }[] };
 type FamilySuggestion = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null };
 type IdentityTerm = { id: string; name: string };
+type StoredDrugDraft = { serverRevision: number; draft: DrugDraft; updatedAt: string };
 const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
-type DrugEditorProps = { id: string; initial: DrugDraft; family: string | null; archive?: DrugArchive; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
+type DrugEditorProps = { id: string; dataRevision: number; initial: DrugDraft; family: string | null; archive?: DrugArchive; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
 export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
-function DrugEditorContent({ id, initial, family, archive, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
+function DrugEditorContent({ id, dataRevision, initial, family, archive, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
   const router = useRouter();
   const concepts = useConceptEngine();
   const { setBlocked } = useDataCardSaveGuard();
@@ -42,7 +43,6 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
   const [relationshipPending, setRelationshipPending] = useState(0);
   const [identityPending, setIdentityPending] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
-  const [backupRevision, setBackupRevision] = useState<number>();
   const [backupState, setBackupState] = useState<"pending" | "backed-up" | "failed">();
   const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinition[]>([]);
   const [constituentData, setConstituentData] = useState<{ nodes: Taxon[]; edges: TaxonEdge[] }>({ nodes: [], edges: [] });
@@ -57,6 +57,8 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
   const first = useRef(true);
   const draftRef = useRef(draft);
   const revision = useRef(0);
+  const serverRevision = useRef(dataRevision);
+  const savedDraftRevision = useRef(0);
   const timer = useRef<number | undefined>(undefined);
   const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
   const manualSaving = useRef(false);
@@ -64,17 +66,24 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
   const hadUnsavedChanges = useRef(false);
   draftRef.current = draft;
   const leaveBlocked = status !== "saved" || mnemonicStatus !== "saved" || manualSavePending || relationshipPending > 0 || identityPending;
+  const recoveryKey = `herboverflow:data-card-draft:${id}`;
+  const clearRecovery = () => { try { window.localStorage.removeItem(recoveryKey); } catch { /* Browser storage must not affect DB save status. */ } };
 
   function persist(value = draftRef.current, expectedRevision = revision.current) {
     const snapshot = structuredClone(value);
     const run = async () => {
       setStatus("saving");
       try {
-        const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot) });
-        if (!response.ok) throw new Error();
+        const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...snapshot, baseRevision: serverRevision.current }) });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          if (response.status === 409 && body.code === "REVISION_CONFLICT") window.alert("다른 편집자가 먼저 저장했습니다. 현재 입력 내용은 유지되며, 최신 내용을 확인한 뒤 다시 저장할 수 있습니다.");
+          throw new Error();
+        }
         const body = await response.json();
-        if (typeof body.backupRevision === "number") { setBackupRevision(body.backupRevision); setBackupState("pending"); }
-        if (revision.current === expectedRevision) setStatus("saved");
+        if (typeof body.dataRevision === "number") { serverRevision.current = body.dataRevision; setBackupState("pending"); }
+        savedDraftRevision.current = Math.max(savedDraftRevision.current, expectedRevision);
+        if (revision.current === expectedRevision) { setStatus("saved"); clearRecovery(); }
         return true;
       } catch { if (revision.current === expectedRevision) setStatus("error"); return false; }
     };
@@ -83,25 +92,67 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
     return queued;
   }
   useEffect(() => {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(recoveryKey) ?? "null") as StoredDrugDraft | null;
+      if (!parsed || typeof parsed.serverRevision !== "number" || !isDrugDraft(parsed.draft)) return;
+      if (window.confirm("이 브라우저에 DB에 저장되지 않은 Data Card 편집 내용이 남아 있습니다. 복구할까요?")) {
+        // Keep the original base revision. If another device saved meanwhile,
+        // recovery stays visible while optimistic concurrency blocks overwrite.
+        serverRevision.current = parsed.serverRevision;
+        setDraft(parsed.draft);
+      } else clearRecovery();
+    } catch { clearRecovery(); }
+  // Recovery is scoped to this card and intentionally runs only on entry.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  useEffect(() => {
     if (first.current) { first.current = false; return; }
     revision.current += 1;
     const expectedRevision = revision.current;
     setStatus("dirty");
+    try { window.localStorage.setItem(recoveryKey, JSON.stringify({ serverRevision: serverRevision.current, draft, updatedAt: new Date().toISOString() } satisfies StoredDrugDraft)); } catch { /* DB autosave remains authoritative if browser storage is unavailable. */ }
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => void persist(draft, expectedRevision), 700);
     return () => window.clearTimeout(timer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, id]);
   useEffect(() => {
-    if (backupRevision == null || backupState === "backed-up") return;
-    const check = async () => { try { const response = await fetch("/api/backup/full", { cache: "no-store" }); if (!response.ok) return; const body = await response.json(); if (body.latestReady?.includedRevision >= backupRevision) setBackupState("backed-up"); else if (body.worker?.status === "failed" && !body.active) setBackupState("failed"); } catch { /* primary save remains successful while backup is unavailable */ } };
+    if (backupState !== "pending") return;
+    const check = async () => { try { const response = await fetch(`/api/drugs/${id}/backup-status`, { cache: "no-store" }); if (!response.ok) return; const body = await response.json(); if (body.status === "ready" && body.revision === serverRevision.current) setBackupState("backed-up"); else if (body.status === "failed") setBackupState("failed"); } catch { /* backup state must never affect autosave */ } };
     void check(); const poll = window.setInterval(() => void check(), 10_000); return () => window.clearInterval(poll);
-  }, [backupRevision, backupState]);
+  }, [backupState, id]);
   useEffect(() => {
     Promise.all([fetch("/api/constituent-taxa").then((response) => response.json()), fetch("/api/field-definitions").then((response) => response.json()), fetch("/api/identity-suggestions").then((response) => response.json())])
       .then(([taxa, fields, suggestions]) => { setConstituentData({ nodes: taxa.nodes ?? [], edges: taxa.edges ?? [] }); setFieldDefinitions(fields ?? []); setIdentitySuggestions({ origins: suggestions.origins ?? [], families: suggestions.families ?? [] }); })
       .catch(() => undefined);
   }, []);
+  useEffect(() => {
+    const sessionId = crypto.randomUUID();
+    let closed = false;
+    let heartbeat: number | undefined;
+    const signal = (action: "open" | "heartbeat" | "close", keepalive = false) => fetch(`/api/drugs/${id}/editing-session`, { method: action === "close" ? "DELETE" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, action }), keepalive }).catch(() => undefined);
+    const open = () => {
+      if (!closed && heartbeat != null) return;
+      closed = false;
+      void signal("open");
+      heartbeat = window.setInterval(() => void signal("heartbeat"), 20_000);
+    };
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      window.clearInterval(heartbeat); heartbeat = undefined;
+      window.clearTimeout(timer.current);
+      const save = savedDraftRevision.current < revision.current ? persist(draftRef.current, revision.current) : saveQueue.current;
+      void save.finally(() => signal("close", true));
+    };
+    const pageShow = (event: PageTransitionEvent) => { if (event.persisted) open(); };
+    open();
+    window.addEventListener("pagehide", close);
+    window.addEventListener("pageshow", pageShow);
+    return () => { window.removeEventListener("pagehide", close); window.removeEventListener("pageshow", pageShow); close(); };
+  // persist intentionally reads refs and is stable enough for this card lifetime.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLocaleLowerCase() !== "s") return;
@@ -238,7 +289,7 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
       {archive ? <div className="data-card-archive-indicator">{formatDrugIndex(null, null, archive)} · {archive.name}</div> : null}
       <div className="profile-name-row">
         <div className="profile-name-fields"><AnchorableInput className="profile-korean-name" value={draft.koreanName} onChange={(value) => setField("koreanName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "koreanName" } }} aria-label="생약명"/><AnchorableInput className="profile-latin-name" value={draft.latinName ?? ""} onChange={(value) => setField("latinName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "latinName" } }} placeholder="Latin name" aria-label="Latin name"/></div>
-        <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><label className={`importance-control importance-${importanceClass(draft.importance)}`}><span className="importance-dot" aria-hidden="true"/><select className="importance-select" aria-label="중요도" value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label><span className={`data-card-backup-state ${backupState ?? "unknown"}`}>{backupState === "backed-up" ? "Backed up" : backupState === "failed" ? "Backup failed" : backupState === "pending" ? "Backup pending" : ""}</span><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
+        <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><label className={`importance-control importance-${importanceClass(draft.importance)}`}><span className="importance-dot" aria-hidden="true"/><select className="importance-select" aria-label="중요도" value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label><span className={`data-card-backup-state ${backupState ?? "unknown"}`}>{backupState === "backed-up" ? "백업 완료" : backupState === "failed" ? "백업 실패" : backupState === "pending" ? "백업 대기" : ""}</span><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saving" ? "저장 중" : status === "saved" ? "저장 완료" : status === "error" ? "저장 실패" : "저장"}</button></div>
       </div>
       <div className="identity-lines">
         <IndicatorLine label="기원"><OriginEditor drugId={id} origins={draft.origins} legacyOrigin={draft.origin} suggestions={identitySuggestions.origins} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>
@@ -325,6 +376,11 @@ async function downloadBackup(response: Response) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function hasContent(items: StudyItem[]): boolean { return items.some((item) => item.text.trim() || hasContent(item.children ?? [])); }
+function isDrugDraft(value: unknown): value is DrugDraft {
+  if (!value || typeof value !== "object") return false;
+  const draft = value as Partial<DrugDraft>;
+  return typeof draft.koreanName === "string" && Array.isArray(draft.origins) && Array.isArray(draft.sections);
+}
 function sortDrug(a: { catalogIndex: number | null; referenceIndex?: number | null; archive?: DrugArchive; name: string }, b: { catalogIndex: number | null; referenceIndex?: number | null; archive?: DrugArchive; name: string }) { return compareDrugIndexes(a, b); }
 function appendItem(section: StudySection, item: StudyItem): Partial<StudySection> {
   if (!section.blocks?.length) return { items: hasContent(section.items) ? [...section.items, item] : [item] };

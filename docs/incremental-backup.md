@@ -14,6 +14,8 @@ HerbOverflow's lightweight `지금 백업` path remains the default database ZIP
 
 The migration is [`drizzle/0017_dry_nitro.sql`](../drizzle/0017_dry_nitro.sql). Applying it creates the queue/cache/snapshot tables, mutation triggers, an initial media backfill, and the singleton worker state. Do not run it against production until a normal lightweight backup has been downloaded and verified.
 
+`0019_safe_wallflower.sql` adds revisioned Data Card autosave recovery. It intentionally removes **only** the `crude_drugs` Outbox trigger introduced by 0017; all other outbox triggers remain active. Data Card saves use a monotonic `data_revision`, immutable `data_card_revisions`, server-observed editing sessions, and independent `data_card_backup_snapshots`. The migration seeds revision 0 from each existing card without changing card content.
+
 ## Required configuration
 
 Set these only after provisioning a bucket or S3-compatible account with a failure domain independent from the primary media backend:
@@ -66,7 +68,7 @@ The worker needs the same `DATABASE_URL` as the application plus the backup S3 s
 1. Download and parse a normal `지금 백업` ZIP. Confirm that its manifest and database files verify.
 2. Provision private independent object storage, lifecycle/versioning policy, credentials, and the worker runtime.
 3. Deploy code with `INCREMENTAL_BACKUP_ENABLED=false`. The existing lightweight backup and Restore remain operational.
-4. Review and apply migration 0017 once to the production database. Confirm all new tables/triggers and the Drizzle journal entry.
+4. Review and apply migrations 0017 through 0020 once to the production database. Confirm all new tables/triggers and the Drizzle journal entry.
 5. Configure the worker and storage secrets, enable the feature flag, and start the worker.
 6. Monitor `미디어 대기`, failed media, worker heartbeat, and storage usage in Settings → Database → Backup. The migration queues every existing media asset, and the worker resumes this initial backfill in limited-concurrency batches.
 7. Wait until pending/failed media are zero. Request `최신 전체 스냅샷 생성`, wait for `ready`, download it, and independently parse/verify it before treating rollout as complete.
@@ -104,3 +106,9 @@ npm run media:recover-local -- --ids=872c9151-50f4-4e7e-8b44-80351eff2600,7f060f
 ```
 
 This is an explicit operator action, not an automatic migration. If primary originals are permanently unavailable, an administrator may explicitly request `불완전 ZIP 생성`. Its manifest records every omitted ID and reason, its object/file name contains `INCOMPLETE`, and it is stored with `incomplete` status rather than `ready`; it is never shown as a verified full backup.
+
+## Data Card autosave lifecycle
+
+Opening a card creates a server session and sends a heartbeat every 20 seconds. Closing waits for the queued autosave, records a server-side close timestamp, and never waits for backup I/O. Browser crashes and network loss are safe: an unclosed session expires after 90 seconds, while a new open session or a newer revision invalidates a pending candidate.
+
+The Worker waits at least 60 seconds after both the final successful save and final close/expiry. It then freezes the exact stored revision as a separate immutable JSON object in backup storage. A later edit creates a new revision; it cannot mutate a frozen object. Existing full database ZIPs remain repeatable-read database snapshots and are not mislabeled as these per-card versioned snapshots.

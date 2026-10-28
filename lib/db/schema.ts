@@ -107,6 +107,7 @@ export const families = pgTable("families", {
 
 export const crudeDrugs = pgTable("crude_drugs", {
   id: uuid("id").defaultRandom().primaryKey(),
+  dataRevision: integer("data_revision").notNull().default(0),
   catalogIndex: integer("catalog_index").unique(),
   referenceIndex: integer("reference_index").unique(),
   koreanName: text("korean_name").notNull(),
@@ -122,6 +123,42 @@ export const crudeDrugs = pgTable("crude_drugs", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("crude_drugs_category_idx").on(t.categoryId), uniqueIndex("crude_drugs_korean_name_idx").on(t.koreanName)]);
+
+export type DataCardSnapshotStatus = "pending" | "ready" | "retrying" | "failed" | "superseded";
+
+export const dataCardRevisions = pgTable("data_card_revisions", {
+  drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull(),
+  content: jsonb("content").notNull(),
+  savedBy: text("saved_by").references(() => user.id, { onDelete: "set null" }),
+  savedAt: timestamp("saved_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.drugId, t.revision] }), index("data_card_revisions_saved_idx").on(t.drugId, t.savedAt)]);
+
+export const dataCardEditSessions = pgTable("data_card_edit_sessions", {
+  id: uuid("id").primaryKey(),
+  drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("data_card_edit_sessions_drug_idx").on(t.drugId, t.lastSeenAt)]);
+
+export const dataCardBackupSnapshots = pgTable("data_card_backup_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull(),
+  content: jsonb("content").notNull(),
+  status: text("status").$type<DataCardSnapshotStatus>().notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+  eligibleAt: timestamp("eligible_at", { withTimezone: true }).notNull(),
+  frozenAt: timestamp("frozen_at", { withTimezone: true }),
+  storageKey: text("storage_key"),
+  sha256: text("sha256"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("data_card_backup_snapshots_drug_revision_idx").on(t.drugId, t.revision), index("data_card_backup_snapshots_status_idx").on(t.status, t.eligibleAt)]);
 
 export const archiveGroups = pgTable("archive_groups", {
   id: uuid("id").defaultRandom().primaryKey(),

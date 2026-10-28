@@ -3,6 +3,7 @@ import type { CollectionDocument, StudyBlock, StudyItem } from "@/lib/db/schema"
 
 export const uuidSchema = z.string().uuid();
 export const drugPatchSchema = z.object({
+  baseRevision: z.number().int().nonnegative(),
   koreanName: z.string().min(1).max(100).optional(),
   latinName: z.string().max(200).nullable().optional(),
   origin: z.string().nullable().optional(),

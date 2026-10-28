@@ -1,0 +1,2 @@
+ALTER TABLE "data_card_backup_snapshots" ADD COLUMN "attempts" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "data_card_backup_snapshots" ADD COLUMN "available_at" timestamp with time zone DEFAULT now() NOT NULL;

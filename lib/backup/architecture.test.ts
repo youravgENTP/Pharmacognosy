@@ -4,6 +4,7 @@ import test from "node:test";
 
 const migrationUrl = new URL("../../drizzle/0017_dry_nitro.sql", import.meta.url);
 const workerUrl = new URL("./worker.ts", import.meta.url);
+const lifecycleMigrationUrl = new URL("../../drizzle/0019_safe_wallflower.sql", import.meta.url);
 
 test("backup migration installs transactional outbox triggers for every required mutation domain", async () => {
   const sql = await readFile(migrationUrl, "utf8");
@@ -51,6 +52,22 @@ test("reconciliation covers worker downtime without coupling primary saves to pr
   assert.match(worker, /abandoned job recovered/);
   assert.match(worker, /interrupted snapshot recovered/);
   assert.match(worker, /RECONCILE/);
-  assert.ok(route.indexOf("db.update(crudeDrugs)") < route.indexOf("backupStatusError"));
-  assert.match(route, /A status lookup must never turn a[\s\S]*successful user save into a failed response/);
+  assert.ok(route.indexOf("db.update(crudeDrugs)") < route.indexOf("revisionError"));
+  assert.match(route, /backup bookkeeping must never invalidate a saved edit/i);
+});
+
+test("Data Card autosave migration removes only the synchronous crude_drugs outbox trigger and preserves a recovery record", async () => {
+  const sql = await readFile(lifecycleMigrationUrl, "utf8");
+  assert.match(sql, /DROP TRIGGER IF EXISTS "backup_outbox_crude_drugs" ON "crude_drugs"/);
+  assert.match(sql, /CREATE TABLE "data_card_revisions"/);
+  assert.match(sql, /INSERT INTO "data_card_revisions"/);
+  assert.match(sql, /to_jsonb\("crude_drugs"\)/);
+});
+
+test("a frozen Data Card snapshot is published unchanged even after a newer revision exists", async () => {
+  const worker = await readFile(workerUrl, "utf8");
+  assert.match(worker, /frozenAt: now/);
+  assert.match(worker, /const frozenAt = snapshot\.frozenAt \?\? snapshot\.createdAt/);
+  assert.doesNotMatch(worker, /newer Data Card revision was saved before this snapshot started/);
+  assert.match(worker, /terminal \? "failed" : "retrying"/);
 });

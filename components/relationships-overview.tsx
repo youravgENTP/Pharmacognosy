@@ -9,7 +9,7 @@ import { formatDrugIndex } from "@/lib/drug-index";
 import { buildRelationshipClusters, type RelationshipArchiveStatus } from "@/lib/relationship-archive";
 
 type RelationshipType = "연관생약" | "유사생약";
-type DrugNode = { id: string; name: string; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndex: number } | null };
+type DrugNode = { id: string; name: string; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndexType?: "catalog" | "reference"; originalIndex: number } | null };
 export type RelationshipEdge = { id: string; type: RelationshipType; source: DrugNode; target: DrugNode; status: RelationshipArchiveStatus };
 type Filter = "전체" | RelationshipType;
 type Cluster = { key: string; type: RelationshipType; status: RelationshipArchiveStatus; nodes: DrugNode[]; edges: RelationshipEdge[] };

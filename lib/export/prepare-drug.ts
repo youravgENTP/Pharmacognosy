@@ -7,7 +7,7 @@ import { hierarchyMarkerForMode } from "@/lib/hierarchy-marker";
 export type ExportDrugProfile = {
   catalogIndex?: number | null;
   referenceIndex?: number | null;
-  archive?: { prefix: string; originalIndex: number } | null;
+  archive?: { prefix: string; originalIndexType?: "catalog" | "reference"; originalIndex: number } | null;
   koreanName: string;
   latinName: string | null;
   importance: ImportanceLevel;
@@ -26,7 +26,7 @@ export type ExportRelatedDrug = {
   name: string;
   catalogIndex?: number | null;
   referenceIndex?: number | null;
-  archive?: { prefix: string; originalIndex: number } | null;
+  archive?: { prefix: string; originalIndexType?: "catalog" | "reference"; originalIndex: number } | null;
 };
 
 export type ExportMnemonic = { userName: string; items: StudyItem[]; blocks: StudyBlock[] };

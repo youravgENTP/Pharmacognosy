@@ -8,7 +8,7 @@ import type { ImportanceLevel, OriginPlant, StudyBlock, StudyItem, StudySection 
 import { formatDrugIndex } from "@/lib/drug-index";
 import { includesSearch, normalizeSearch } from "@/lib/search";
 
-type FamilyDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string };
+type FamilyDrug = { id: string; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndexType?: "catalog" | "reference"; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string };
 type Family = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null; summary: StudyItem[]; summaryBlocks: StudyBlock[]; drugs: FamilyDrug[] };
 type Selection = { type: "family"; id: string } | { type: "drug"; id: string };
 type DrugProfile = {

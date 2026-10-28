@@ -172,7 +172,7 @@ export async function commitSelectiveRestore(buffer: Buffer, selections: Restore
           if (!group) [group] = await tx.select().from(schema.archiveGroups).where(eq(schema.archiveGroups.prefix, string(sourceGroup.prefix))).limit(1);
           if (!group) [group] = await tx.insert(schema.archiveGroups).values({ id: groupId, name: string(sourceGroup.name), prefix: string(sourceGroup.prefix), description: nullableString(sourceGroup.description) }).returning();
           await tx.update(schema.crudeDrugs).set({ catalogIndex: null }).where(eq(schema.crudeDrugs.id, selection.drugId));
-          await tx.insert(schema.archiveEntries).values({ id: string(archived.id), archiveGroupId: group.id, drugId: selection.drugId, originalIndex: number(archived.originalIndex), archivedAt: new Date(string(archived.archivedAt)) });
+          await tx.insert(schema.archiveEntries).values({ id: string(archived.id), archiveGroupId: group.id, drugId: selection.drugId, originalIndexType: archived.originalIndexType === "reference" ? "reference" : "catalog", originalIndex: number(archived.originalIndex), archivedAt: new Date(string(archived.archivedAt)) });
         }
       }
 

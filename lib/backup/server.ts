@@ -4,6 +4,7 @@ import * as schema from "@/lib/db/schema";
 import { createBackupArchive, verifyGeneratedBackup, type BackupTables } from "@/lib/backup/archive";
 import { BACKUP_POLICY_KEY } from "@/lib/backup/policy";
 import { LATEX_SHORTCUTS_KEY } from "@/lib/data/latex-shortcuts";
+import { isUndefinedColumnError } from "@/lib/db/migration-health";
 
 export async function generateFullBackup(now = new Date()) {
   const [
@@ -22,7 +23,7 @@ export async function generateFullBackup(now = new Date()) {
     db.select().from(schema.userDrugMnemonics), db.select().from(schema.userMnemonicPreferences), db.select().from(schema.legacyDrugMnemonics),
     db.select().from(schema.collections), db.select().from(schema.collectionMembers), db.select().from(schema.collectionRevisions),
     db.select().from(schema.decks), db.select().from(schema.wordCards), db.select().from(schema.conceptAnchors),
-    db.select().from(schema.conceptConnections), db.select().from(schema.mediaAssets), db.select().from(schema.appSettings), db.select().from(schema.archiveGroups), db.select().from(schema.archiveEntries),
+    db.select().from(schema.conceptConnections), db.select().from(schema.mediaAssets), db.select().from(schema.appSettings), db.select().from(schema.archiveGroups), loadArchiveEntriesForBackup(),
     db.select({ id: schema.user.id, name: schema.user.name, email: schema.user.email }).from(schema.user),
   ]);
 
@@ -48,4 +49,13 @@ export async function generateFullBackup(now = new Date()) {
   const generated = await createBackupArchive(tables, [], now);
   await verifyGeneratedBackup(generated.buffer, tables);
   return generated;
+}
+
+async function loadArchiveEntriesForBackup() {
+  try { return await db.select().from(schema.archiveEntries); }
+  catch (error) {
+    if (!isUndefinedColumnError(error, "original_index_type")) throw error;
+    const legacy = await db.select({ id: schema.archiveEntries.id, archiveGroupId: schema.archiveEntries.archiveGroupId, drugId: schema.archiveEntries.drugId, originalIndex: schema.archiveEntries.originalIndex, archivedAt: schema.archiveEntries.archivedAt, archivedBy: schema.archiveEntries.archivedBy }).from(schema.archiveEntries);
+    return legacy.map((row) => ({ ...row, originalIndexType: "catalog" as const }));
+  }
 }

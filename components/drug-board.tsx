@@ -8,7 +8,7 @@ import { formatDrugIndex } from "@/lib/drug-index";
 import { getHerbSearchMatches, normalizeSearchText, type HerbSearchDocument, type HerbSearchMatch } from "@/lib/herb-search";
 
 type Importance = "중요" | "중간" | "비중요";
-type Drug = { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; importance: Importance; searchDocument: HerbSearchDocument };
+type Drug = { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndexType?: "catalog" | "reference"; originalIndex: number } | null; koreanName: string; latinName: string | null; importance: Importance; searchDocument: HerbSearchDocument };
 type VisibleDrug = Drug & { searchScore: number; searchMatches: HerbSearchMatch[] };
 type Category = { id: string; name: string; slug: string; drugs: Drug[] };
 const importanceOrder: Importance[] = ["중요", "중간", "비중요"];

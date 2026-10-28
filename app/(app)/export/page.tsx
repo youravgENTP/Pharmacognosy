@@ -18,6 +18,7 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
       archiveGroupId: archiveGroups.id,
       archivePrefix: archiveGroups.prefix,
       archiveName: archiveGroups.name,
+      archiveOriginalIndexType: archiveEntries.originalIndexType,
       archiveOriginalIndex: archiveEntries.originalIndex,
       koreanName: crudeDrugs.koreanName,
       latinName: crudeDrugs.latinName,
@@ -62,10 +63,10 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
     if (row.taxonId) for (const name of lineage(row.taxonId)) if (!item.taxa.includes(name)) item.taxa.push(name);
   }
   const searchable = drugs.map((drug) => ({
-    id: drug.id, catalogIndex: drug.catalogIndex, referenceIndex: drug.referenceIndex, archive: drug.archiveGroupId && drug.archivePrefix && drug.archiveOriginalIndex != null ? { groupId: drug.archiveGroupId, prefix: drug.archivePrefix, name: drug.archiveName!, originalIndex: drug.archiveOriginalIndex } : null, koreanName: drug.koreanName, latinName: drug.latinName, importance: drug.importance,
+    id: drug.id, catalogIndex: drug.catalogIndex, referenceIndex: drug.referenceIndex, archive: drug.archiveGroupId && drug.archivePrefix && drug.archiveOriginalIndex != null ? { groupId: drug.archiveGroupId, prefix: drug.archivePrefix, name: drug.archiveName!, originalIndexType: drug.archiveOriginalIndexType ?? "catalog", originalIndex: drug.archiveOriginalIndex } : null, koreanName: drug.koreanName, latinName: drug.latinName, importance: drug.importance,
     categoryId: drug.categoryId, categoryName: drug.categoryName, categoryPosition: drug.categoryPosition,
     searchDocument: buildHerbSearchDocument({
-      index: formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archivePrefix && drug.archiveOriginalIndex != null ? { prefix: drug.archivePrefix, originalIndex: drug.archiveOriginalIndex } : null), koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins,
+      index: formatDrugIndex(drug.catalogIndex, drug.referenceIndex, drug.archivePrefix && drug.archiveOriginalIndex != null ? { prefix: drug.archivePrefix, originalIndexType: drug.archiveOriginalIndexType ?? "catalog", originalIndex: drug.archiveOriginalIndex } : null), koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins,
       scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, categoryName: drug.categoryName,
       family: drug.familyKoreanName && drug.familyScientificName ? { koreanName: drug.familyKoreanName, scientificName: drug.familyScientificName, acceptedScientificName: drug.familyAcceptedScientificName } : null,
       sections: drug.sections, constituents: constituentsByDrug.get(drug.id), identityTerms: (identityByDrug.get(drug.id) ?? []).map((item) => item.name), relationships: relationshipsByDrug.get(drug.id),

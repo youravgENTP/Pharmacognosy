@@ -14,7 +14,7 @@ import { useLatexShortcuts } from "@/components/use-latex-shortcuts";
 import { applyLatexShortcuts, type LatexShortcut } from "@/lib/latex-shortcuts";
 
 type CollectionData = { id: string; name: string; description: string | null; kind: "document" | "spreadsheet"; document: CollectionDocument; revision: number; updatedAt: string | Date };
-type DrugResult = { id: string; koreanName: string; latinName: string | null; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndex: number } | null };
+type DrugResult = { id: string; koreanName: string; latinName: string | null; catalogIndex: number | null; referenceIndex: number | null; archive?: { prefix: string; name: string; originalIndexType?: "catalog" | "reference"; originalIndex: number } | null };
 type DrugProfile = Awaited<ReturnType<typeof loadDrug>>;
 
 export function CollectionWorkspace({ initial }: { initial: CollectionData }) {

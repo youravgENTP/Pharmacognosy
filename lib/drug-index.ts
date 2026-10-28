@@ -1,9 +1,9 @@
-export type ArchiveIndex = { prefix: string; originalIndex: number } | null | undefined;
+export type ArchiveIndex = { prefix: string; originalIndex: number; originalIndexType?: "catalog" | "reference" } | null | undefined;
 
 export function formatDrugIndex(catalogIndex: number | null, referenceIndex: number | null = null, archive?: ArchiveIndex) {
   if (catalogIndex != null) return String(catalogIndex);
   if (referenceIndex != null) return `R${String(referenceIndex).padStart(2, "0")}`;
-  if (archive) return `${archive.prefix}${String(archive.originalIndex).padStart(2, "0")}`;
+  if (archive) return `${archive.prefix}${archive.originalIndexType === "reference" ? "R" : ""}${String(archive.originalIndex).padStart(2, "0")}`;
   return "—";
 }
 

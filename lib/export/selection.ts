@@ -3,7 +3,7 @@ export type ExportSelectionDrug = {
   id: string;
   catalogIndex: number | null;
   referenceIndex: number | null;
-  archive?: { groupId: string; prefix: string; name: string; originalIndex: number } | null;
+  archive?: { groupId: string; prefix: string; name: string; originalIndexType?: "catalog" | "reference"; originalIndex: number } | null;
   categoryId: string | null;
   categoryName: string | null;
   categoryPosition: number | null;
@@ -29,13 +29,11 @@ export function scopeForInitialDrug(drug?: ExportSelectionDrug): ExportScopeKey 
 }
 
 export function isDrugInExportScope(drug: ExportSelectionDrug, scope: ExportScopeKey) {
-  if (scope === "active") return drug.catalogIndex != null && !drug.archive;
+  if (scope === "active") return !drug.archive && (drug.catalogIndex != null || drug.referenceIndex != null);
   return drug.archive?.groupId === scope.slice("archive:".length);
 }
 
-export function isDrugVisibleInExportScope(drug: ExportSelectionDrug, scope: ExportScopeKey) {
-  return isDrugInExportScope(drug, scope) || drug.referenceIndex != null;
-}
+export function isDrugVisibleInExportScope(drug: ExportSelectionDrug, scope: ExportScopeKey) { return isDrugInExportScope(drug, scope); }
 
 export function exportScopeDrugIds(drugs: ExportSelectionDrug[], scope: ExportScopeKey) {
   return drugs.filter((drug) => isDrugInExportScope(drug, scope)).map((drug) => drug.id);

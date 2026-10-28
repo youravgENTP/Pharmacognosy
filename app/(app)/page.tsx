@@ -12,7 +12,7 @@ export default async function HomePage() {
     db.select({
       categoryId: categories.id, categoryName: categories.name, categorySlug: categories.slug, categoryPosition: categories.position,
       id: crudeDrugs.id, catalogIndex: crudeDrugs.catalogIndex, referenceIndex: crudeDrugs.referenceIndex, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName,
-      archivePrefix: archiveGroups.prefix, archiveName: archiveGroups.name, archiveOriginalIndex: archiveEntries.originalIndex,
+      archivePrefix: archiveGroups.prefix, archiveName: archiveGroups.name, archiveOriginalIndexType: archiveEntries.originalIndexType, archiveOriginalIndex: archiveEntries.originalIndex,
       origin: crudeDrugs.origin, origins: crudeDrugs.origins, scientificName: crudeDrugs.scientificName, medicinalPart: crudeDrugs.medicinalPart, importance: crudeDrugs.importance, sections: crudeDrugs.sections,
       familyKoreanName: families.koreanName, familyScientificName: families.scientificName, familyAcceptedScientificName: families.acceptedScientificName,
     }).from(categories).leftJoin(crudeDrugs, eq(crudeDrugs.categoryId, categories.id)).leftJoin(families, eq(crudeDrugs.familyId, families.id)).leftJoin(archiveEntries, eq(archiveEntries.drugId, crudeDrugs.id)).leftJoin(archiveGroups, eq(archiveGroups.id, archiveEntries.archiveGroupId)).orderBy(asc(categories.position), asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex), asc(archiveEntries.originalIndex)),
@@ -52,16 +52,16 @@ export default async function HomePage() {
   const grouped = Array.from(rows.reduce((map, row) => {
     if (!map.has(row.categoryId)) map.set(row.categoryId, { id: row.categoryId, name: row.categoryName, slug: row.categorySlug, drugs: [] });
     if (row.id && row.koreanName) map.get(row.categoryId)!.drugs.push({
-      id: row.id, catalogIndex: row.catalogIndex, referenceIndex: row.referenceIndex, archive: row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, name: row.archiveName!, originalIndex: row.archiveOriginalIndex } : null, koreanName: row.koreanName, latinName: row.latinName, importance: row.importance!,
+      id: row.id, catalogIndex: row.catalogIndex, referenceIndex: row.referenceIndex, archive: row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, name: row.archiveName!, originalIndexType: row.archiveOriginalIndexType ?? "catalog", originalIndex: row.archiveOriginalIndex } : null, koreanName: row.koreanName, latinName: row.latinName, importance: row.importance!,
       searchDocument: buildHerbSearchDocument({
-        index: formatDrugIndex(row.catalogIndex, row.referenceIndex, row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, originalIndex: row.archiveOriginalIndex } : null), koreanName: row.koreanName, latinName: row.latinName, origin: row.origin, origins: row.origins ?? [],
+        index: formatDrugIndex(row.catalogIndex, row.referenceIndex, row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, originalIndexType: row.archiveOriginalIndexType ?? "catalog", originalIndex: row.archiveOriginalIndex } : null), koreanName: row.koreanName, latinName: row.latinName, origin: row.origin, origins: row.origins ?? [],
         scientificName: row.scientificName, medicinalPart: row.medicinalPart, categoryName: row.categoryName,
         family: row.familyKoreanName && row.familyScientificName ? { koreanName: row.familyKoreanName, scientificName: row.familyScientificName, acceptedScientificName: row.familyAcceptedScientificName } : null,
         sections: row.sections ?? [], constituents: constituentsByDrug.get(row.id), identityTerms: (identityByDrug.get(row.id) ?? []).map((item) => item.name), relationships: relationshipsByDrug.get(row.id),
       }),
     });
     return map;
-  }, new Map<string, { id: string; name: string; slug: string; drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; importance: "중요" | "중간" | "비중요"; searchDocument: ReturnType<typeof buildHerbSearchDocument> }[] }>()).values());
+  }, new Map<string, { id: string; name: string; slug: string; drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndexType: "catalog" | "reference"; originalIndex: number } | null; koreanName: string; latinName: string | null; importance: "중요" | "중간" | "비중요"; searchDocument: ReturnType<typeof buildHerbSearchDocument> }[] }>()).values());
   return <div className="page wide"><DrugBoard categories={grouped}/></div>;
 }
 

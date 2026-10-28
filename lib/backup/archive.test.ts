@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import JSZip from "jszip";
-import { BACKUP_TABLE_FILES, collectReferencedMediaIds, createBackupArchive, parseBackupArchive, sha256, verifyGeneratedBackup, type BackupTables } from "@/lib/backup/archive";
+import { BACKUP_TABLE_FILES, collectReferencedMediaIds, createBackupArchive, createBackupArchiveWithMedia, parseBackupArchive, sha256, verifyGeneratedBackup, type BackupTables } from "@/lib/backup/archive";
 import { backupDrugSchema } from "@/lib/backup/restore";
 
 const drugId = "10000000-0000-4000-8000-000000000001";
@@ -44,6 +44,33 @@ test("archive round-trip preserves rich hierarchy, image references, and media m
   assert.deepEqual(parsed.tables["media-assets"], tables["media-assets"]);
   assert.equal(parsed.media.size, 0);
   assert.deepEqual(parsed.manifest.media, { count: 0, bytes: 0, files: [] });
+});
+
+test("image-inclusive backup stores originals and verifies manifest size and SHA-256", async () => {
+  const { tables, media, bytes } = fixture();
+  const { buffer, manifest } = await createBackupArchiveWithMedia(tables, media);
+  assert.equal(manifest.media.count, 1);
+  assert.equal(manifest.media.bytes, bytes.length);
+  assert.equal(manifest.media.files[0].sha256, sha256(bytes));
+  const parsed = await parseBackupArchive(buffer);
+  assert.deepEqual(parsed.media.get(media[0].id), bytes);
+});
+
+test("image-inclusive backup fails closed on missing or corrupt image bytes while lightweight backup remains usable", async () => {
+  const { tables, media } = fixture();
+  const corrupt = [{ ...media[0], bytes: Buffer.from("wrong") }];
+  await assert.rejects(() => createBackupArchiveWithMedia(tables, corrupt), /크기 또는 체크섬/);
+  const lightweight = await createBackupArchive(tables, corrupt);
+  assert.equal((await parseBackupArchive(lightweight.buffer)).manifest.media.count, 0);
+});
+
+test("image-inclusive parser rejects extra media files not declared by the manifest", async () => {
+  const { tables, media } = fixture();
+  const generated = await createBackupArchiveWithMedia(tables, media);
+  const zip = await JSZip.loadAsync(generated.buffer);
+  zip.file("media/extra.png", Buffer.from("extra"));
+  const tampered = await zip.generateAsync({ type: "nodebuffer" });
+  await assert.rejects(() => parseBackupArchive(tampered), /Manifest와 ZIP/);
 });
 
 test("backup round-trip preserves Collection Archive state with document and revisions", async () => {

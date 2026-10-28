@@ -1,4 +1,4 @@
-import { asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authorizeApi } from "@/lib/auth/permissions";
@@ -12,8 +12,8 @@ export async function GET() {
   const authError = await authorizeApi("user"); if (authError) return authError;
   const [groups, entries, activeDrugs] = await Promise.all([
     db.select().from(archiveGroups).orderBy(asc(archiveGroups.createdAt)),
-    db.select({ id: archiveEntries.id, archiveGroupId: archiveEntries.archiveGroupId, drugId: crudeDrugs.id, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, originalIndex: archiveEntries.originalIndex, archivedAt: archiveEntries.archivedAt, categoryId: categories.id, categoryName: categories.name, importance: crudeDrugs.importance }).from(archiveEntries).innerJoin(crudeDrugs, eq(crudeDrugs.id, archiveEntries.drugId)).leftJoin(categories, eq(categories.id, crudeDrugs.categoryId)).orderBy(asc(archiveEntries.originalIndex)),
-    db.select({ id: crudeDrugs.id, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, catalogIndex: crudeDrugs.catalogIndex, categoryId: categories.id, categoryName: categories.name, importance: crudeDrugs.importance }).from(crudeDrugs).leftJoin(categories, eq(categories.id, crudeDrugs.categoryId)).where(isNotNull(crudeDrugs.catalogIndex)).orderBy(asc(crudeDrugs.catalogIndex)),
+    db.select({ id: archiveEntries.id, archiveGroupId: archiveEntries.archiveGroupId, drugId: crudeDrugs.id, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, originalIndexType: archiveEntries.originalIndexType, originalIndex: archiveEntries.originalIndex, archivedAt: archiveEntries.archivedAt, categoryId: categories.id, categoryName: categories.name, importance: crudeDrugs.importance }).from(archiveEntries).innerJoin(crudeDrugs, eq(crudeDrugs.id, archiveEntries.drugId)).leftJoin(categories, eq(categories.id, crudeDrugs.categoryId)).orderBy(asc(archiveEntries.originalIndexType), asc(archiveEntries.originalIndex)),
+    db.select({ id: crudeDrugs.id, koreanName: crudeDrugs.koreanName, latinName: crudeDrugs.latinName, catalogIndex: crudeDrugs.catalogIndex, referenceIndex: crudeDrugs.referenceIndex, categoryId: categories.id, categoryName: categories.name, importance: crudeDrugs.importance }).from(crudeDrugs).leftJoin(categories, eq(categories.id, crudeDrugs.categoryId)).leftJoin(archiveEntries, eq(archiveEntries.drugId, crudeDrugs.id)).where(and(isNull(archiveEntries.id), or(isNotNull(crudeDrugs.catalogIndex), isNotNull(crudeDrugs.referenceIndex)))).orderBy(asc(crudeDrugs.catalogIndex), asc(crudeDrugs.referenceIndex)),
   ]);
   return NextResponse.json({ groups: groups.map((group) => ({ ...group, entries: entries.filter((entry) => entry.archiveGroupId === group.id) })), activeDrugs });
 }

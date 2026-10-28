@@ -137,13 +137,14 @@ export const archiveEntries = pgTable("archive_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
   archiveGroupId: uuid("archive_group_id").notNull().references(() => archiveGroups.id, { onDelete: "restrict" }),
   drugId: uuid("drug_id").notNull().references(() => crudeDrugs.id, { onDelete: "restrict" }),
+  originalIndexType: text("original_index_type").$type<"catalog" | "reference">().notNull().default("catalog"),
   originalIndex: integer("original_index").notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }).defaultNow().notNull(),
   archivedBy: text("archived_by").references(() => user.id, { onDelete: "set null" }),
 }, (t) => [
   uniqueIndex("archive_entries_drug_idx").on(t.drugId),
   uniqueIndex("archive_entries_group_drug_idx").on(t.archiveGroupId, t.drugId),
-  uniqueIndex("archive_entries_group_index_idx").on(t.archiveGroupId, t.originalIndex),
+  uniqueIndex("archive_entries_group_index_idx").on(t.archiveGroupId, t.originalIndexType, t.originalIndex),
   index("archive_entries_group_idx").on(t.archiveGroupId),
 ]);
 

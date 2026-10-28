@@ -35,6 +35,14 @@ const manifestSchema = z.object({
 export type BackupManifest = z.infer<typeof manifestSchema>;
 
 export async function createBackupArchive(tables: BackupTables, _media: BackupMediaFile[], createdAt = new Date()) {
+  return createArchive(tables, [], createdAt);
+}
+
+export async function createBackupArchiveWithMedia(tables: BackupTables, media: BackupMediaFile[], createdAt = new Date()) {
+  return createArchive(tables, media, createdAt);
+}
+
+async function createArchive(tables: BackupTables, media: BackupMediaFile[], createdAt: Date) {
   const zip = new JSZip();
   const counts: Record<string, number> = {};
   const files: BackupManifest["files"] = {};
@@ -48,6 +56,17 @@ export async function createBackupArchive(tables: BackupTables, _media: BackupMe
     files[path] = { sha256: sha256(content), count: rows.length };
   }
 
+  const mediaIds = new Set<string>();
+  const mediaPaths = new Set<string>();
+  let mediaBytes = 0;
+  for (const item of media) {
+    if (!safeMediaArchivePath(item.archivePath)) throw new Error(`안전하지 않은 미디어 경로입니다: ${item.archivePath}`);
+    if (mediaIds.has(item.id) || mediaPaths.has(item.archivePath)) throw new Error("중복된 미디어 ID 또는 경로가 있습니다.");
+    if (item.bytes.length !== item.size || sha256(item.bytes) !== item.sha256) throw new Error(`미디어 파일 ${item.id}의 크기 또는 체크섬이 일치하지 않습니다.`);
+    mediaIds.add(item.id); mediaPaths.add(item.archivePath); mediaBytes += item.size;
+    zip.file(item.archivePath, item.bytes);
+  }
+
   const manifest: BackupManifest = {
     schema: BACKUP_SCHEMA,
     version: BACKUP_VERSION,
@@ -55,9 +74,7 @@ export async function createBackupArchive(tables: BackupTables, _media: BackupMe
     source: { app: "HerbOverflow" },
     counts,
     files,
-    // Keep the v1 media shape so binary backup can be restored later without a
-    // schema migration. Image originals are intentionally excluded for now.
-    media: { count: 0, bytes: 0, files: [] },
+    media: { count: media.length, bytes: mediaBytes, files: media.map((item) => ({ id: item.id, archivePath: item.archivePath, filename: item.filename, mimeType: item.mimeType, width: item.width, height: item.height, size: item.size, sha256: item.sha256 })) },
     security: { authSecretsExcluded: true, excludedTables: ["session", "account", "verification", "user_invitations"] },
   };
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
@@ -99,7 +116,7 @@ export async function parseBackupArchive(input: Buffer | ArrayBuffer) {
   const media = new Map<string, Buffer>();
   const mediaPaths = new Set<string>();
   for (const item of manifest.media.files) {
-    if (!item.archivePath.startsWith("media/") || item.archivePath.includes("..")) throw new Error("안전하지 않은 미디어 경로가 포함되어 있습니다.");
+    if (!safeMediaArchivePath(item.archivePath)) throw new Error("안전하지 않은 미디어 경로가 포함되어 있습니다.");
     if (media.has(item.id) || mediaPaths.has(item.archivePath)) throw new Error("중복된 미디어 ID 또는 경로가 포함되어 있습니다.");
     mediaPaths.add(item.archivePath);
     const file = zip.file(item.archivePath);
@@ -108,6 +125,8 @@ export async function parseBackupArchive(input: Buffer | ArrayBuffer) {
     if (bytes.length !== item.size || sha256(bytes) !== item.sha256) throw new Error(`미디어 파일 ${item.archivePath}의 무결성 검증에 실패했습니다.`);
     media.set(item.id, bytes);
   }
+  const zippedMediaPaths = Object.values(zip.files).filter((file) => !file.dir && file.name.startsWith("media/")).map((file) => file.name);
+  if (zippedMediaPaths.length !== mediaPaths.size || zippedMediaPaths.some((path) => !mediaPaths.has(path))) throw new Error("Manifest와 ZIP의 미디어 파일 목록이 일치하지 않습니다.");
   if (media.size !== manifest.media.count || [...media.values()].reduce((sum, bytes) => sum + bytes.length, 0) !== manifest.media.bytes) throw new Error("미디어 파일 집계가 manifest와 일치하지 않습니다.");
   return { manifest, tables, media };
 }
@@ -119,6 +138,8 @@ export async function verifyGeneratedBackup(buffer: Buffer, expected: BackupTabl
 }
 
 export function sha256(value: string | Buffer) { return createHash("sha256").update(value).digest("hex"); }
+
+export function safeMediaArchivePath(value: string) { return /^media\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value) && !value.includes(".."); }
 
 export function backupFilename(prefix = "HerbOverflow-Backup", date = new Date()) {
   return `${prefix}-${date.toISOString().replace(/[:.]/g, "-")}.zip`;

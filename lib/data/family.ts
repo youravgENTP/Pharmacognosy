@@ -15,6 +15,7 @@ export async function getFamilyExplorerData() {
     referenceIndex: crudeDrugs.referenceIndex,
     archivePrefix: archiveGroups.prefix,
     archiveName: archiveGroups.name,
+    archiveOriginalIndexType: archiveEntries.originalIndexType,
     archiveOriginalIndex: archiveEntries.originalIndex,
     drugKoreanName: crudeDrugs.koreanName,
     drugLatinName: crudeDrugs.latinName,
@@ -36,13 +37,13 @@ export async function getFamilyExplorerData() {
       acceptedScientificName: row.acceptedScientificName,
       summary: row.summary,
       summaryBlocks: row.summaryBlocks,
-      drugs: [] as { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[],
+      drugs: [] as { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndexType: "catalog" | "reference"; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[],
     });
     if (row.drugId && row.drugKoreanName) map.get(row.familyId)!.drugs.push({
       id: row.drugId,
       catalogIndex: row.catalogIndex,
       referenceIndex: row.referenceIndex,
-      archive: row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, name: row.archiveName!, originalIndex: row.archiveOriginalIndex } : null,
+      archive: row.archivePrefix && row.archiveOriginalIndex != null ? { prefix: row.archivePrefix, name: row.archiveName!, originalIndexType: row.archiveOriginalIndexType ?? "catalog", originalIndex: row.archiveOriginalIndex } : null,
       koreanName: row.drugKoreanName,
       latinName: row.drugLatinName,
       categoryId: row.categoryId,
@@ -56,6 +57,6 @@ export async function getFamilyExplorerData() {
     acceptedScientificName: string | null;
     summary: typeof rows[number]["summary"];
     summaryBlocks: typeof rows[number]["summaryBlocks"];
-    drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[];
+    drugs: { id: string; catalogIndex: number | null; referenceIndex: number | null; archive: { prefix: string; name: string; originalIndexType: "catalog" | "reference"; originalIndex: number } | null; koreanName: string; latinName: string | null; categoryId: string | null; categoryName: string }[];
   }>()).values());
 }

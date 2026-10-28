@@ -5,6 +5,7 @@ import test from "node:test";
 const migrationUrl = new URL("../../drizzle/0017_dry_nitro.sql", import.meta.url);
 const workerUrl = new URL("./worker.ts", import.meta.url);
 const lifecycleMigrationUrl = new URL("../../drizzle/0019_safe_wallflower.sql", import.meta.url);
+const localOnlyMigrationUrl = new URL("../../drizzle/0022_disable_external_backup_triggers.sql", import.meta.url);
 
 test("backup migration installs transactional outbox triggers for every required mutation domain", async () => {
   const sql = await readFile(migrationUrl, "utf8");
@@ -73,15 +74,36 @@ test("a frozen Data Card snapshot is published unchanged even after a newer revi
   assert.match(worker, /terminal \? "failed" : "retrying"/);
 });
 
-test("manual synchronization freezes tables before the asynchronous worker and uses the shared mutation lock", async () => {
+test("manual synchronization freezes tables before browser media collection and uses the shared mutation lock", async () => {
   const route = await readFile(new URL("../../app/api/backup/synchronize/route.ts", import.meta.url), "utf8");
   const editorRoute = await readFile(new URL("../../app/api/drugs/[id]/editing-session/route.ts", import.meta.url), "utf8");
-  const worker = await readFile(workerUrl, "utf8");
   assert.ok(route.indexOf("lockManualSynchronization") < route.indexOf("loadBackupTables(tx)"));
-  assert.ok(route.indexOf("loadBackupTables(tx)") < route.indexOf("after(async"));
   assert.match(route, /backupSnapshotCaptures/);
+  assert.match(route, /status: "superseded"/);
+  assert.doesNotMatch(route, /runBackupWorker|backupStorageConfigured|incrementalBackupEnabled|after\(/);
   assert.match(editorRoute, /closeVerified: true/);
-  assert.match(worker, /manualCapture\.tables as BackupTables/);
+});
+
+test("forward migration disables only external outbox triggers and preserves historical backup tables", async () => {
+  const sql = await readFile(localOnlyMigrationUrl, "utf8");
+  assert.match(sql, /DROP TRIGGER IF EXISTS/);
+  assert.match(sql, /trigger_name LIKE 'backup_outbox_%'/);
+  assert.doesNotMatch(sql, /DROP TABLE|TRUNCATE|DELETE FROM/i);
+});
+
+test("browser full backup uses frozen DB ZIP, bounded media collection, persistent verified cache, and no incomplete download", async () => {
+  const browser = await readFile(new URL("./browser-full-backup.ts", import.meta.url), "utf8");
+  const snapshot = await readFile(new URL("../../app/api/backup/synchronize/[id]/route.ts", import.meta.url), "utf8");
+  assert.match(snapshot, /createBackupArchive\(tables, \[\], now\)/);
+  assert.match(browser, /DOWNLOAD_CONCURRENCY = 3/);
+  assert.match(browser, /indexedDB\.open/);
+  assert.match(browser, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(browser, /method: "HEAD"/);
+  assert.ok(browser.indexOf("if (failures.length) throw") < browser.indexOf("zip.generateAsync"));
+  assert.ok(browser.indexOf("verifyCompletedArchive") < browser.indexOf("link.click()"));
+  const settings = await readFile(new URL("../../components/backup-settings.tsx", import.meta.url), "utf8");
+  assert.match(settings, /localStorage\.setItem\("herboverflow-full-backup-snapshot"/);
+  assert.match(settings, /중단된 전체 백업 재개/);
 });
 
 test("every application-controlled Data Card exit delegates to verified close", async () => {

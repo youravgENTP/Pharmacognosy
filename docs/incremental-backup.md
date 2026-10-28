@@ -1,116 +1,39 @@
-# Persistent incremental backup operations
+# Local backup operations
 
-HerbOverflow's lightweight `지금 백업` path remains the default database ZIP and does not require any of the infrastructure below. The incremental full-backup feature is opt-in and serves only ZIPs that have completed manifest, row-count, size, and SHA-256 verification.
+HerbOverflow backup uses only the deployed Vercel application, PostgreSQL, the current primary image store, and the administrator's browser. No independent S3/R2 bucket or externally hosted Worker is required.
 
-## Architecture
+## Two independent backup paths
 
-- PostgreSQL triggers write a monotonic mutation revision to `backup_outbox` in the same transaction as every backup-relevant insert, update, or delete.
-- `backup_media_assets` is a durable, resumable queue for copying primary media into independent backup object storage. Objects are content-addressed by SHA-256 and shared safely by duplicate media.
-- A bounded worker recovers abandoned leases, retries failed work with exponential backoff, backfills existing media, coalesces changes, and creates immutable full snapshots.
-- A full snapshot reads all backup tables in a read-only `REPEATABLE READ` transaction. It records both the maximum mutation revision and `txid_current_snapshot()` boundary.
-- ZIP generation streams verified cached media, verifies the completed ZIP locally, publishes through a temporary object, verifies the published object, and only then changes the database state to `ready`.
-- Snapshot-to-media foreign keys use `ON DELETE RESTRICT`. Removing current media metadata therefore never permits referenced historical content to be garbage-collected.
-- The newest older `ready` snapshot stays downloadable while a replacement is pending or failed.
+- `지금 백업` keeps the existing v1 database ZIP path. It contains all configured database tables and image metadata, but not image binaries. It does not read image originals, so a missing image cannot break it.
+- `지금 동기화` creates an image-inclusive local ZIP. It first verifies that every Data Card edit session closed normally and that every current card revision has an immutable revision record. A short shared advisory lock then captures all backup tables in one `REPEATABLE READ` transaction. The lock is released before any image download or ZIP compression.
 
-The migration is [`drizzle/0017_dry_nitro.sql`](../drizzle/0017_dry_nitro.sql). Applying it creates the queue/cache/snapshot tables, mutation triggers, an initial media backfill, and the singleton worker state. Do not run it against production until a normal lightweight backup has been downloaded and verified.
+The frozen capture is stored in `backup_snapshot_captures`. The browser downloads its database ZIP once, collects image originals from the current primary media API with concurrency 3, verifies size and SHA-256, and builds the compatible v1 ZIP locally. The generated ZIP is reopened with CRC checking and every media hash is verified before a download is initiated.
 
-`0019_safe_wallflower.sql` adds revisioned Data Card autosave recovery. It intentionally removes **only** the `crude_drugs` Outbox trigger introduced by 0017; all other outbox triggers remain active. Data Card saves use a monotonic `data_revision`, immutable `data_card_revisions`, server-observed editing sessions, and independent `data_card_backup_snapshots`. The migration seeds revision 0 from each existing card without changing card content.
+If a Data Card is reopened after capture, the new edit belongs to a future backup; it cannot alter the frozen capture. Manual synchronization deliberately bypasses the automatic 60-second debounce, but never bypasses verified close or immutable revision checks.
 
-`0021_numerous_winter_soldier.sql` adds verified-close metadata and immutable full-snapshot capture rows. It does not rewrite user content. Existing closed sessions are marked verified only when their card already has the matching immutable revision record.
+## Browser cache and failure behavior
 
-## Required configuration
+Verified image blobs are cached in IndexedDB by media ID and a fingerprint of immutable source metadata. Every cached blob is size/hash checked before reuse. A changed fingerprint or corrupt cache entry is discarded and fetched again. Fetches retry with exponential backoff; non-retryable not-found, permission, or size mismatch errors stop immediately.
 
-Set these only after provisioning a bucket or S3-compatible account with a failure domain independent from the primary media backend:
+If any image fails, HerbOverflow does not create or download a ZIP labeled complete. The UI lists the image ID, filename, and classified error and offers diagnostics/retry. A retry starts a new frozen DB capture while reusing still-valid cached image blobs, so successful images need not be downloaded again.
 
-```dotenv
-INCREMENTAL_BACKUP_ENABLED=true
-BACKUP_STORAGE_PROVIDER=s3
-BACKUP_S3_BUCKET=private-backup-bucket
-BACKUP_S3_REGION=ap-northeast-2
-BACKUP_S3_ACCESS_KEY_ID=...
-BACKUP_S3_SECRET_ACCESS_KEY=...
-BACKUP_S3_PREFIX=herboverflow
-BACKUP_WORKER_SECRET=...
-```
+Browser ZIP generation is capped by `FULL_MEDIA_BACKUP_MAX_BYTES` (default 250 MiB) to avoid unsafe memory pressure. JSZip still needs browser memory for the archive, so very large future datasets require chunked/export-volume design rather than pretending a Vercel request can safely stream an unlimited ZIP. Local downloads and scheduled catch-up are only possible while a browser is open and permits downloads.
 
-Optional S3-compatible settings:
+## Data Card save boundary
 
-```dotenv
-BACKUP_S3_ENDPOINT=https://...
-BACKUP_S3_FORCE_PATH_STYLE=false
-```
+Normal close flushes the primary card plus separate mnemonic/preference/relationship/identity queues. The server verifies the semantic card hash, immutable revision, and separately stored relationship/identity membership before marking the edit session `close_verified`. A failed save preserves the local recovery draft and blocks close. Backup status or image I/O is never part of the Data Card save response.
 
-Worker and retention defaults can be overridden:
+Abnormal browser termination leaves an unverified session. Lease expiry is not treated as a successful close and blocks manual synchronization until the session is recovered and verified.
 
-```dotenv
-BACKUP_MAX_RETRIES=8
-BACKUP_WORKER_INTERVAL_MS=30000
-BACKUP_SNAPSHOT_DEBOUNCE_MS=300000
-BACKUP_MAX_STALENESS_MS=3600000
-BACKUP_RECONCILIATION_INTERVAL_MS=3600000
-BACKUP_SNAPSHOT_RETENTION_COUNT=5
-```
+## Migrations and legacy incremental tables
 
-Development defaults to a local `.backup-storage` directory. Production deliberately rejects local storage. Do not reuse the primary Vercel Blob bucket or credentials for disaster-recovery storage, and never expose the backup bucket publicly.
+- `0017` originally introduced the external incremental outbox/worker tables.
+- `0019` removed the `crude_drugs` outbox trigger and added immutable Data Card revisions.
+- `0021` adds verified-close fields and frozen snapshot captures.
+- `0022` removes the remaining `backup_outbox_*` triggers so ordinary saves no longer pay for an unused external queue. It does not delete `backup_outbox`, `backup_snapshots`, cached media rows, Worker state, or any user data.
 
-## Worker deployment
-
-The reliable option for large media sets is a continuously supervised Node worker in a separate container or managed worker service:
-
-```sh
-npm run backup:worker:watch
-```
-
-For platforms that provide durable scheduled invocations, call `GET` or `POST /api/backup/worker` with `Authorization: Bearer $BACKUP_WORKER_SECRET`. Each invocation is bounded; call it repeatedly (for example, every minute) until queues are caught up. A serverless invocation may be terminated at its duration limit, but database leases make the next invocation resume abandoned work safely. Do not use an unawaited Promise in an application request as a worker.
-
-The worker needs the same `DATABASE_URL` as the application plus the backup S3 settings. Limit the credentials to the configured bucket prefix. Rotate `BACKUP_WORKER_SECRET` independently from application authentication.
-
-## Deployment order and backfill
-
-1. Download and parse a normal `지금 백업` ZIP. Confirm that its manifest and database files verify.
-2. Provision private independent object storage, lifecycle/versioning policy, credentials, and the worker runtime.
-3. Deploy code with `INCREMENTAL_BACKUP_ENABLED=false`. The existing lightweight backup and Restore remain operational.
-4. Review and apply migrations 0017 through 0021 once to the production database during a maintenance window with Data Card editing paused. Confirm all new tables/triggers and the Drizzle journal entry.
-5. Configure the worker and storage secrets, enable the feature flag, and start the worker.
-6. Monitor `미디어 대기`, failed media, worker heartbeat, and storage usage in Settings → Database → Backup. The migration queues every existing media asset, and the worker resumes this initial backfill in limited-concurrency batches.
-7. Wait until pending/failed media are zero. Request `최신 전체 스냅샷 생성`, wait for `ready`, download it, and independently parse/verify it before treating rollout as complete.
-
-Disabling `INCREMENTAL_BACKUP_ENABLED` stops new processing without affecting primary saves or the lightweight backup. Do not roll back migration 0017 while triggers are installed; disable the flag and worker first, retain the independent objects, then use a separately reviewed forward migration if schema removal is ever necessary.
-
-## Monitoring and troubleshooting
-
-The Backup UI reports the last mutation, latest verified snapshot, pending revisions, media queue counts, build progress, worker state, errors, and accounted storage bytes. Alert when:
-
-- the worker heartbeat is older than two invocation intervals;
-- `backup_media_assets.status = 'failed'` is nonzero;
-- a snapshot remains in a processing state beyond the lease timeout;
-- pending revisions remain above zero longer than `BACKUP_MAX_STALENESS_MS`;
-- independent bucket capacity, request rate, or egress cost approaches its limit.
-
-The reconciliation pass resets abandoned work, inserts missing media jobs, and emits a periodic reconciliation revision. Failed media and snapshots retain their per-item error text and retry timestamp. Logs must identify snapshot/media IDs, never credentials, signed URLs, or secret values.
-
-Storage cost consists of one deduplicated immutable media object per unique SHA-256, retained snapshot ZIPs, request charges, and download egress. `BACKUP_SNAPSHOT_RETENTION_COUNT` marks excess verified snapshots as `superseded`; object deletion is intentionally not automatic. Define a reviewed bucket lifecycle/garbage-collection process that checks snapshot references before deletion.
+Legacy Worker/storage code and historical records remain for compatibility, but the normal Backup UI and `지금 동기화` do not require or invoke them. Do not apply migrations automatically in production. First download and verify a basic backup, deploy the code, apply pending migrations during a maintenance window, and retest Data Card close plus both backup paths.
 
 ## Restore boundary
 
-Prebuilt ZIPs use the existing v1 HerbOverflow manifest and are parseable by the current Restore preview. Current Restore continues to restore selected database fields only; it does **not** restore original image binaries. The UI states this limitation. A future media restore must provide collision checks, an atomic primary-storage/DB commit strategy, and explicit administrator approval before it can be enabled.
-
-## Failed media diagnosis and recovery
-
-Settings → Database → Backup exposes administrator-only `실패 이미지 진단` and `실패 이미지만 재시도` actions. The diagnostic API is `GET /api/backup/media/diagnostics?ids=<uuid,...>` and reports metadata presence, storage backend, original availability, actual-versus-metadata size, a classified cause (`NOT_FOUND`, `STORAGE_ERROR`, `PERMISSION_ERROR`, `SIZE_MISMATCH`, `TRANSIENT_ERROR`, or `UNKNOWN`), retryability, and references.
-
-Verified media is not downloaded again unless its primary metadata fingerprint changes or the cached object fails hash/size validation. Retrying moves only terminal failed IDs back to the durable queue; it does not alter successful cache rows.
-
-If an old record points to `local/` storage, run recovery only on the machine that still contains `.local-media` and only after configuring Vercel Blob credentials. The command copies the original to private primary Blob storage, verifies size and SHA-256, then atomically updates that one metadata row. It does not delete the local original:
-
-```sh
-npm run media:recover-local -- --ids=872c9151-50f4-4e7e-8b44-80351eff2600,7f060fc0-0d3d-402f-8030-d2fc46e19fd2,47efbe9e-3b48-4fb5-a433-51f6de44fbdb
-```
-
-This is an explicit operator action, not an automatic migration. If primary originals are permanently unavailable, an administrator may explicitly request `불완전 ZIP 생성`. Its manifest records every omitted ID and reason, its object/file name contains `INCOMPLETE`, and it is stored with `incomplete` status rather than `ready`; it is never shown as a verified full backup.
-
-## Data Card autosave lifecycle
-
-Opening a card creates a server session and sends a heartbeat every 20 seconds. A normal close flushes the card and separate mnemonic/API queues, verifies the immutable revision and semantic card hash against PostgreSQL, verifies relationship and identity-term membership, and only then records a verified server close. It never waits for backup I/O. A browser crash leaves an unverified lease plus a local recovery draft; lease expiry is not presented as a successful save and cannot be manually synchronized until the original session is recovered and verified.
-
-The automatic Worker waits at least 60 seconds after both the final successful save and verified close. It then freezes the exact stored revision as a separate immutable JSON object in backup storage. A later edit creates a new revision; it cannot mutate a frozen object. `지금 동기화` takes the same short advisory lock as Data Card mutations, rejects open/unverified sessions, captures all backup tables in one repeatable-read transaction, and then releases editing before asynchronous ZIP/media work starts. Full database ZIP and per-card revision boundaries remain separately recorded.
+Both ZIP types use the existing v1 manifest and remain parseable by Restore preview. Current Restore restores selected database fields only; it does not upload image binaries back to primary storage. The UI states this explicitly. A future media restore needs collision handling, storage/DB consistency, rollback, and separate administrator approval.

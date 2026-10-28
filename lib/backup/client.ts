@@ -3,7 +3,7 @@ export type FullBackupSnapshot = { id: string; status: string; includedRevision:
 export type FailedBackupMedia = { id: string; attempts: number; lastError: string | null; updatedAt: string };
 export type IncrementalBackupStatus = { enabled: boolean; storageConfigured: boolean; latestRevision: number; lastChangeAt: string | null; latestReady: FullBackupSnapshot | null; active: FullBackupSnapshot | null; pendingMedia: number; failedMedia: number; failedMediaItems: FailedBackupMedia[]; worker: { status: string; heartbeatAt: string; lastRunCompletedAt: string | null; lastError: string | null } | null; storageBytes: number; pendingChanges: number; synchronized: boolean; download: { available: boolean; stale: boolean } };
 export type SynchronizationBlocker = { sessionId: string; drugId: string; koreanName: string; displayIndex: string; catalogIndex: number | null; referenceIndex: number | null; userId: string; userName: string; userEmail: string; lastSeenAt: string; closedAt: string | null; closeVerified: boolean; lastError: string | null; state: "active" | "expired-unverified" | "verification-failed" };
-export type SynchronizationReadiness = { canSynchronize: boolean; enabled: boolean; storageConfigured: boolean; mode: "initial" | "incremental"; latestReady: { id: string; completedAt: string | null } | null; active: { id: string; status: string } | null; blockers: SynchronizationBlocker[] };
+export type SynchronizationReadiness = { canSynchronize: boolean; blockers: SynchronizationBlocker[] };
 
 export async function downloadFullBackup(filenameOverride?: string, onProgress?: (progress: BackupDownloadProgress) => void) {
   onProgress?.({ phase: "preparing", loaded: 0, total: null });
@@ -64,7 +64,7 @@ export async function getSynchronizationReadiness() {
 export async function synchronizeBackupNow() {
   const response = await fetch("/api/backup/synchronize", { method: "POST" }); const body = await response.json();
   if (!response.ok) { const error = new Error(body.error ?? "동기화를 시작하지 못했습니다.") as Error & { details?: unknown }; error.details = body; throw error; }
-  return body as { snapshotId: string; status: string; mode: "initial" | "incremental"; workerTriggered: boolean };
+  return body as { snapshotId: string; capturedAt: string; status: "captured"; mode: "local-full" };
 }
 
 export async function diagnoseBackupMedia(ids: string[]) {

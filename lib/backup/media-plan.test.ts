@@ -12,6 +12,7 @@ test("media backup plan reports total size and creates safe unique archive paths
   assert.equal(plan.supported, true);
   assert.equal(new Set(plan.files.map((file) => file.archivePath)).size, 2);
   assert.ok(plan.files.every((file) => /^media\/[A-Za-z0-9._-]+$/.test(file.archivePath) && !file.archivePath.includes("..")));
+  assert.ok(plan.files.every((file) => file.sourceFingerprint === `${file.id}:${file.size}`));
   assert.equal(createMediaBackupPlan(files, 14).supported, false);
 });
 

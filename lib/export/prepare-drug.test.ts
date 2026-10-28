@@ -65,3 +65,21 @@ test("mnemonic none and preferred preparation remain deterministic", async () =>
   const selected = await prepareDrugExportCard("drug", profile, new Set(), preferred, loadMedia, () => undefined);
   assert.equal(selected.fields.find((field) => field.title === "암기법")?.lines[0].text.includes("암기 문장"), true);
 });
+
+test("related and similar drugs use their actual active, Archive, and R indexes", async () => {
+  const { profile, loadMedia } = await inputs();
+  const card = await prepareDrugExportCard("drug", {
+    ...profile,
+    relatedDrugs: [
+      { name: "활성생약", catalogIndex: 12, referenceIndex: null, archive: null },
+      { name: "중간생약", catalogIndex: null, referenceIndex: null, archive: { prefix: "FM", originalIndex: 35 } },
+    ],
+    similarDrugs: [
+      { name: "참고생약", catalogIndex: null, referenceIndex: 3, archive: null },
+      { name: "번호없는생약", catalogIndex: null, referenceIndex: null, archive: null },
+    ],
+  }, new Set(), [], loadMedia, () => undefined);
+
+  assert.deepEqual(card.fields.find((field) => field.title === "연관생약")?.lines.map((line) => line.text), ["12. 활성생약", "FM35. 중간생약"]);
+  assert.deepEqual(card.fields.find((field) => field.title === "유사생약")?.lines.map((line) => line.text), ["R03. 참고생약", "번호없는생약"]);
+});

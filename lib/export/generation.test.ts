@@ -16,6 +16,8 @@ async function fixture(): Promise<PdfCard[]> {
     latinName: "Forsythiae Fructus",
     fields: [
       { title: "기원", lines: [{ text: "의성개나리 Forsythia viridissima" }] },
+      { title: "연관생약", lines: [{ text: "12. 활성생약" }, { text: "FM35. 중간생약" }] },
+      { title: "유사생약", lines: [{ text: "R03. 참고생약" }] },
       { title: "성분", lines: [
         { text: "i) Lignan", indent: 0, runs: [{ text: "i) ", bold: true }, { text: "Lignan", italic: true, underline: true, color: "#245f3e", highlight: "#fff0a8" }] },
         { text: "① phillyrin", indent: 13, runs: [{ text: "① " }, { text: "phillyrin", strike: true }, { text: "2", superscript: true }, { text: "H", subscript: true }] },
@@ -44,6 +46,9 @@ test("actual DOCX generation supports Korean rich hierarchy and PNG/JPEG images"
   assert.match(xml ?? "", /<w:pgMar[^>]*w:top="567"[^>]*w:right="567"[^>]*w:bottom="816"[^>]*w:left="567"/);
   assert.match(xml ?? "", /<w:cols[^>]*w:space="425"[^>]*w:num="2"[^>]*w:equalWidth="false"/);
   assert.match(xml ?? "", /72\. 연교 \(Forsythiae Fructus\)/);
+  assert.match(xml ?? "", /12\. 활성생약/);
+  assert.match(xml ?? "", /FM35\. 중간생약/);
+  assert.match(xml ?? "", /R03\. 참고생약/);
   assert.match(xml ?? "", /<w:color w:val="FF0000"\/>/);
   assert.doesNotMatch(xml ?? "", /215F9D/);
   assert.match(styles ?? "", /<w:rFonts[^>]*w:ascii="맑은 고딕"/);

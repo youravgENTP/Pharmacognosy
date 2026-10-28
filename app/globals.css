@@ -832,9 +832,16 @@ html, body { background: var(--paper); color: var(--ink); }
 .data-export-summary span { color: #9aa4ae; font-size: 13px; }
 .data-export-summary button, .data-export-quick button { border: 1px solid #37414b; border-radius: 7px; padding: 7px 9px; background: #20262c; color: #aeb8c2; display: inline-flex; align-items: center; gap: 5px; }
 .data-export-summary button:disabled { opacity: .4; }
+.data-export-scope { margin: 14px 0 8px; padding: 10px 12px; border: 1px solid #303840; border-radius: 9px; background: #181d22; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.data-export-scope label { color: #9aa4ae; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; }
+.data-export-scope select { min-width: 220px; border: 1px solid #343d46; border-radius: 7px; padding: 7px 9px; background: #111519; color: #dfe4e9; }
+.data-export-scope > small { color: #75818d; font-size: 10px; text-align: right; }
 .data-export-quick { margin: 14px 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .data-export-quick button:hover { border-color: #527fb4; color: #b8d8ff; }
+.data-export-quick button.selected, .data-export-quick button.all { border-color: #4a8ee3; background: rgba(57,126,220,.22); color: #c9e2ff; }
+.data-export-quick button.partial { border-color: #8a743d; background: rgba(138,116,61,.2); color: #ead08b; }
 .data-export-quick small { color: #71808e; }
+.data-export-quick i { border-radius: 99px; padding: 1px 4px; background: rgba(255,255,255,.08); font-size: 9px; font-style: normal; }
 .data-export-list-tools { display: grid; grid-template-columns: minmax(180px,1fr) 190px; gap: 8px; }
 .data-export-list-tools .search-wrap { margin: 0; }
 .data-export-list-tools select, .data-export-options select { border: 1px solid #343d46; border-radius: 8px; padding: 8px 10px; background: #111519; color: #dfe4e9; }
@@ -888,7 +895,7 @@ html, body { background: var(--paper); color: var(--ink); }
 .data-export-submit:disabled { background: #29333e; color: #65717c; cursor: not-allowed; }
 .data-export-options > small { color: #707c87; text-align: center; }
 @media (max-width: 900px) { .data-export-layout { grid-template-columns: 1fr; } .data-export-options { position: static; } .data-export-drugs { max-height: 520px; } }
-@media (max-width: 620px) { .data-export-list-tools { grid-template-columns: 1fr; } .data-export-drugs > label { grid-template-columns: 18px 27px minmax(0,1fr); } .data-export-drugs em { display: none; } }
+@media (max-width: 620px) { .data-export-scope { align-items: stretch; flex-direction: column; } .data-export-scope label { align-items: stretch; flex-direction: column; } .data-export-scope select { min-width: 0; width: 100%; } .data-export-scope > small { text-align: left; } .data-export-list-tools { grid-template-columns: 1fr; } .data-export-drugs > label { grid-template-columns: 18px 27px minmax(0,1fr); } .data-export-drugs em { display: none; } }
 @media (max-width: 700px) { .collection-kind-picker { grid-template-columns: 1fr; } .collection-workspace-kind { display: none; } }
 
 /* Botanical Families explorer */
@@ -1686,11 +1693,16 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .filter-button,
 :root[data-theme="day"] .data-export-summary button,
 :root[data-theme="day"] .data-export-quick button,
+:root[data-theme="day"] .data-export-scope,
 :root[data-theme="day"] .storage-actions > button,
 :root[data-theme="day"] .storage-actions > div { background: var(--surface); border-color: var(--border-strong); color: var(--text-secondary); }
 :root[data-theme="day"] .filter-button:hover,
 :root[data-theme="day"] .filter-button.active,
-:root[data-theme="day"] .data-export-quick button:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
+:root[data-theme="day"] .data-export-quick button:hover,
+:root[data-theme="day"] .data-export-quick button.selected,
+:root[data-theme="day"] .data-export-quick button.all { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
+:root[data-theme="day"] .data-export-quick button.partial { background: #fff8df; border-color: #b38a2f; color: #765b1f; }
+:root[data-theme="day"] .data-export-scope select { background: var(--surface); border-color: var(--border-strong); color: var(--text-primary); }
 :root[data-theme="day"] .filter-popover,
 :root[data-theme="day"] .identity-term-combobox > div,
 :root[data-theme="day"] .taxonomy-lineage-popover,

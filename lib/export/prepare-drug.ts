@@ -16,10 +16,17 @@ export type ExportDrugProfile = {
   origin: string | null;
   origins: { nameKo: string | null; scientificName: string | null }[];
   family: string | null;
-  relatedDrugs: { name: string }[];
-  similarDrugs: { name: string }[];
+  relatedDrugs: ExportRelatedDrug[];
+  similarDrugs: ExportRelatedDrug[];
   identityTerms: { name: string }[];
   sections: StudySection[];
+};
+
+export type ExportRelatedDrug = {
+  name: string;
+  catalogIndex?: number | null;
+  referenceIndex?: number | null;
+  archive?: { prefix: string; originalIndex: number } | null;
 };
 
 export type ExportMnemonic = { userName: string; items: StudyItem[]; blocks: StudyBlock[] };
@@ -40,8 +47,8 @@ export async function prepareDrugExportCard(
   if (drug.medicinalPart) fields.push({ title: "약용부위", lines: [{ text: drug.medicinalPart }] });
   if (origins.lines.length) fields.push({ title: "기원", lines: origins.lines.map((text) => ({ text })) });
   if (drug.family) fields.push({ title: "과", lines: [{ text: drug.family }] });
-  if (drug.relatedDrugs.length) fields.push({ title: "연관생약", lines: drug.relatedDrugs.map((item) => ({ text: item.name })) });
-  if (drug.similarDrugs.length) fields.push({ title: "유사생약", lines: drug.similarDrugs.map((item) => ({ text: item.name })) });
+  if (drug.relatedDrugs.length) fields.push({ title: "연관생약", lines: drug.relatedDrugs.map((item) => ({ text: formatRelatedDrug(item) })) });
+  if (drug.similarDrugs.length) fields.push({ title: "유사생약", lines: drug.similarDrugs.map((item) => ({ text: formatRelatedDrug(item) })) });
   if (drug.identityTerms.length) fields.push({ title: "가공 및 기타 사항", lines: [{ text: drug.identityTerms.map((term) => term.name).join(" · ") }] });
   for (const section of drug.sections.filter((section) => section.title !== "암기법" && (!section.fieldDefinitionId || activeFieldIds.has(section.fieldDefinitionId)))) fields.push(await prepareStudyField(drugId, section.title, section.items, section.blocks ?? [], loadMedia, warn));
   for (const mnemonic of mnemonics) fields.push(await prepareStudyField(drugId, mnemonics.length > 1 ? `암기법 · ${mnemonic.userName}` : "암기법", mnemonic.items, mnemonic.blocks, loadMedia, warn, true));
@@ -53,6 +60,11 @@ export async function prepareDrugExportCard(
     latinName: drug.latinName ?? undefined,
     fields: fields.filter((field) => field.lines.length || field.images?.length),
   };
+}
+
+export function formatRelatedDrug(drug: ExportRelatedDrug) {
+  if (drug.catalogIndex == null && drug.referenceIndex == null && !drug.archive) return drug.name;
+  return `${formatDrugIndex(drug.catalogIndex ?? null, drug.referenceIndex ?? null, drug.archive)}. ${drug.name}`;
 }
 
 export async function prepareStudyField(drugId: string, title: string, items: StudyItem[], blocks: StudyBlock[], loadMedia: (id: string) => Promise<ExportMedia | null>, warn: (warning: ExportImageWarning) => void, mnemonic = false): Promise<PdfField> {

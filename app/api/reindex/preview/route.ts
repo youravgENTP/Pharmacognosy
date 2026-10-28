@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { authorizeApi } from "@/lib/auth/permissions";
 import { reindexImportSchema } from "@/lib/reindex";
-import { previewReindex } from "@/lib/reindex-server";
+import { previewReindex, previewSafeReindex } from "@/lib/reindex-server";
+import { safeMaintenancePlanSchema } from "@/lib/safe-maintenance-plan";
 
 export async function POST(request: Request) {
   const authError = await authorizeApi("admin"); if (authError) return authError;
-  const parsed = reindexImportSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "pharmacognosy.import v1 JSON과 모든 koreanName/catalogIndex를 확인해 주세요.", issues: parsed.error.issues }, { status: 400 });
-  return NextResponse.json(await previewReindex(parsed.data.drugs));
+  const body = await request.json().catch(() => null);
+  const safePlan = safeMaintenancePlanSchema.safeParse(body);
+  if (safePlan.success) return NextResponse.json(await previewSafeReindex(safePlan.data));
+  const legacy = reindexImportSchema.safeParse(body);
+  if (legacy.success) return NextResponse.json(await previewReindex(legacy.data.drugs));
+  return NextResponse.json({ error: "안전 유지보수 계획 또는 pharmacognosy.import v1 JSON을 확인해 주세요.", issues: safePlan.error.issues }, { status: 400 });
 }

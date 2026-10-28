@@ -1,4 +1,5 @@
 import type { FieldInputMode, StudyBlock, StudyItem, StudySection } from "@/lib/db/schema";
+import type { SafeMaintenanceDrug, SafeMaintenancePlan } from "@/lib/safe-maintenance-plan";
 
 export const FINAL_EXAM_CATEGORIES = new Set([
   "엽류", "피류", "화류", "목류", "수지류", "엑스류", "유액류", "은화식물류", "동물류",
@@ -44,6 +45,60 @@ export function createEmptyFieldSections(fields: InitializableField[], createId 
 export function appendEmptyFieldSections(existing: StudySection[], fields: InitializableField[], createId = () => crypto.randomUUID()) {
   const present = new Set(existing.flatMap((section) => section.fieldDefinitionId ? [section.fieldDefinitionId] : []));
   return [...structuredClone(existing), ...createEmptyFieldSections(fields.filter((field) => !present.has(field.id)), createId)];
+}
+
+export type PlanInitializationDrug = InitializableDrug & { updatedAt?: Date };
+export type PlanInitializationPreview = {
+  canExecute: boolean;
+  errors: string[];
+  summary: { requested: number; initialize: number; excludedExisting: number; changedSinceBackup: number; conflicts: number };
+  initialize: { id: string; koreanName: string; categoryName: string; fields: string[] }[];
+  excluded: { id: string; koreanName: string; reason: string }[];
+  conflicts: { id: string; koreanName: string; reason: string }[];
+};
+
+export function buildPlanInitializationPreview(plan: SafeMaintenancePlan, liveDrugs: PlanInitializationDrug[], liveFields: InitializableField[]): PlanInitializationPreview {
+  const errors: string[] = [];
+  const conflicts: PlanInitializationPreview["conflicts"] = [];
+  const excluded: PlanInitializationPreview["excluded"] = [];
+  const initialize: PlanInitializationPreview["initialize"] = [];
+  const fieldById = new Map(liveFields.map((field) => [field.id, field]));
+  const selectedFields: InitializableField[] = [];
+  for (const expected of plan.defaultFields) {
+    const live = fieldById.get(expected.id);
+    if (!live || !live.active || live.name !== expected.name || live.inputMode !== expected.inputMode || live.position !== expected.position) errors.push(`Field Definition '${expected.name}'이 계획과 현재 DB에서 다릅니다.`);
+    else selectedFields.push(live);
+  }
+  const liveById = new Map(liveDrugs.map((drug) => [drug.id, drug]));
+  let changedSinceBackup = 0;
+  for (const expected of plan.drugs) {
+    const live = liveById.get(expected.drugId);
+    const conflict = planDrugConflict(expected, live);
+    if (conflict) { conflicts.push({ id: expected.drugId, koreanName: expected.koreanName, reason: conflict }); continue; }
+    if (!Array.isArray(live!.sections)) { conflicts.push({ id: expected.drugId, koreanName: expected.koreanName, reason: "sections 형식을 안전하게 판정할 수 없습니다." }); continue; }
+    const sectionCountChanged = live!.sections.length !== expected.sectionsAtBackup;
+    if (sectionCountChanged) changedSinceBackup++;
+    if (!expected.initializeFieldsOnlyIfEmpty) {
+      excluded.push({ id: expected.drugId, koreanName: expected.koreanName, reason: sectionCountChanged ? `백업 당시 ${expected.sectionsAtBackup}개였던 Section이 현재 ${live!.sections.length}개이며 기존 Section은 덮어쓰지 않습니다.` : "백업 당시 기존 Section이 있어 초기화 대상이 아닙니다." });
+      continue;
+    }
+    if (live!.sections.length !== 0) {
+      excluded.push({ id: expected.drugId, koreanName: expected.koreanName, reason: `백업 이후 Section이 ${live!.sections.length}개가 되어 덮어쓰지 않습니다.` });
+      continue;
+    }
+    initialize.push({ id: expected.drugId, koreanName: expected.koreanName, categoryName: expected.category, fields: selectedFields.map((field) => field.name) });
+  }
+  errors.push(...conflicts.map((item) => `${item.koreanName}: ${item.reason}`));
+  return { canExecute: errors.length === 0 && selectedFields.length === 7, errors, summary: { requested: plan.drugs.length, initialize: initialize.length, excludedExisting: excluded.length, changedSinceBackup, conflicts: conflicts.length }, initialize, excluded, conflicts };
+}
+
+function planDrugConflict(expected: SafeMaintenanceDrug, live: PlanInitializationDrug | undefined) {
+  if (!live) return "DB에서 UUID가 일치하는 생약을 찾을 수 없습니다.";
+  if (live.koreanName !== expected.koreanName) return `UUID의 생약명이 계획의 '${expected.koreanName}'과 다릅니다.`;
+  if (live.categoryName !== expected.category) return `현재 분류 '${live.categoryName ?? "없음"}'가 계획의 '${expected.category}'와 다릅니다.`;
+  if (live.archived) return "Archive 상태라 초기화할 수 없습니다.";
+  if (live.referenceIndex != null || live.catalogIndex == null) return "활성 catalogIndex 생약이 아닙니다.";
+  return null;
 }
 
 type ContentState = "empty" | "content" | "uncertain";

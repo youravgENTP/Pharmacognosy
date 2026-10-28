@@ -7,6 +7,15 @@ import { LATEX_SHORTCUTS_KEY } from "@/lib/data/latex-shortcuts";
 import { isUndefinedColumnError } from "@/lib/db/migration-health";
 
 export async function generateFullBackup(now = new Date()) {
+  const tables = await loadBackupTables();
+  const generated = await createBackupArchive(tables, [], now);
+  await verifyGeneratedBackup(generated.buffer, tables);
+  return generated;
+}
+
+type BackupDatabase = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function loadBackupTables(database: BackupDatabase = db) {
   const [
     categories, families, drugs, fields, identityTerms, drugIdentityTerms,
     relationshipTypes, relationships, constituents, taxa, taxonEdges,
@@ -15,16 +24,16 @@ export async function generateFullBackup(now = new Date()) {
     collectionRevisions, decks, wordCards, anchors, connections, assets,
     settings, archiveGroups, archiveEntries, attribution,
   ] = await Promise.all([
-    db.select().from(schema.categories), db.select().from(schema.families), db.select().from(schema.crudeDrugs),
-    db.select().from(schema.fieldDefinitions), db.select().from(schema.drugIdentityTerms), db.select().from(schema.crudeDrugIdentityTerms),
-    db.select().from(schema.relationshipTypes), db.select().from(schema.crudeDrugRelationships), db.select().from(schema.constituents),
-    db.select().from(schema.constituentTaxa), db.select().from(schema.constituentTaxonEdges), db.select().from(schema.constituentMemberships),
-    db.select().from(schema.crudeDrugConstituents), db.select().from(schema.constituentMedia), db.select().from(schema.constituentTaxonMedia),
-    db.select().from(schema.userDrugMnemonics), db.select().from(schema.userMnemonicPreferences), db.select().from(schema.legacyDrugMnemonics),
-    db.select().from(schema.collections), db.select().from(schema.collectionMembers), db.select().from(schema.collectionRevisions),
-    db.select().from(schema.decks), db.select().from(schema.wordCards), db.select().from(schema.conceptAnchors),
-    db.select().from(schema.conceptConnections), db.select().from(schema.mediaAssets), db.select().from(schema.appSettings), db.select().from(schema.archiveGroups), loadArchiveEntriesForBackup(),
-    db.select({ id: schema.user.id, name: schema.user.name, email: schema.user.email }).from(schema.user),
+    database.select().from(schema.categories), database.select().from(schema.families), database.select().from(schema.crudeDrugs),
+    database.select().from(schema.fieldDefinitions), database.select().from(schema.drugIdentityTerms), database.select().from(schema.crudeDrugIdentityTerms),
+    database.select().from(schema.relationshipTypes), database.select().from(schema.crudeDrugRelationships), database.select().from(schema.constituents),
+    database.select().from(schema.constituentTaxa), database.select().from(schema.constituentTaxonEdges), database.select().from(schema.constituentMemberships),
+    database.select().from(schema.crudeDrugConstituents), database.select().from(schema.constituentMedia), database.select().from(schema.constituentTaxonMedia),
+    database.select().from(schema.userDrugMnemonics), database.select().from(schema.userMnemonicPreferences), database.select().from(schema.legacyDrugMnemonics),
+    database.select().from(schema.collections), database.select().from(schema.collectionMembers), database.select().from(schema.collectionRevisions),
+    database.select().from(schema.decks), database.select().from(schema.wordCards), database.select().from(schema.conceptAnchors),
+    database.select().from(schema.conceptConnections), database.select().from(schema.mediaAssets), database.select().from(schema.appSettings), database.select().from(schema.archiveGroups), loadArchiveEntriesForBackup(database),
+    database.select({ id: schema.user.id, name: schema.user.name, email: schema.user.email }).from(schema.user),
   ]);
 
   const tables: BackupTables = {
@@ -44,18 +53,14 @@ export async function generateFullBackup(now = new Date()) {
     "user-attribution": attribution,
   };
 
-  // Keep media metadata and references in the database snapshot, but temporarily
-  // exclude original image binaries from the archive.
-  const generated = await createBackupArchive(tables, [], now);
-  await verifyGeneratedBackup(generated.buffer, tables);
-  return generated;
+  return tables;
 }
 
-async function loadArchiveEntriesForBackup() {
-  try { return await db.select().from(schema.archiveEntries); }
+async function loadArchiveEntriesForBackup(database: BackupDatabase) {
+  try { return await database.select().from(schema.archiveEntries); }
   catch (error) {
     if (!isUndefinedColumnError(error, "original_index_type")) throw error;
-    const legacy = await db.select({ id: schema.archiveEntries.id, archiveGroupId: schema.archiveEntries.archiveGroupId, drugId: schema.archiveEntries.drugId, originalIndex: schema.archiveEntries.originalIndex, archivedAt: schema.archiveEntries.archivedAt, archivedBy: schema.archiveEntries.archivedBy }).from(schema.archiveEntries);
+    const legacy = await database.select({ id: schema.archiveEntries.id, archiveGroupId: schema.archiveEntries.archiveGroupId, drugId: schema.archiveEntries.drugId, originalIndex: schema.archiveEntries.originalIndex, archivedAt: schema.archiveEntries.archivedAt, archivedBy: schema.archiveEntries.archivedBy }).from(schema.archiveEntries);
     return legacy.map((row) => ({ ...row, originalIndexType: "catalog" as const }));
   }
 }

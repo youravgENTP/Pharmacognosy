@@ -120,6 +120,13 @@
       "when": 1793189505661,
       "tag": "0016_slow_morph",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793190894120,
+      "tag": "0017_dry_nitro",
+      "breakpoints": true
     }
   ]
 }

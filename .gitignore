@@ -7,5 +7,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .local-media/
+.backup-storage/
 .vercel
 output/

@@ -34,6 +34,12 @@ const manifestSchema = z.object({
 
 export type BackupManifest = z.infer<typeof manifestSchema>;
 
+export function validateBackupManifest(value: unknown): BackupManifest {
+  const parsed = manifestSchema.safeParse(value);
+  if (!parsed.success) throw new Error("지원하지 않거나 손상된 HerbOverflow 백업입니다.");
+  return parsed.data;
+}
+
 export async function createBackupArchive(tables: BackupTables, _media: BackupMediaFile[], createdAt = new Date()) {
   return createArchive(tables, [], createdAt);
 }
@@ -90,9 +96,7 @@ export async function parseBackupArchive(input: Buffer | ArrayBuffer) {
   let rawManifest: unknown;
   try { rawManifest = JSON.parse(await manifestFile.async("string")); }
   catch { throw new Error("백업 manifest가 올바른 JSON이 아닙니다."); }
-  const parsed = manifestSchema.safeParse(rawManifest);
-  if (!parsed.success) throw new Error("지원하지 않거나 손상된 HerbOverflow 백업입니다.");
-  const manifest = parsed.data;
+  const manifest = validateBackupManifest(rawManifest);
   const tables = {} as BackupTables;
 
   for (const name of BACKUP_TABLE_FILES) {

@@ -1,8 +1,8 @@
 import { authorizeApi } from "@/lib/auth/permissions";
-import { eq } from "drizzle-orm";
+import { and, eq, max } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { crudeDrugs, fieldDefinitions } from "@/lib/db/schema";
+import { backupOutbox, crudeDrugs, fieldDefinitions } from "@/lib/db/schema";
 import { drugPatchSchema, uuidSchema } from "@/lib/validators";
 import { getDrugProfile } from "@/lib/data/drug";
 
@@ -23,7 +23,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const sections = parsed.data.sections?.map((section) => section.title === "암기법" || section.fieldDefinitionId === mnemonicField?.id ? { ...section, items: [], blocks: [] } : section);
     const [updated] = await db.update(crudeDrugs).set({ ...parsed.data, ...(sections ? { sections } : {}), updatedAt: new Date() }).where(eq(crudeDrugs.id, id)).returning();
     if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(updated);
+    let backupRevision: number | null = null;
+    try {
+      const [backup] = await db.select({ revision: max(backupOutbox.revision) }).from(backupOutbox).where(and(eq(backupOutbox.tableName, "crude_drugs"), eq(backupOutbox.entityId, id)));
+      backupRevision = backup?.revision ?? null;
+    } catch (backupStatusError) {
+      // The primary update is already committed. A status lookup must never turn a
+      // successful user save into a failed response; reconciliation catches it later.
+      console.error("Unable to read backup revision after Data Card save", backupStatusError);
+    }
+    return NextResponse.json({ ...updated, backupRevision });
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && error.code === "23505") return NextResponse.json({ error: "이미 존재하는 생약명입니다." }, { status: 409 });
     throw error;

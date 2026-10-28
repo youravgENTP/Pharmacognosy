@@ -640,6 +640,9 @@ html, body { background: var(--paper); color: var(--ink); }
 .profile-name-row { align-items: flex-start; padding-right: 50px; }
 .profile-name-fields { display: grid; gap: 8px; }
 .profile-controls { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; padding-top: 1px; }
+.data-card-backup-state { color: #8e99a4; font-size: 10px; white-space: nowrap; }
+.data-card-backup-state.backed-up { color: #45a879; }
+.data-card-backup-state.failed { color: #df7777; }
 .importance-select { min-width: 0; width: auto; height: 34px; border-radius: 7px; padding: 0 28px 0 11px; font-size: 13px; font-weight: 750; }
 .importance-control { --priority-dot: #7c9a82; position: relative; height: 34px; min-width: 86px; display: inline-flex; align-items: center; border: 1px solid #8fa793; border-radius: 7px; background: #f5f2e8; color: #365642; overflow: hidden; }
 .importance-control.importance-important { --priority-dot: #a9655d; background: #f5eee5; }
@@ -1968,6 +1971,7 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 .backup-policy-grid input:not([type="checkbox"]), .backup-policy-grid select, .restore-preview header input { width: 100%; min-width: 0; border: 1px solid var(--border-strong); border-radius: 7px; padding: 8px 9px; background: var(--input-bg); color: var(--user-content-text); }
 .backup-policy-grid input[type="checkbox"] { justify-self: end; }
 .backup-status-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.backup-full-status { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .backup-status-grid > span { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 4px; color: var(--text-muted); font-size: 11px; }
 .backup-status-grid strong { color: var(--text-primary); font-size: 12px; overflow-wrap: anywhere; }
 .backup-status-grid .overdue { color: #c06a2e; }

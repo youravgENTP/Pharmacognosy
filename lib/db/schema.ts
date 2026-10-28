@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export type ImportanceLevel = "중요" | "중간" | "비중요";
 export type OriginPlant = { nameKo: string | null; scientificName: string | null };
@@ -200,6 +200,88 @@ export const mediaAssets = pgTable("media_assets", {
   height: integer("height").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type BackupOutboxStatus = "pending" | "processing" | "completed" | "retrying" | "failed";
+export type BackupSnapshotStatus = "pending" | "collecting" | "building" | "verifying" | "ready" | "failed" | "retrying" | "superseded";
+export type BackupMediaStatus = "pending" | "processing" | "verified" | "retrying" | "failed";
+
+export const backupOutbox = pgTable("backup_outbox", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  revision: bigserial("revision", { mode: "number" }).notNull().unique(),
+  tableName: text("table_name").notNull(),
+  operation: text("operation").$type<"INSERT" | "UPDATE" | "DELETE" | "RECONCILE">().notNull(),
+  entityId: text("entity_id"),
+  status: text("status").$type<BackupOutboxStatus>().notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("backup_outbox_pending_idx").on(t.status, t.availableAt), index("backup_outbox_revision_idx").on(t.revision)]);
+
+export const backupMediaObjects = pgTable("backup_media_objects", {
+  sha256: text("sha256").primaryKey(),
+  storageKey: text("storage_key").notNull().unique(),
+  sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+  mimeType: text("mime_type").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const backupMediaAssets = pgTable("backup_media_assets", {
+  mediaAssetId: uuid("media_asset_id").primaryKey(),
+  sha256: text("sha256").references(() => backupMediaObjects.sha256, { onDelete: "restrict" }),
+  status: text("status").$type<BackupMediaStatus>().notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("backup_media_assets_pending_idx").on(t.status, t.availableAt)]);
+
+export const backupSnapshots = pgTable("backup_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  status: text("status").$type<BackupSnapshotStatus>().notNull().default("pending"),
+  requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+  targetRevision: bigint("target_revision", { mode: "number" }).notNull(),
+  includedRevision: bigint("included_revision", { mode: "number" }),
+  consistencyBoundary: text("consistency_boundary"),
+  schemaVersion: text("schema_version"),
+  storageBackend: text("storage_backend").$type<"s3" | "local">(),
+  storageKey: text("storage_key"),
+  zipSha256: text("zip_sha256"),
+  dataCardCount: integer("data_card_count"),
+  mediaCount: integer("media_count"),
+  mediaBytes: bigint("media_bytes", { mode: "number" }),
+  zipBytes: bigint("zip_bytes", { mode: "number" }),
+  progressCurrent: integer("progress_current").notNull().default(0),
+  progressTotal: integer("progress_total").notNull().default(0),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("backup_snapshots_status_idx").on(t.status, t.availableAt), index("backup_snapshots_ready_idx").on(t.completedAt)]);
+
+export const backupSnapshotMedia = pgTable("backup_snapshot_media", {
+  snapshotId: uuid("snapshot_id").notNull().references(() => backupSnapshots.id, { onDelete: "cascade" }),
+  mediaAssetId: uuid("media_asset_id").notNull(),
+  sha256: text("sha256").notNull().references(() => backupMediaObjects.sha256, { onDelete: "restrict" }),
+}, (t) => [primaryKey({ columns: [t.snapshotId, t.mediaAssetId] }), index("backup_snapshot_media_sha_idx").on(t.sha256)]);
+
+export const backupWorkerState = pgTable("backup_worker_state", {
+  id: text("id").primaryKey(),
+  status: text("status").notNull(),
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).defaultNow().notNull(),
+  lastRunStartedAt: timestamp("last_run_started_at", { withTimezone: true }),
+  lastRunCompletedAt: timestamp("last_run_completed_at", { withTimezone: true }),
+  lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  processedJobs: integer("processed_jobs").notNull().default(0),
 });
 
 export const fieldDefinitions = pgTable("field_definitions", {

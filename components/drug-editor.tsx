@@ -42,6 +42,8 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
   const [relationshipPending, setRelationshipPending] = useState(0);
   const [identityPending, setIdentityPending] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [backupRevision, setBackupRevision] = useState<number>();
+  const [backupState, setBackupState] = useState<"pending" | "backed-up" | "failed">();
   const [fieldDefinitions, setFieldDefinitions] = useState<FieldDefinition[]>([]);
   const [constituentData, setConstituentData] = useState<{ nodes: Taxon[]; edges: TaxonEdge[] }>({ nodes: [], edges: [] });
   const [identitySuggestions, setIdentitySuggestions] = useState<{ origins: OriginSuggestion[]; families: FamilySuggestion[] }>({ origins: [], families: [] });
@@ -70,6 +72,8 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
       try {
         const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot) });
         if (!response.ok) throw new Error();
+        const body = await response.json();
+        if (typeof body.backupRevision === "number") { setBackupRevision(body.backupRevision); setBackupState("pending"); }
         if (revision.current === expectedRevision) setStatus("saved");
         return true;
       } catch { if (revision.current === expectedRevision) setStatus("error"); return false; }
@@ -88,6 +92,11 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
     return () => window.clearTimeout(timer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, id]);
+  useEffect(() => {
+    if (backupRevision == null || backupState === "backed-up") return;
+    const check = async () => { try { const response = await fetch("/api/backup/full", { cache: "no-store" }); if (!response.ok) return; const body = await response.json(); if (body.latestReady?.includedRevision >= backupRevision) setBackupState("backed-up"); else if (body.worker?.status === "failed" && !body.active) setBackupState("failed"); } catch { /* primary save remains successful while backup is unavailable */ } };
+    void check(); const poll = window.setInterval(() => void check(), 10_000); return () => window.clearInterval(poll);
+  }, [backupRevision, backupState]);
   useEffect(() => {
     Promise.all([fetch("/api/constituent-taxa").then((response) => response.json()), fetch("/api/field-definitions").then((response) => response.json()), fetch("/api/identity-suggestions").then((response) => response.json())])
       .then(([taxa, fields, suggestions]) => { setConstituentData({ nodes: taxa.nodes ?? [], edges: taxa.edges ?? [] }); setFieldDefinitions(fields ?? []); setIdentitySuggestions({ origins: suggestions.origins ?? [], families: suggestions.families ?? [] }); })
@@ -229,7 +238,7 @@ function DrugEditorContent({ id, initial, family, archive, identityTerms: initia
       {archive ? <div className="data-card-archive-indicator">{formatDrugIndex(null, null, archive)} · {archive.name}</div> : null}
       <div className="profile-name-row">
         <div className="profile-name-fields"><AnchorableInput className="profile-korean-name" value={draft.koreanName} onChange={(value) => setField("koreanName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "koreanName" } }} aria-label="생약명"/><AnchorableInput className="profile-latin-name" value={draft.latinName ?? ""} onChange={(value) => setField("latinName", value)} target={{ ownerType: "drug", ownerId: id, targetType: "drug_identifier", targetRef: { key: "latinName" } }} placeholder="Latin name" aria-label="Latin name"/></div>
-        <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><label className={`importance-control importance-${importanceClass(draft.importance)}`}><span className="importance-dot" aria-hidden="true"/><select className="importance-select" aria-label="중요도" value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
+        <div className="profile-controls"><button className="data-card-export" onClick={() => void openExport()}><Download size={14}/> Export</button><label className={`importance-control importance-${importanceClass(draft.importance)}`}><span className="importance-dot" aria-hidden="true"/><select className="importance-select" aria-label="중요도" value={draft.importance} onChange={(event) => setField("importance", event.target.value as ImportanceLevel)}>{importanceOptions.map((value) => <option value={value} key={value}>{value}</option>)}</select></label><span className={`data-card-backup-state ${backupState ?? "unknown"}`}>{backupState === "backed-up" ? "Backed up" : backupState === "failed" ? "Backup failed" : backupState === "pending" ? "Backup pending" : ""}</span><button className={`save-status ${status}`} onClick={saveNow} disabled={status === "saved"}><span className="dot"/>{status === "saved" ? "Saved" : "Save"}</button></div>
       </div>
       <div className="identity-lines">
         <IndicatorLine label="기원"><OriginEditor drugId={id} origins={draft.origins} legacyOrigin={draft.origin} suggestions={identitySuggestions.origins} onChange={(origins) => setField("origins", origins)}/></IndicatorLine>

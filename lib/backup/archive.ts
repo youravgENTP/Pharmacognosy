@@ -29,6 +29,7 @@ const manifestSchema = z.object({
   counts: z.record(z.string(), z.number().int().nonnegative()),
   files: z.record(z.string(), z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), count: z.number().int().nonnegative() })),
   media: z.object({ count: z.number().int().nonnegative(), bytes: z.number().int().nonnegative(), files: z.array(z.object({ id: z.string().uuid(), archivePath: z.string(), filename: z.string(), mimeType: z.string(), width: z.number().int().positive(), height: z.number().int().positive(), size: z.number().int().nonnegative(), sha256: z.string().regex(/^[a-f0-9]{64}$/) })) }),
+  incomplete: z.object({ missingMedia: z.array(z.object({ id: z.string().uuid(), code: z.string(), detail: z.string() })) }).optional(),
   security: z.object({ authSecretsExcluded: z.literal(true), excludedTables: z.array(z.string()) }),
 });
 

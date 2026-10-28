@@ -18,7 +18,8 @@
     "auth:reset-password": "tsx scripts/reset-user-password.ts",
     "db:seed": "tsx scripts/seed.ts",
     "backup:worker": "tsx scripts/backup-worker.ts --once",
-    "backup:worker:watch": "tsx scripts/backup-worker.ts"
+    "backup:worker:watch": "tsx scripts/backup-worker.ts",
+    "media:recover-local": "tsx scripts/recover-local-media.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1158.0",

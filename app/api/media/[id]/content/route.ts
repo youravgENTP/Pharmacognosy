@@ -15,5 +15,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!asset) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const content = await readMediaAssetBytes(asset).catch(() => null);
   if (!content) return NextResponse.json({ error: "File not found" }, { status: 404 });
-  return new Response(content, { headers: { "Content-Type": asset.mimeType, "Content-Length": String(content.length), "Cache-Control": "private, max-age=3600" } });
+  return new Response(new Uint8Array(content), { headers: { "Content-Type": asset.mimeType, "Content-Length": String(content.length), "Cache-Control": "private, max-age=3600" } });
 }

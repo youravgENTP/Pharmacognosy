@@ -73,6 +73,18 @@ test("image-inclusive parser rejects extra media files not declared by the manif
   await assert.rejects(() => parseBackupArchive(tampered), /Manifest와 ZIP/);
 });
 
+test("an explicitly incomplete backup records omitted image IDs without being mistaken for a complete media set", async () => {
+  const { tables, media } = fixture();
+  const generated = await createBackupArchiveWithMedia(tables, media);
+  const zip = await JSZip.loadAsync(generated.buffer);
+  const manifest = JSON.parse(await zip.file("manifest.json")!.async("string"));
+  manifest.incomplete = { missingMedia: [{ id: "30000000-0000-4000-8000-000000000003", code: "NOT_FOUND", detail: "primary object missing" }] };
+  zip.file("manifest.json", JSON.stringify(manifest));
+  const parsed = await parseBackupArchive(await zip.generateAsync({ type: "nodebuffer" }));
+  assert.equal(parsed.manifest.incomplete?.missingMedia[0]?.code, "NOT_FOUND");
+  assert.equal(parsed.manifest.media.count, 1);
+});
+
 test("backup round-trip preserves Collection Archive state with document and revisions", async () => {
   const { tables } = fixture();
   tables.collections = [{ id: "30000000-0000-4000-8000-000000000003", name: "기말", archivedAt: "2026-10-27T00:00:00.000Z", document: { version: 1, blocks: [] }, revision: 2 }];

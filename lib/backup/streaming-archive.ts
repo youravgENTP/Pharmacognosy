@@ -8,7 +8,7 @@ import type { BackupStorage } from "@/lib/backup/storage";
 
 export type CachedSnapshotMedia = { id: string; filename: string; mimeType: string; width: number; height: number; size: number; sha256: string; storageKey: string };
 
-export async function buildStreamingBackupArchive(input: { tables: BackupTables; media: CachedSnapshotMedia[]; storage: BackupStorage; outputPath: string; createdAt: Date; onProgress?: (current: number, total: number) => Promise<void> | void }) {
+export async function buildStreamingBackupArchive(input: { tables: BackupTables; media: CachedSnapshotMedia[]; storage: BackupStorage; outputPath: string; createdAt: Date; incomplete?: { missingMedia: { id: string; code: string; detail: string }[] }; onProgress?: (current: number, total: number) => Promise<void> | void }) {
   const output = createWriteStream(input.outputPath, { flags: "wx" });
   const archive = new ZipArchive({ zlib: { level: 6 } });
   const completed = new Promise<void>((resolve, reject) => { output.on("close", resolve); output.on("error", reject); archive.on("error", reject); });
@@ -37,6 +37,7 @@ export async function buildStreamingBackupArchive(input: { tables: BackupTables;
     counts,
     files,
     media: { count: input.media.length, bytes: mediaBytes, files: input.media.map((item) => ({ id: item.id, archivePath: backupMediaArchivePath(item.id, item.filename), filename: item.filename, mimeType: item.mimeType, width: item.width, height: item.height, size: item.size, sha256: item.sha256 })) },
+    ...(input.incomplete?.missingMedia.length ? { incomplete: input.incomplete } : {}),
     security: { authSecretsExcluded: true, excludedTables: ["session", "account", "verification", "user_invitations"] },
   };
   archive.append(JSON.stringify(manifest, null, 2), { name: "manifest.json" });

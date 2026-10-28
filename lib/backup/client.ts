@@ -1,6 +1,7 @@
 export type BackupDownloadProgress = { phase: "preparing" | "downloading" | "saving"; loaded: number; total: number | null };
 export type FullBackupSnapshot = { id: string; status: string; includedRevision: number | null; createdAt: string; completedAt: string | null; dataCardCount: number | null; mediaCount: number | null; mediaBytes: number | null; zipBytes: number | null; progressCurrent: number; progressTotal: number; lastError: string | null };
-export type IncrementalBackupStatus = { enabled: boolean; storageConfigured: boolean; latestRevision: number; lastChangeAt: string | null; latestReady: FullBackupSnapshot | null; active: FullBackupSnapshot | null; pendingMedia: number; failedMedia: number; worker: { status: string; heartbeatAt: string; lastRunCompletedAt: string | null; lastError: string | null } | null; storageBytes: number; pendingChanges: number; synchronized: boolean; download: { available: boolean; stale: boolean } };
+export type FailedBackupMedia = { id: string; attempts: number; lastError: string | null; updatedAt: string };
+export type IncrementalBackupStatus = { enabled: boolean; storageConfigured: boolean; latestRevision: number; lastChangeAt: string | null; latestReady: FullBackupSnapshot | null; active: FullBackupSnapshot | null; pendingMedia: number; failedMedia: number; failedMediaItems: FailedBackupMedia[]; worker: { status: string; heartbeatAt: string; lastRunCompletedAt: string | null; lastError: string | null } | null; storageBytes: number; pendingChanges: number; synchronized: boolean; download: { available: boolean; stale: boolean } };
 
 export async function downloadFullBackup(filenameOverride?: string, onProgress?: (progress: BackupDownloadProgress) => void) {
   onProgress?.({ phase: "preparing", loaded: 0, total: null });
@@ -46,10 +47,22 @@ export async function getFullBackupStatus() {
   return body as IncrementalBackupStatus;
 }
 
-export async function requestFullSnapshot() {
-  const response = await fetch("/api/backup/full", { method: "POST" }); const body = await response.json();
+export async function requestFullSnapshot(allowIncomplete = false) {
+  const response = await fetch("/api/backup/full", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ allowIncomplete }) }); const body = await response.json();
   if (!response.ok) throw new Error(body.error ?? "전체 스냅샷 생성을 요청하지 못했습니다.");
   return body as { snapshot: FullBackupSnapshot; coalesced: boolean };
+}
+
+export async function diagnoseBackupMedia(ids: string[]) {
+  const response = await fetch(`/api/backup/media/diagnostics?ids=${encodeURIComponent(ids.join(","))}`, { cache: "no-store" }); const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? "미디어 진단에 실패했습니다.");
+  return body as { diagnostics: { id: string; code: string | null; detail: string; storage: string | null; actualSizeBytes: number | null; metadata: { sizeBytes: number } | null; references: { entityType: string; entityId: string; entityName: string; fieldName: string }[] }[] };
+}
+
+export async function retryBackupMedia(ids: string[]) {
+  const response = await fetch("/api/backup/media/retry", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) }); const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? "실패 미디어 재시도 요청에 실패했습니다.");
+  return body as { retried: number; ids: string[]; ignored: string[] };
 }
 
 export function downloadBackupWithMedia(snapshotId: string) {

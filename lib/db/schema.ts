@@ -203,8 +203,10 @@ export const mediaAssets = pgTable("media_assets", {
 });
 
 export type BackupOutboxStatus = "pending" | "processing" | "completed" | "retrying" | "failed";
-export type BackupSnapshotStatus = "pending" | "collecting" | "building" | "verifying" | "ready" | "failed" | "retrying" | "superseded";
+export type BackupSnapshotStatus = "pending" | "collecting" | "building" | "verifying" | "ready" | "incomplete" | "failed" | "retrying" | "superseded";
 export type BackupMediaStatus = "pending" | "processing" | "verified" | "retrying" | "failed";
+export type BackupSnapshotCompleteness = "complete" | "incomplete";
+export type BackupMissingMedia = { id: string; code: string; detail: string };
 
 export const backupOutbox = pgTable("backup_outbox", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -233,6 +235,7 @@ export const backupMediaObjects = pgTable("backup_media_objects", {
 export const backupMediaAssets = pgTable("backup_media_assets", {
   mediaAssetId: uuid("media_asset_id").primaryKey(),
   sha256: text("sha256").references(() => backupMediaObjects.sha256, { onDelete: "restrict" }),
+  sourceFingerprint: text("source_fingerprint"),
   status: text("status").$type<BackupMediaStatus>().notNull().default("pending"),
   attempts: integer("attempts").notNull().default(0),
   availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
@@ -245,6 +248,9 @@ export const backupMediaAssets = pgTable("backup_media_assets", {
 export const backupSnapshots = pgTable("backup_snapshots", {
   id: uuid("id").defaultRandom().primaryKey(),
   status: text("status").$type<BackupSnapshotStatus>().notNull().default("pending"),
+  allowIncomplete: boolean("allow_incomplete").notNull().default(false),
+  completeness: text("completeness").$type<BackupSnapshotCompleteness>(),
+  missingMedia: jsonb("missing_media").$type<BackupMissingMedia[]>().notNull().default([]),
   requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
   targetRevision: bigint("target_revision", { mode: "number" }).notNull(),
   includedRevision: bigint("included_revision", { mode: "number" }),

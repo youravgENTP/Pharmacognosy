@@ -38,7 +38,7 @@ test("worker verifies before atomic publication and records a consistent revisio
   const worker = await readFile(workerUrl, "utf8");
   const verifyAt = worker.indexOf("verifyStreamingBackupArchive(zipPath)");
   const publishAt = worker.indexOf("storage.publishFile");
-  const readyAt = worker.indexOf('status: "ready", storageBackend');
+  const readyAt = worker.indexOf('status: missingMedia.length ? "incomplete" : "ready"');
   assert.ok(verifyAt >= 0 && publishAt > verifyAt && readyAt > publishAt);
   assert.match(worker, /repeatable read read only/i);
   assert.match(worker, /txid_current_snapshot\(\)/);

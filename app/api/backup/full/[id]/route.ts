@@ -14,9 +14,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   if (!uuidSchema.safeParse(id).success) return Response.json({ error: "Invalid snapshot id" }, { status: 400 });
   const [snapshot] = await db.select().from(backupSnapshots).where(eq(backupSnapshots.id, id)).limit(1);
-  if (!snapshot || snapshot.status !== "ready" || !snapshot.storageKey || !snapshot.zipSha256) return Response.json({ error: "검증 완료된 전체 스냅샷을 찾을 수 없습니다." }, { status: 404 });
+  if (!snapshot || !["ready", "incomplete"].includes(snapshot.status) || !snapshot.storageKey || !snapshot.zipSha256) return Response.json({ error: "다운로드 가능한 전체 스냅샷을 찾을 수 없습니다." }, { status: 404 });
   const storage = getBackupStorage(); const signed = await storage.downloadUrl(snapshot.storageKey);
   if (signed) return Response.redirect(signed, 307);
   const stream = await storage.readStream(snapshot.storageKey);
-  return new Response(Readable.toWeb(stream) as ReadableStream, { headers: { "Content-Type": "application/zip", "Content-Length": String(snapshot.zipBytes ?? ""), "Content-Disposition": `attachment; filename="HerbOverflow-Full-${snapshot.id}.zip"`, "X-HerbOverflow-Snapshot-Sha256": snapshot.zipSha256, "Cache-Control": "no-store" } });
+  const filename = snapshot.status === "incomplete" ? `HerbOverflow-INCOMPLETE-${snapshot.id}.zip` : `HerbOverflow-Full-${snapshot.id}.zip`;
+  return new Response(Readable.toWeb(stream) as ReadableStream, { headers: { "Content-Type": "application/zip", "Content-Length": String(snapshot.zipBytes ?? ""), "Content-Disposition": `attachment; filename="${filename}"`, "X-HerbOverflow-Snapshot-Sha256": snapshot.zipSha256, "X-HerbOverflow-Backup-Completeness": snapshot.completeness ?? "complete", "Cache-Control": "no-store" } });
 }

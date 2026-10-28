@@ -10,7 +10,7 @@ import { loadBackupTables } from "@/lib/backup/server";
 import { backupFreshness, backupRetryDelayMs, shouldScheduleSnapshot, snapshotDownloadState, snapshotIdsBeyondRetention } from "@/lib/backup/incremental";
 import { buildStreamingBackupArchive, inspectByteStream, sha256File, verifyStreamingBackupArchive, type CachedSnapshotMedia } from "@/lib/backup/streaming-archive";
 import { backupStorageConfigured, getBackupStorage, incrementalBackupEnabled } from "@/lib/backup/storage";
-import { readMediaAssetBytes } from "@/lib/media/read";
+import { MediaReadError, readMediaAssetBytesDetailed } from "@/lib/media/read";
 
 const ACTIVE_SNAPSHOT_STATES: schema.BackupSnapshotStatus[] = ["pending", "collecting", "building", "verifying", "retrying"];
 
@@ -19,29 +19,38 @@ export async function currentBackupRevision() {
   return row?.value ?? 0;
 }
 
-export async function requestFullSnapshot(userId?: string) {
+export async function requestFullSnapshot(userId?: string, allowIncomplete = false) {
   if (!incrementalBackupEnabled() || !backupStorageConfigured()) throw new Error("증분 전체 백업 인프라가 아직 구성되지 않았습니다.");
   const revision = await currentBackupRevision();
-  const [existing] = await db.select().from(schema.backupSnapshots).where(inArray(schema.backupSnapshots.status, ACTIVE_SNAPSHOT_STATES)).orderBy(desc(schema.backupSnapshots.createdAt)).limit(1);
+  const active = await db.select().from(schema.backupSnapshots).where(inArray(schema.backupSnapshots.status, ACTIVE_SNAPSHOT_STATES)).orderBy(desc(schema.backupSnapshots.createdAt));
+  const existing = active.find((snapshot) => !snapshot.allowIncomplete || allowIncomplete);
   if (existing) return { snapshot: existing, coalesced: true };
-  const [snapshot] = await db.insert(schema.backupSnapshots).values({ requestedBy: userId, targetRevision: revision, status: "pending" }).returning();
+  const [snapshot] = await db.insert(schema.backupSnapshots).values({ requestedBy: userId, targetRevision: revision, status: "pending", allowIncomplete }).returning();
   return { snapshot, coalesced: false };
 }
 
 export async function getIncrementalBackupStatus() {
-  const [latestRevision, latestReady, active, pendingMedia, failedMedia, worker, lastChange, objectUsage, snapshotUsage] = await Promise.all([
+  const [latestRevision, latestReady, active, pendingMedia, failedMedia, failedMediaItems, worker, lastChange, objectUsage, snapshotUsage] = await Promise.all([
     currentBackupRevision(),
     db.select().from(schema.backupSnapshots).where(eq(schema.backupSnapshots.status, "ready")).orderBy(desc(schema.backupSnapshots.completedAt)).limit(1).then((rows) => rows[0] ?? null),
     db.select().from(schema.backupSnapshots).where(inArray(schema.backupSnapshots.status, ACTIVE_SNAPSHOT_STATES)).orderBy(desc(schema.backupSnapshots.createdAt)).limit(1).then((rows) => rows[0] ?? null),
     db.select({ count: sql<number>`count(*)::int` }).from(schema.backupMediaAssets).where(inArray(schema.backupMediaAssets.status, ["pending", "processing", "retrying"])).then((rows) => rows[0]?.count ?? 0),
     db.select({ count: sql<number>`count(*)::int` }).from(schema.backupMediaAssets).where(eq(schema.backupMediaAssets.status, "failed")).then((rows) => rows[0]?.count ?? 0),
+    db.select({ id: schema.backupMediaAssets.mediaAssetId, attempts: schema.backupMediaAssets.attempts, lastError: schema.backupMediaAssets.lastError, updatedAt: schema.backupMediaAssets.updatedAt }).from(schema.backupMediaAssets).where(eq(schema.backupMediaAssets.status, "failed")).orderBy(desc(schema.backupMediaAssets.updatedAt)).limit(25),
     db.select().from(schema.backupWorkerState).where(eq(schema.backupWorkerState.id, "primary")).limit(1).then((rows) => rows[0] ?? null),
     db.select({ at: max(schema.backupOutbox.createdAt) }).from(schema.backupOutbox).then((rows) => rows[0]?.at ?? null),
     db.select({ bytes: sql<number>`coalesce(sum(${schema.backupMediaObjects.sizeBytes}),0)::bigint` }).from(schema.backupMediaObjects).then((rows) => Number(rows[0]?.bytes ?? 0)),
     db.select({ bytes: sql<number>`coalesce(sum(${schema.backupSnapshots.zipBytes}),0)::bigint` }).from(schema.backupSnapshots).where(inArray(schema.backupSnapshots.status, ["ready", "superseded"])).then((rows) => Number(rows[0]?.bytes ?? 0)),
   ]);
   const freshness = backupFreshness(latestRevision, latestReady?.includedRevision);
-  return { enabled: incrementalBackupEnabled(), storageConfigured: backupStorageConfigured(), latestRevision, lastChangeAt: lastChange, latestReady, active, pendingMedia, failedMedia, worker, storageBytes: objectUsage + snapshotUsage, ...freshness, download: snapshotDownloadState(latestRevision, latestReady) };
+  return { enabled: incrementalBackupEnabled(), storageConfigured: backupStorageConfigured(), latestRevision, lastChangeAt: lastChange, latestReady, active, pendingMedia, failedMedia, failedMediaItems, worker, storageBytes: objectUsage + snapshotUsage, ...freshness, download: snapshotDownloadState(latestRevision, latestReady) };
+}
+
+export async function retryFailedBackupMedia(ids: string[]) {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return { retried: 0 };
+  const rows = await db.update(schema.backupMediaAssets).set({ status: "retrying", attempts: 0, availableAt: new Date(), claimedAt: null, lastError: null, updatedAt: new Date() }).where(and(inArray(schema.backupMediaAssets.mediaAssetId, unique), eq(schema.backupMediaAssets.status, "failed"))).returning({ id: schema.backupMediaAssets.mediaAssetId });
+  return { retried: rows.length, ids: rows.map((row) => row.id) };
 }
 
 export async function runBackupWorker(options: { mediaLimit?: number; outboxLimit?: number; forceSnapshot?: boolean } = {}) {
@@ -97,8 +106,9 @@ async function claimMedia(id: string) {
 }
 
 async function cacheMediaAsset(asset: typeof schema.mediaAssets.$inferSelect) {
-  const bytes = await readMediaAssetBytes(asset);
-  if (!bytes) throw new Error("primary image bytes are missing");
+  const primary = await readMediaAssetBytesDetailed(asset);
+  if (!primary.ok) throw new MediaReadError(primary);
+  const bytes = primary.bytes;
   if (bytes.length !== asset.sizeBytes) throw new Error(`media size mismatch: metadata=${asset.sizeBytes}, actual=${bytes.length}`);
   const digest = createHash("sha256").update(bytes).digest("hex");
   const storage = getBackupStorage(); const storageKey = `media/${digest.slice(0, 2)}/${digest}`;
@@ -108,14 +118,14 @@ async function cacheMediaAsset(asset: typeof schema.mediaAssets.$inferSelect) {
   if (verified.size !== bytes.length || verified.sha256 !== digest) throw new Error("backup media object verification failed");
   await db.transaction(async (tx) => {
     await tx.insert(schema.backupMediaObjects).values({ sha256: digest, storageKey, sizeBytes: bytes.length, mimeType: asset.mimeType, verifiedAt: new Date() }).onConflictDoNothing();
-    await tx.update(schema.backupMediaAssets).set({ sha256: digest, status: "verified", verifiedAt: new Date(), claimedAt: null, lastError: null, updatedAt: new Date() }).where(eq(schema.backupMediaAssets.mediaAssetId, asset.id));
+    await tx.update(schema.backupMediaAssets).set({ sha256: digest, sourceFingerprint: mediaSourceFingerprint(asset), status: "verified", verifiedAt: new Date(), claimedAt: null, lastError: null, updatedAt: new Date() }).where(eq(schema.backupMediaAssets.mediaAssetId, asset.id));
   });
   return { digest, storageKey };
 }
 
 async function failMedia(id: string, attempts: number, error: unknown) {
   const maximum = Number(process.env.BACKUP_MAX_RETRIES ?? 8); const terminal = attempts >= maximum;
-  await db.update(schema.backupMediaAssets).set({ status: terminal ? "failed" : "retrying", availableAt: new Date(Date.now() + backupRetryDelayMs(attempts)), claimedAt: null, lastError: safeError(error), updatedAt: new Date() }).where(eq(schema.backupMediaAssets.mediaAssetId, id));
+  await db.update(schema.backupMediaAssets).set({ status: terminal ? "failed" : "retrying", availableAt: new Date(Date.now() + backupRetryDelayMs(attempts)), claimedAt: null, lastError: backupFailureDetail(error), updatedAt: new Date() }).where(eq(schema.backupMediaAssets.mediaAssetId, id));
 }
 
 async function acknowledgeOutbox(limit: number) {
@@ -151,22 +161,35 @@ async function buildSnapshot(snapshot: typeof schema.backupSnapshots.$inferSelec
     });
     const assets = captured.tables["media-assets"] as (typeof schema.mediaAssets.$inferSelect)[];
     await db.update(schema.backupSnapshots).set({ status: "collecting", progressTotal: assets.length, includedRevision: captured.revision, consistencyBoundary: captured.consistency, schemaVersion: captured.schemaVersion }).where(eq(schema.backupSnapshots.id, snapshot.id));
-    await runLimited(assets, 3, async (asset) => { const [cached] = await db.select().from(schema.backupMediaAssets).where(eq(schema.backupMediaAssets.mediaAssetId, asset.id)).limit(1); if (cached?.status !== "verified") await cacheMediaAsset(asset); });
-    const cacheRows = assets.length ? await db.select({ mediaAssetId: schema.backupMediaAssets.mediaAssetId, sha256: schema.backupMediaAssets.sha256, storageKey: schema.backupMediaObjects.storageKey, size: schema.backupMediaObjects.sizeBytes }).from(schema.backupMediaAssets).innerJoin(schema.backupMediaObjects, eq(schema.backupMediaObjects.sha256, schema.backupMediaAssets.sha256)).where(and(inArray(schema.backupMediaAssets.mediaAssetId, assets.map((asset) => asset.id)), eq(schema.backupMediaAssets.status, "verified"))) : [];
-    if (cacheRows.length !== assets.length) throw new Error(`verified media cache incomplete: ${cacheRows.length}/${assets.length}`);
+    const missingMedia: schema.BackupMissingMedia[] = [];
+    await runLimited(assets, 3, async (asset) => {
+      const [cached] = await db.select().from(schema.backupMediaAssets).where(eq(schema.backupMediaAssets.mediaAssetId, asset.id)).limit(1);
+      if (cached?.status === "verified" && cached.sourceFingerprint === mediaSourceFingerprint(asset)) return;
+      if (cached?.status === "failed") { missingMedia.push(cachedMissingMedia(asset.id, cached.lastError)); return; }
+      try { await cacheMediaAsset(asset); }
+      catch (error) {
+        const missing = backupMissingMedia(asset.id, error);
+        missingMedia.push(missing);
+        if (cached) await failMedia(asset.id, Math.max(1, cached.attempts + 1), error);
+      }
+    });
+    if (missingMedia.length && !snapshot.allowIncomplete) throw new Error(`required media cache incomplete: ${missingMedia.map((item) => `${item.id}:${item.code}`).join(", ")}`);
+    const includedAssetIds = assets.filter((asset) => !missingMedia.some((missing) => missing.id === asset.id)).map((asset) => asset.id);
+    const cacheRows = includedAssetIds.length ? await db.select({ mediaAssetId: schema.backupMediaAssets.mediaAssetId, sha256: schema.backupMediaAssets.sha256, storageKey: schema.backupMediaObjects.storageKey, size: schema.backupMediaObjects.sizeBytes }).from(schema.backupMediaAssets).innerJoin(schema.backupMediaObjects, eq(schema.backupMediaObjects.sha256, schema.backupMediaAssets.sha256)).where(and(inArray(schema.backupMediaAssets.mediaAssetId, includedAssetIds), eq(schema.backupMediaAssets.status, "verified"))) : [];
+    if (cacheRows.length !== includedAssetIds.length) throw new Error(`verified media cache incomplete: ${cacheRows.length}/${includedAssetIds.length}`);
     const cacheMap = new Map(cacheRows.map((row) => [row.mediaAssetId, row]));
-    const media: CachedSnapshotMedia[] = assets.map((asset) => { const cached = cacheMap.get(asset.id)!; return { id: asset.id, filename: asset.originalFilename || asset.id, mimeType: asset.mimeType, width: asset.width, height: asset.height, size: Number(cached.size), sha256: cached.sha256!, storageKey: cached.storageKey }; });
+    const media: CachedSnapshotMedia[] = assets.filter((asset) => includedAssetIds.includes(asset.id)).map((asset) => { const cached = cacheMap.get(asset.id)!; return { id: asset.id, filename: asset.originalFilename || asset.id, mimeType: asset.mimeType, width: asset.width, height: asset.height, size: Number(cached.size), sha256: cached.sha256!, storageKey: cached.storageKey }; });
     await db.update(schema.backupSnapshots).set({ status: "building" }).where(eq(schema.backupSnapshots.id, snapshot.id));
     const storage = getBackupStorage();
-    await buildStreamingBackupArchive({ tables: captured.tables, media, storage, outputPath: zipPath, createdAt: new Date(), onProgress: async (current, total) => { if (current % 10 === 0 || current === total) await db.update(schema.backupSnapshots).set({ progressCurrent: current, progressTotal: total }).where(eq(schema.backupSnapshots.id, snapshot.id)); } });
+    await buildStreamingBackupArchive({ tables: captured.tables, media, storage, outputPath: zipPath, createdAt: new Date(), incomplete: missingMedia.length ? { missingMedia } : undefined, onProgress: async (current, total) => { if (current % 10 === 0 || current === total) await db.update(schema.backupSnapshots).set({ progressCurrent: current, progressTotal: total }).where(eq(schema.backupSnapshots.id, snapshot.id)); } });
     await db.update(schema.backupSnapshots).set({ status: "verifying" }).where(eq(schema.backupSnapshots.id, snapshot.id));
-    const manifest = await verifyStreamingBackupArchive(zipPath); const zipSha256 = await sha256File(zipPath); const zipStat = await stat(zipPath); const storageKey = `snapshots/${snapshot.id}.zip`;
+    const manifest = await verifyStreamingBackupArchive(zipPath); const zipSha256 = await sha256File(zipPath); const zipStat = await stat(zipPath); const storageKey = `snapshots/${snapshot.id}${missingMedia.length ? "-INCOMPLETE" : ""}.zip`;
     await storage.publishFile(storageKey, zipPath, { sha256: zipSha256, "snapshot-id": snapshot.id });
     const published = await inspectByteStream(await storage.readStream(storageKey));
     if (published.size !== zipStat.size || published.sha256 !== zipSha256) throw new Error("published snapshot verification failed");
     await db.transaction(async (tx) => {
       if (media.length) await tx.insert(schema.backupSnapshotMedia).values(media.map((item) => ({ snapshotId: snapshot.id, mediaAssetId: item.id, sha256: item.sha256 }))).onConflictDoNothing();
-      await tx.update(schema.backupSnapshots).set({ status: "ready", storageBackend: storage.backend, storageKey, zipSha256, dataCardCount: captured.tables["crude-drugs"].length, mediaCount: manifest.media.count, mediaBytes: manifest.media.bytes, zipBytes: zipStat.size, progressCurrent: media.length, progressTotal: media.length, completedAt: new Date(), lastError: null }).where(eq(schema.backupSnapshots.id, snapshot.id));
+      await tx.update(schema.backupSnapshots).set({ status: missingMedia.length ? "incomplete" : "ready", completeness: missingMedia.length ? "incomplete" : "complete", missingMedia, storageBackend: storage.backend, storageKey, zipSha256, dataCardCount: captured.tables["crude-drugs"].length, mediaCount: manifest.media.count, mediaBytes: manifest.media.bytes, zipBytes: zipStat.size, progressCurrent: media.length, progressTotal: media.length, completedAt: new Date(), lastError: missingMedia.length ? `${missingMedia.length} required media assets are missing` : null }).where(eq(schema.backupSnapshots.id, snapshot.id));
       await tx.update(schema.backupSnapshots).set({ status: "superseded" }).where(and(ne(schema.backupSnapshots.id, snapshot.id), inArray(schema.backupSnapshots.status, ["pending", "retrying"]), lte(schema.backupSnapshots.targetRevision, captured.revision)));
     });
     await enforceSnapshotRetention();
@@ -186,3 +209,15 @@ async function enforceSnapshotRetention() {
 
 async function runLimited<T>(items: T[], concurrency: number, task: (item: T) => Promise<void>) { let cursor = 0; await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(items.length, 1)) }, async () => { while (cursor < items.length) { const item = items[cursor++]; await task(item); } })); }
 function safeError(error: unknown) { return (error instanceof Error ? error.message : "Unknown backup error").slice(0, 2000); }
+export function mediaSourceFingerprint(asset: typeof schema.mediaAssets.$inferSelect) { return `${asset.blobPathname}|${asset.sizeBytes}|${asset.mimeType}|${asset.updatedAt.getTime()}`; }
+function backupMissingMedia(id: string, error: unknown): schema.BackupMissingMedia {
+  if (error instanceof MediaReadError) return { id, code: error.result.code, detail: error.result.detail };
+  const message = safeError(error);
+  if (message.includes("size mismatch")) return { id, code: "SIZE_MISMATCH", detail: message };
+  return { id, code: "UNKNOWN", detail: message };
+}
+function backupFailureDetail(error: unknown) { const missing = error instanceof MediaReadError ? backupMissingMedia("unknown", error) : null; return missing ? `${missing.code}: ${missing.detail}` : safeError(error); }
+function cachedMissingMedia(id: string, message: string | null): schema.BackupMissingMedia {
+  const match = message?.match(/^(NOT_FOUND|STORAGE_ERROR|PERMISSION_ERROR|SIZE_MISMATCH|TRANSIENT_ERROR|UNKNOWN):\s*(.*)$/);
+  return { id, code: match?.[1] ?? "UNKNOWN", detail: match?.[2] || message || "Media backup previously failed" };
+}

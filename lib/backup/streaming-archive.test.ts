@@ -57,3 +57,16 @@ test("an interrupted partial ZIP cannot pass verification", async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("streaming incomplete ZIP declares omitted media instead of claiming full verification", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "herboverflow-incomplete-test-"));
+  try {
+    const outputPath = path.join(directory, "incomplete.zip");
+    const storage: BackupStorage = { backend: "local", async putBuffer() {}, async publishFile() {}, async readStream() { return Readable.from(Buffer.from("image")); }, async head() { return null; }, async downloadUrl() { return null; } };
+    const missingId = "20000000-0000-4000-8000-000000000002";
+    await buildStreamingBackupArchive({ tables: emptyTables(), media: [], storage, outputPath, createdAt: new Date(), incomplete: { missingMedia: [{ id: missingId, code: "NOT_FOUND", detail: "missing source" }] } });
+    const manifest = await verifyStreamingBackupArchive(outputPath);
+    assert.deepEqual(manifest.incomplete?.missingMedia, [{ id: missingId, code: "NOT_FOUND", detail: "missing source" }]);
+    assert.equal(manifest.media.count, 0);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});

@@ -90,3 +90,17 @@ Storage cost consists of one deduplicated immutable media object per unique SHA-
 ## Restore boundary
 
 Prebuilt ZIPs use the existing v1 HerbOverflow manifest and are parseable by the current Restore preview. Current Restore continues to restore selected database fields only; it does **not** restore original image binaries. The UI states this limitation. A future media restore must provide collision checks, an atomic primary-storage/DB commit strategy, and explicit administrator approval before it can be enabled.
+
+## Failed media diagnosis and recovery
+
+Settings → Database → Backup exposes administrator-only `실패 이미지 진단` and `실패 이미지만 재시도` actions. The diagnostic API is `GET /api/backup/media/diagnostics?ids=<uuid,...>` and reports metadata presence, storage backend, original availability, actual-versus-metadata size, a classified cause (`NOT_FOUND`, `STORAGE_ERROR`, `PERMISSION_ERROR`, `SIZE_MISMATCH`, `TRANSIENT_ERROR`, or `UNKNOWN`), retryability, and references.
+
+Verified media is not downloaded again unless its primary metadata fingerprint changes or the cached object fails hash/size validation. Retrying moves only terminal failed IDs back to the durable queue; it does not alter successful cache rows.
+
+If an old record points to `local/` storage, run recovery only on the machine that still contains `.local-media` and only after configuring Vercel Blob credentials. The command copies the original to private primary Blob storage, verifies size and SHA-256, then atomically updates that one metadata row. It does not delete the local original:
+
+```sh
+npm run media:recover-local -- --ids=872c9151-50f4-4e7e-8b44-80351eff2600,7f060fc0-0d3d-402f-8030-d2fc46e19fd2,47efbe9e-3b48-4fb5-a433-51f6de44fbdb
+```
+
+This is an explicit operator action, not an automatic migration. If primary originals are permanently unavailable, an administrator may explicitly request `불완전 ZIP 생성`. Its manifest records every omitted ID and reason, its object/file name contains `INCOMPLETE`, and it is stored with `incomplete` status rather than `ready`; it is never shown as a verified full backup.

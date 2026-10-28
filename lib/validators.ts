@@ -32,6 +32,8 @@ export const drugPatchSchema = z.object({
   })).optional(),
 });
 
+export const dataCardContentSchema = drugPatchSchema.omit({ baseRevision: true }).required();
+
 export const studyItemSchema: z.ZodType<StudyItem> = z.lazy(() => z.object({
   id: z.string(),
   text: z.string(),

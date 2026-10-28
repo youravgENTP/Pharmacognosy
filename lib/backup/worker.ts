@@ -7,11 +7,13 @@ import { and, asc, desc, eq, inArray, lte, max, ne, or, sql } from "drizzle-orm"
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { loadBackupTables } from "@/lib/backup/server";
+import type { BackupTables } from "@/lib/backup/archive";
 import { backupFreshness, backupRetryDelayMs, shouldScheduleSnapshot, snapshotDownloadState, snapshotIdsBeyondRetention } from "@/lib/backup/incremental";
 import { dataCardBackupEligibility } from "@/lib/backup/data-card-lifecycle";
 import { buildStreamingBackupArchive, inspectByteStream, sha256File, verifyStreamingBackupArchive, type CachedSnapshotMedia } from "@/lib/backup/streaming-archive";
 import { backupStorageConfigured, getBackupStorage, incrementalBackupEnabled } from "@/lib/backup/storage";
 import { MediaReadError, readMediaAssetBytesDetailed } from "@/lib/media/read";
+import { lockManualSynchronization } from "@/lib/data-card-integrity";
 
 const ACTIVE_SNAPSHOT_STATES: schema.BackupSnapshotStatus[] = ["pending", "collecting", "building", "verifying", "retrying"];
 
@@ -22,12 +24,17 @@ export async function currentBackupRevision() {
 
 export async function requestFullSnapshot(userId?: string, allowIncomplete = false) {
   if (!incrementalBackupEnabled() || !backupStorageConfigured()) throw new Error("증분 전체 백업 인프라가 아직 구성되지 않았습니다.");
-  const revision = await currentBackupRevision();
-  const active = await db.select().from(schema.backupSnapshots).where(inArray(schema.backupSnapshots.status, ACTIVE_SNAPSHOT_STATES)).orderBy(desc(schema.backupSnapshots.createdAt));
-  const existing = active.find((snapshot) => !snapshot.allowIncomplete || allowIncomplete);
-  if (existing) return { snapshot: existing, coalesced: true };
-  const [snapshot] = await db.insert(schema.backupSnapshots).values({ requestedBy: userId, targetRevision: revision, status: "pending", allowIncomplete }).returning();
-  return { snapshot, coalesced: false };
+  return db.transaction(async (tx) => {
+    await lockManualSynchronization(tx);
+    const [[revisionRow], active] = await Promise.all([
+      tx.select({ value: max(schema.backupOutbox.revision) }).from(schema.backupOutbox),
+      tx.select().from(schema.backupSnapshots).where(inArray(schema.backupSnapshots.status, ACTIVE_SNAPSHOT_STATES)).orderBy(desc(schema.backupSnapshots.createdAt)),
+    ]);
+    const existing = active.find((snapshot) => !snapshot.allowIncomplete || allowIncomplete);
+    if (existing) return { snapshot: existing, coalesced: true };
+    const [snapshot] = await tx.insert(schema.backupSnapshots).values({ requestedBy: userId, targetRevision: revisionRow?.value ?? 0, status: "pending", allowIncomplete }).returning();
+    return { snapshot, coalesced: false };
+  });
 }
 
 export async function getIncrementalBackupStatus() {
@@ -214,7 +221,7 @@ async function scheduleSnapshotIfNeeded(force: boolean) {
   const status = await getIncrementalBackupStatus();
   const [oldest] = await db.select({ at: schema.backupOutbox.createdAt }).from(schema.backupOutbox).where(status.latestReady?.includedRevision ? sql`${schema.backupOutbox.revision} > ${status.latestReady.includedRevision}` : undefined).orderBy(asc(schema.backupOutbox.revision)).limit(1);
   const should = shouldScheduleSnapshot({ pendingChanges: status.pendingChanges, hasActiveBuild: Boolean(status.active), oldestPendingAt: oldest?.at, latestReadyAt: status.latestReady?.completedAt, debounceMs: Number(process.env.BACKUP_SNAPSHOT_DEBOUNCE_MS ?? 5 * 60_000), maximumStalenessMs: Number(process.env.BACKUP_MAX_STALENESS_MS ?? 60 * 60_000), force });
-  if (should) await db.insert(schema.backupSnapshots).values({ targetRevision: status.latestRevision, status: "pending" });
+  if (should) await requestFullSnapshot();
 }
 
 async function claimSnapshot() {
@@ -227,7 +234,8 @@ async function claimSnapshot() {
 async function buildSnapshot(snapshot: typeof schema.backupSnapshots.$inferSelect) {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "herboverflow-snapshot-")); const zipPath = path.join(temporaryDirectory, `${snapshot.id}.zip`);
   try {
-    const captured = await db.transaction(async (tx) => {
+    const [manualCapture] = await db.select().from(schema.backupSnapshotCaptures).where(eq(schema.backupSnapshotCaptures.snapshotId, snapshot.id)).limit(1);
+    const captured = manualCapture ? { tables: manualCapture.tables as BackupTables, revision: snapshot.includedRevision ?? snapshot.targetRevision, consistency: manualCapture.consistencyBoundary, schemaVersion: manualCapture.schemaVersion } : await db.transaction(async (tx) => {
       await tx.execute(sql`set transaction isolation level repeatable read read only`);
       const [boundary] = await tx.select({ revision: max(schema.backupOutbox.revision), consistency: sql<string>`txid_current_snapshot()::text` }).from(schema.backupOutbox);
       const tables = await loadBackupTables(tx);

@@ -52,8 +52,9 @@ test("reconciliation covers worker downtime without coupling primary saves to pr
   assert.match(worker, /abandoned job recovered/);
   assert.match(worker, /interrupted snapshot recovered/);
   assert.match(worker, /RECONCILE/);
-  assert.ok(route.indexOf("db.update(crudeDrugs)") < route.indexOf("revisionError"));
-  assert.match(route, /backup bookkeeping must never invalidate a saved edit/i);
+  assert.match(route, /db\.transaction/);
+  assert.ok(route.indexOf("tx.update(crudeDrugs)") < route.indexOf("tx.insert(dataCardRevisions)"));
+  assert.match(route, /lockDataCardMutation/);
 });
 
 test("Data Card autosave migration removes only the synchronous crude_drugs outbox trigger and preserves a recovery record", async () => {
@@ -70,4 +71,29 @@ test("a frozen Data Card snapshot is published unchanged even after a newer revi
   assert.match(worker, /const frozenAt = snapshot\.frozenAt \?\? snapshot\.createdAt/);
   assert.doesNotMatch(worker, /newer Data Card revision was saved before this snapshot started/);
   assert.match(worker, /terminal \? "failed" : "retrying"/);
+});
+
+test("manual synchronization freezes tables before the asynchronous worker and uses the shared mutation lock", async () => {
+  const route = await readFile(new URL("../../app/api/backup/synchronize/route.ts", import.meta.url), "utf8");
+  const editorRoute = await readFile(new URL("../../app/api/drugs/[id]/editing-session/route.ts", import.meta.url), "utf8");
+  const worker = await readFile(workerUrl, "utf8");
+  assert.ok(route.indexOf("lockManualSynchronization") < route.indexOf("loadBackupTables(tx)"));
+  assert.ok(route.indexOf("loadBackupTables(tx)") < route.indexOf("after(async"));
+  assert.match(route, /backupSnapshotCaptures/);
+  assert.match(editorRoute, /closeVerified: true/);
+  assert.match(worker, /manualCapture\.tables as BackupTables/);
+});
+
+test("every application-controlled Data Card exit delegates to verified close", async () => {
+  const modal = await readFile(new URL("../../components/profile-modal.tsx", import.meta.url), "utf8");
+  const guard = await readFile(new URL("../../components/data-card-save-guard.tsx", import.meta.url), "utf8");
+  const editor = await readFile(new URL("../../components/drug-editor.tsx", import.meta.url), "utf8");
+  assert.match(modal, /requestClose\(\(\) => router\.back\(\)\)/);
+  assert.match(modal, /event\.key === "Escape"/);
+  assert.match(modal, /event\.target === event\.currentTarget/);
+  assert.match(guard, /document\.addEventListener\("click", click, true\)/);
+  assert.match(guard, /window\.addEventListener\("popstate", popState\)/);
+  assert.match(guard, /window\.addEventListener\("beforeunload", beforeUnload\)/);
+  assert.match(editor, /revision\.current !== expectedDraftRevision/);
+  assert.match(editor, /method: "DELETE"/);
 });

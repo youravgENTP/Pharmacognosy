@@ -140,6 +140,10 @@ export const dataCardEditSessions = pgTable("data_card_edit_sessions", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp("closed_at", { withTimezone: true }),
+  closeVerified: boolean("close_verified").notNull().default(false),
+  verifiedRevision: integer("verified_revision"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("data_card_edit_sessions_drug_idx").on(t.drugId, t.lastSeenAt)]);
 
@@ -309,6 +313,14 @@ export const backupSnapshots = pgTable("backup_snapshots", {
   lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("backup_snapshots_status_idx").on(t.status, t.availableAt), index("backup_snapshots_ready_idx").on(t.completedAt)]);
+
+export const backupSnapshotCaptures = pgTable("backup_snapshot_captures", {
+  snapshotId: uuid("snapshot_id").primaryKey().references(() => backupSnapshots.id, { onDelete: "cascade" }),
+  tables: jsonb("tables").$type<Record<string, unknown[]>>().notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+  consistencyBoundary: text("consistency_boundary").notNull(),
+  schemaVersion: text("schema_version").notNull(),
+});
 
 export const backupSnapshotMedia = pgTable("backup_snapshot_media", {
   snapshotId: uuid("snapshot_id").notNull().references(() => backupSnapshots.id, { onDelete: "cascade" }),

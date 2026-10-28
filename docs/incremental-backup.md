@@ -16,6 +16,8 @@ The migration is [`drizzle/0017_dry_nitro.sql`](../drizzle/0017_dry_nitro.sql). 
 
 `0019_safe_wallflower.sql` adds revisioned Data Card autosave recovery. It intentionally removes **only** the `crude_drugs` Outbox trigger introduced by 0017; all other outbox triggers remain active. Data Card saves use a monotonic `data_revision`, immutable `data_card_revisions`, server-observed editing sessions, and independent `data_card_backup_snapshots`. The migration seeds revision 0 from each existing card without changing card content.
 
+`0021_numerous_winter_soldier.sql` adds verified-close metadata and immutable full-snapshot capture rows. It does not rewrite user content. Existing closed sessions are marked verified only when their card already has the matching immutable revision record.
+
 ## Required configuration
 
 Set these only after provisioning a bucket or S3-compatible account with a failure domain independent from the primary media backend:
@@ -68,7 +70,7 @@ The worker needs the same `DATABASE_URL` as the application plus the backup S3 s
 1. Download and parse a normal `지금 백업` ZIP. Confirm that its manifest and database files verify.
 2. Provision private independent object storage, lifecycle/versioning policy, credentials, and the worker runtime.
 3. Deploy code with `INCREMENTAL_BACKUP_ENABLED=false`. The existing lightweight backup and Restore remain operational.
-4. Review and apply migrations 0017 through 0020 once to the production database. Confirm all new tables/triggers and the Drizzle journal entry.
+4. Review and apply migrations 0017 through 0021 once to the production database during a maintenance window with Data Card editing paused. Confirm all new tables/triggers and the Drizzle journal entry.
 5. Configure the worker and storage secrets, enable the feature flag, and start the worker.
 6. Monitor `미디어 대기`, failed media, worker heartbeat, and storage usage in Settings → Database → Backup. The migration queues every existing media asset, and the worker resumes this initial backfill in limited-concurrency batches.
 7. Wait until pending/failed media are zero. Request `최신 전체 스냅샷 생성`, wait for `ready`, download it, and independently parse/verify it before treating rollout as complete.
@@ -109,6 +111,6 @@ This is an explicit operator action, not an automatic migration. If primary orig
 
 ## Data Card autosave lifecycle
 
-Opening a card creates a server session and sends a heartbeat every 20 seconds. Closing waits for the queued autosave, records a server-side close timestamp, and never waits for backup I/O. Browser crashes and network loss are safe: an unclosed session expires after 90 seconds, while a new open session or a newer revision invalidates a pending candidate.
+Opening a card creates a server session and sends a heartbeat every 20 seconds. A normal close flushes the card and separate mnemonic/API queues, verifies the immutable revision and semantic card hash against PostgreSQL, verifies relationship and identity-term membership, and only then records a verified server close. It never waits for backup I/O. A browser crash leaves an unverified lease plus a local recovery draft; lease expiry is not presented as a successful save and cannot be manually synchronized until the original session is recovered and verified.
 
-The Worker waits at least 60 seconds after both the final successful save and final close/expiry. It then freezes the exact stored revision as a separate immutable JSON object in backup storage. A later edit creates a new revision; it cannot mutate a frozen object. Existing full database ZIPs remain repeatable-read database snapshots and are not mislabeled as these per-card versioned snapshots.
+The automatic Worker waits at least 60 seconds after both the final successful save and verified close. It then freezes the exact stored revision as a separate immutable JSON object in backup storage. A later edit creates a new revision; it cannot mutate a frozen object. `지금 동기화` takes the same short advisory lock as Data Card mutations, rejects open/unverified sessions, captures all backup tables in one repeatable-read transaction, and then releases editing before asynchronous ZIP/media work starts. Full database ZIP and per-card revision boundaries remain separately recorded.

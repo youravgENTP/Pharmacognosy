@@ -31,6 +31,7 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
   const timer = useRef<number | undefined>(undefined);
   const revision = useRef(0);
   const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const preferenceQueue = useRef<Promise<boolean>>(Promise.resolve(true));
   const contentRef = useRef(content);
   const editableRef = useRef(false);
   const selectedUserIdRef = useRef(selectedUserId);
@@ -71,13 +72,14 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
     if (!manualSaveRef) return;
     manualSaveRef.current = async () => {
       window.clearTimeout(timer.current);
-      return editableRef.current ? save(contentRef.current, revision.current) : true;
+      const contentSaved = editableRef.current ? await save(contentRef.current, revision.current) : true;
+      return contentSaved && await preferenceQueue.current;
     };
     return () => { manualSaveRef.current = null; };
   // The registered function reads refs and therefore does not need re-registration.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualSaveRef]);
-  useEffect(() => { onSaveStatusChange?.(status); }, [onSaveStatusChange, status]);
+  useEffect(() => { onSaveStatusChange?.(preferenceError ? "error" : preferenceSaving ? "saving" : status); }, [onSaveStatusChange, preferenceError, preferenceSaving, status]);
   useEffect(() => () => onSaveStatusChange?.("saved"), [onSaveStatusChange]);
 
   function selectVersion(userId: string) {
@@ -99,18 +101,19 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
   async function setCanonical() {
     const next = versions.find((version) => version.userId === selectedUserId);
     if (!next || preferenceSaving || preferredMnemonicUserId === next.userId) return;
-    setPreferenceSaving(true);
-    setPreferenceError(undefined);
-    try {
-      const response = await fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: next.userId }) });
-      const body = await response.json().catch(() => ({})) as { preferredMnemonicUserId?: string; error?: string };
-      if (!response.ok || body.preferredMnemonicUserId !== next.userId) throw new Error(body.error ?? "대표 암기법을 저장하지 못했습니다.");
-      setPreferredMnemonicUserId(next.userId);
-    } catch (error) {
-      setPreferenceError(error instanceof Error ? error.message : "대표 암기법을 저장하지 못했습니다.");
-    } finally {
-      setPreferenceSaving(false);
-    }
+    const operation = (async () => {
+      setPreferenceSaving(true); setPreferenceError(undefined);
+      try {
+        const response = await fetch(`/api/drugs/${drugId}/mnemonic-preference`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preferredMnemonicUserId: next.userId }) });
+        const body = await response.json().catch(() => ({})) as { preferredMnemonicUserId?: string; error?: string };
+        if (!response.ok || body.preferredMnemonicUserId !== next.userId) throw new Error(body.error ?? "대표 암기법을 저장하지 못했습니다.");
+        setPreferredMnemonicUserId(next.userId); return true;
+      } catch (error) {
+        setPreferenceError(error instanceof Error ? error.message : "대표 암기법을 저장하지 못했습니다."); return false;
+      } finally { setPreferenceSaving(false); }
+    })();
+    preferenceQueue.current = operation;
+    await operation;
   }
 
   function change(next: MnemonicContent) {
@@ -132,6 +135,7 @@ export function DrugMnemonicVersions({ drugId, onRemove, manualSaveRef, onSaveSt
         const response = await fetch(`/api/drugs/${drugId}/mnemonics/me`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot) });
         if (!response.ok) throw new Error();
         const saved = await response.json() as MnemonicVersion;
+        if (JSON.stringify({ items: saved.items, blocks: saved.blocks }) !== JSON.stringify(snapshot)) throw new Error("암기법 서버 검증 결과가 편집 내용과 일치하지 않습니다.");
         setVersions((current) => [saved, ...current.filter((version) => version.userId !== saved.userId)]);
         setSelectedUserId((current) => current === savingSelection ? saved.userId : current);
         if (revision.current === expectedRevision) setStatus("saved");

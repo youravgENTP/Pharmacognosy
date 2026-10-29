@@ -12,7 +12,7 @@ type FamilyDrug = { id: string; catalogIndex: number | null; referenceIndex: num
 type Family = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null; summary: StudyItem[]; summaryBlocks: StudyBlock[]; drugs: FamilyDrug[] };
 type Selection = { type: "family"; id: string } | { type: "drug"; id: string };
 type DrugProfile = {
-  id: string; dataRevision: number; koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
+  id: string; dataRevision: number; catalogIndex: number | null; referenceIndex: number | null; koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
   medicinalPart: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[]; family: string | null;
   identityTerms: { id: string; name: string }[];
   relatedDrugs: { id: string; drugId: string; catalogIndex: number | null; referenceIndex: number | null; name: string }[];
@@ -150,5 +150,5 @@ function DrugDetail({ id }: { id: string }) {
   useEffect(() => { const controller = new AbortController(); setDrug(undefined); setError(false); fetch(`/api/drugs/${id}`, { signal: controller.signal }).then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setDrug).catch((reason) => { if (reason.name !== "AbortError") setError(true); }); return () => controller.abort(); }, [id]);
   if (error) return <div className="panel family-empty">생약 카드를 불러오지 못했습니다.</div>;
   if (!drug) return <div className="panel family-empty">불러오는 중…</div>;
-  return <DrugEditor key={drug.id} id={drug.id} dataRevision={drug.dataRevision} family={drug.family} identityTerms={drug.identityTerms} relatedDrugs={drug.relatedDrugs} similarDrugs={drug.similarDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, familyId: drug.familyId, importance: drug.importance, sections: drug.sections }}/>;
+  return <DrugEditor key={drug.id} id={drug.id} catalogIndex={drug.catalogIndex} referenceIndex={drug.referenceIndex} dataRevision={drug.dataRevision} family={drug.family} identityTerms={drug.identityTerms} relatedDrugs={drug.relatedDrugs} similarDrugs={drug.similarDrugs} availableDrugs={drug.availableDrugs} initial={{ koreanName: drug.koreanName, latinName: drug.latinName, origin: drug.origin, origins: drug.origins, scientificName: drug.scientificName, medicinalPart: drug.medicinalPart, familyId: drug.familyId, importance: drug.importance, sections: drug.sections }}/>;
 }

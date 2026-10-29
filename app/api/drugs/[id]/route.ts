@@ -17,6 +17,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("editor"); if (authError) return authError;
   const { id } = await params;
+  const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
+  const editingSessionId = request.headers.get("x-editing-session-id");
   if (!uuidSchema.safeParse(id).success) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   const parsed = drugPatchSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -35,8 +37,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
     if (!updated) {
       const [latest] = await db.select({ revision: crudeDrugs.dataRevision }).from(crudeDrugs).where(eq(crudeDrugs.id, id)).limit(1);
-      return latest ? NextResponse.json({ error: "다른 편집 내용이 먼저 저장되었습니다. 최신 내용을 새로고침한 뒤 다시 시도해 주세요.", code: "REVISION_CONFLICT", currentRevision: latest.revision }, { status: 409 }) : NextResponse.json({ error: "Not found" }, { status: 404 });
+      console.info("data_card_save", { drugId: id, requestId, editingSessionId, baseRevision, currentRevision: latest?.revision, saveResult: latest ? "conflict" : "not_found", conflictType: "revision_mismatch", timestamp: new Date().toISOString() });
+      return latest ? NextResponse.json({ error: "다른 편집 내용이 먼저 저장되었습니다. 최신 내용을 새로고침한 뒤 다시 시도해 주세요.", code: "REVISION_CONFLICT", currentRevision: latest.revision, requestId }, { status: 409 }) : NextResponse.json({ error: "Not found", requestId }, { status: 404 });
     }
+    console.info("data_card_save", { drugId: id, requestId, editingSessionId, baseRevision, currentRevision: updated.dataRevision, saveResult: "saved", timestamp: new Date().toISOString() });
     return NextResponse.json({ ...updated, dataRevision: updated.dataRevision, contentHash: dataCardContentHash(updated), revisionRecorded: true });
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && error.code === "23505") return NextResponse.json({ error: "이미 존재하는 생약명입니다." }, { status: 409 });

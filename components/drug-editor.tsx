@@ -12,8 +12,10 @@ import { ConceptBoundary, conceptTargetAttributes, type ConceptTarget, useConcep
 import { taxonomyIndent } from "@/lib/constituent-taxonomy";
 import { appendStudyItem } from "@/lib/study-blocks";
 import { useDataCardSaveGuard } from "@/components/data-card-save-guard";
+import { DataCardMergeEditor, type DataCardMergeSession } from "@/components/data-card-merge-editor";
+import { sameDataCard, type DataCardContent, type MergeResolutions } from "@/lib/data-card-merge";
 
-type DrugDraft = {
+type DrugDraft = DataCardContent & {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
   medicinalPart: string | null; familyId: string | null; importance: ImportanceLevel; sections: StudySection[];
 };
@@ -27,12 +29,12 @@ type AvailableDrug = { id: string; catalogIndex: number | null; referenceIndex: 
 type OriginSuggestion = OriginPlant & { drugs: { id: string; name: string }[] };
 type FamilySuggestion = { id: string; koreanName: string; scientificName: string; acceptedScientificName: string | null };
 type IdentityTerm = { id: string; name: string };
-type StoredDrugDraft = { serverRevision: number; draft: DrugDraft; updatedAt: string; sessionId?: string };
+type StoredDrugDraft = { serverRevision: number; draft: DrugDraft; baseDraft?: DrugDraft; updatedAt: string; sessionId?: string };
 const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
-type DrugEditorProps = { id: string; dataRevision: number; initial: DrugDraft; family: string | null; archive?: DrugArchive; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
+type DrugEditorProps = { id: string; dataRevision: number; initial: DrugDraft; family: string | null; archive?: DrugArchive; catalogIndex?: number | null; referenceIndex?: number | null; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
 export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
-function DrugEditorContent({ id, dataRevision, initial, family, archive, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
+function DrugEditorContent({ id, dataRevision, initial, family, archive, catalogIndex = null, referenceIndex = null, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
   const router = useRouter();
   const concepts = useConceptEngine();
   const { state: closeState, error: closeError, setBlocked, setState: setCloseState, registerCloseController, requestClose } = useDataCardSaveGuard();
@@ -54,10 +56,17 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, identit
   const [similarDrugs, setSimilarDrugs] = useState(initialSimilarDrugs);
   const [availableDrugs, setAvailableDrugs] = useState(initialAvailableDrugs);
   const [identityTerms, setIdentityTerms] = useState(initialIdentityTerms);
+  const [mergeSession, setMergeSession] = useState<DataCardMergeSession>();
+  const [mergeVisible, setMergeVisible] = useState(false);
+  const [mergeResolutions, setMergeResolutions] = useState<MergeResolutions>({});
+  const [mergeSaving, setMergeSaving] = useState(false);
   const first = useRef(true);
   const draftRef = useRef(draft);
   const revision = useRef(0);
   const serverRevision = useRef(dataRevision);
+  const baseDraft = useRef<DrugDraft>(structuredClone(initial));
+  const conflictActive = useRef(false);
+  const applyingMerge = useRef(false);
   const guardKey = `${id}:${useId()}`;
   const savedDraftRevision = useRef(0);
   const contentHash = useRef<string | undefined>(undefined);
@@ -85,22 +94,41 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, identit
   const leaveBlocked = status !== "saved" || mnemonicStatus !== "saved" || manualSavePending || relationshipPending > 0 || identityPending;
   const recoveryKey = `herboverflow:data-card-draft:${id}`;
   const clearRecovery = () => { try { window.localStorage.removeItem(recoveryKey); } catch { /* Browser storage must not affect DB save status. */ } };
-  const storeRecovery = (value: DrugDraft, baseRevision = serverRevision.current) => { try { window.localStorage.setItem(recoveryKey, JSON.stringify({ serverRevision: baseRevision, draft: value, updatedAt: new Date().toISOString(), sessionId: sessionIdRef.current } satisfies StoredDrugDraft)); } catch { /* Browser storage must not affect DB save status. */ } };
+  const storeRecovery = (value: DrugDraft, baseRevision = serverRevision.current) => { try { window.localStorage.setItem(recoveryKey, JSON.stringify({ serverRevision: baseRevision, draft: value, baseDraft: baseDraft.current, updatedAt: new Date().toISOString(), sessionId: sessionIdRef.current } satisfies StoredDrugDraft)); } catch { /* Browser storage must not affect DB save status. */ } };
+
+  async function beginConflict(local: DrugDraft, requestedBaseRevision = serverRevision.current, fallbackBase = baseDraft.current) {
+    conflictActive.current = true;
+    window.clearTimeout(timer.current);
+    storeRecovery(local, requestedBaseRevision);
+    setCloseState("conflict", "Local 초안이 보존되었습니다. 충돌 항목을 해결하고 서버 저장 검증을 완료해야 닫을 수 있습니다.");
+    try {
+      const response = await fetch(`/api/drugs/${id}/revisions?baseRevision=${requestedBaseRevision}`, { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || !isDrugDraft(body.remote)) throw new Error();
+      const serverBase = isDrugDraft(body.base) ? body.base : fallbackBase;
+      setMergeSession({ baseRevision: requestedBaseRevision, remoteRevision: body.currentRevision, base: structuredClone(serverBase), local: structuredClone(local), remote: structuredClone(body.remote), baseAvailable: Boolean(body.baseAvailable) });
+      setMergeVisible(true);
+    } catch {
+      setStatus("error");
+      setCloseState("conflict", "Remote 데이터를 불러오지 못했습니다. Local 초안은 브라우저에 보존되어 있습니다. 다시 저장을 눌러 재시도하세요.");
+    }
+  }
 
   function persist(value = draftRef.current, expectedRevision = revision.current) {
     const snapshot = structuredClone(value);
     const run = async () => {
+      if (conflictActive.current) { storeRecovery(draftRef.current); setMergeSession((current) => current ? { ...current, local: structuredClone(draftRef.current) } : current); return false; }
       setStatus("saving");
       let conflict = false;
       try {
-        const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...snapshot, baseRevision: serverRevision.current }) });
+        const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Request-Id": crypto.randomUUID(), ...(sessionIdRef.current ? { "X-Editing-Session-Id": sessionIdRef.current } : {}) }, body: JSON.stringify({ ...snapshot, baseRevision: serverRevision.current }) });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
-          if (response.status === 409 && body.code === "REVISION_CONFLICT") { conflict = true; setCloseState("conflict", "다른 편집자가 먼저 저장했습니다. 현재 입력은 보존되며 자동 덮어쓰지 않습니다."); window.alert("다른 편집자가 먼저 저장했습니다. 현재 입력 내용은 유지되며, 최신 내용을 확인한 뒤 다시 저장할 수 있습니다."); }
+          if (response.status === 409 && body.code === "REVISION_CONFLICT") { conflict = true; await beginConflict(draftRef.current); }
           throw new Error();
         }
         const body = await response.json();
-        if (typeof body.dataRevision === "number") { serverRevision.current = body.dataRevision; contentHash.current = typeof body.contentHash === "string" ? body.contentHash : undefined; setBackupState("pending"); }
+        if (typeof body.dataRevision === "number") { serverRevision.current = body.dataRevision; baseDraft.current = structuredClone(snapshot); contentHash.current = typeof body.contentHash === "string" ? body.contentHash : undefined; setBackupState("pending"); }
         savedDraftRevision.current = Math.max(savedDraftRevision.current, expectedRevision);
         if (revision.current === expectedRevision) { setStatus("saved"); setCloseState("idle"); storeRecovery(snapshot, serverRevision.current); }
         return true;
@@ -118,6 +146,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, identit
         // Keep the original base revision. If another device saved meanwhile,
         // recovery stays visible while optimistic concurrency blocks overwrite.
         serverRevision.current = parsed.serverRevision;
+        baseDraft.current = parsed.baseDraft && isDrugDraft(parsed.baseDraft) ? parsed.baseDraft : structuredClone(initial);
         recoveredSessionId.current = parsed.sessionId;
         setDraft(parsed.draft);
       }
@@ -127,9 +156,16 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, identit
   }, [id]);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
+    if (applyingMerge.current) { applyingMerge.current = false; return; }
     revision.current += 1;
     const expectedRevision = revision.current;
     setStatus("dirty");
+    if (conflictActive.current) {
+      setCloseState("conflict", "Local 초안이 보존되었습니다. 충돌 해결과 서버 검증 전에는 닫을 수 없습니다.");
+      storeRecovery(draft);
+      setMergeSession((current) => current ? { ...current, local: structuredClone(draft) } : current);
+      return;
+    }
     setCloseState("dirty");
     storeRecovery(draft);
     window.clearTimeout(timer.current);
@@ -167,6 +203,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, identit
   }, [id]);
   useEffect(() => {
     registerCloseController(guardKey, { reopenAfterFailedBatch: () => { sessionClosed.current = false; resumeHeartbeat.current(); }, closeAndVerify: async () => {
+      if (conflictActive.current) { setMergeVisible(true); return { ok: false, conflict: true, error: "Revision 충돌을 해결하고 병합 결과의 서버 저장 검증을 완료해야 닫을 수 있습니다." }; }
       for (let pass = 0; pass < 6; pass++) {
         const expectedDraftRevision = revision.current;
         setCloseState("saving");
@@ -284,7 +321,36 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, identit
     if (section) updateSection(section.id, appendItem(section, { ...newItem(), text: taxon.name, linkedConstituentId: taxon.id }));
     setPickerSectionId(undefined);
   }
-  function saveNow() { window.clearTimeout(timer.current); void persist(draftRef.current, revision.current); }
+  function saveNow() { window.clearTimeout(timer.current); if (conflictActive.current) { if (mergeSession) { setMergeSession({ ...mergeSession, local: structuredClone(draftRef.current) }); setMergeVisible(true); } else void beginConflict(draftRef.current); return; } void persist(draftRef.current, revision.current); }
+  async function saveMerged(value: DataCardContent) {
+    if (!mergeSession || mergeSaving) return;
+    setMergeSaving(true);
+    storeRecovery(value as DrugDraft, mergeSession.remoteRevision);
+    try {
+      const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Request-Id": crypto.randomUUID(), ...(sessionIdRef.current ? { "X-Editing-Session-Id": sessionIdRef.current } : {}) }, body: JSON.stringify({ ...value, baseRevision: mergeSession.remoteRevision }) });
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 409 && body.code === "REVISION_CONFLICT") {
+        await beginConflict(value as DrugDraft, mergeSession.remoteRevision, mergeSession.remote);
+        return;
+      }
+      if (!response.ok || typeof body.dataRevision !== "number" || typeof body.contentHash !== "string") throw new Error("병합 저장에 실패했습니다.");
+      const verification = await fetch(`/api/drugs/${id}/revisions?baseRevision=${body.dataRevision}`, { cache: "no-store" });
+      const verified = await verification.json();
+      if (!verification.ok || verified.currentRevision !== body.dataRevision || !isDrugDraft(verified.remote) || !sameDataCard(value, verified.remote)) throw new Error("서버 저장 내용 검증에 실패했습니다.");
+      applyingMerge.current = true;
+      setDraft(structuredClone(value) as DrugDraft);
+      baseDraft.current = structuredClone(value) as DrugDraft;
+      serverRevision.current = body.dataRevision;
+      contentHash.current = body.contentHash;
+      savedDraftRevision.current = revision.current;
+      conflictActive.current = false;
+      setMergeSession(undefined); setMergeVisible(false); setMergeResolutions({}); setStatus("saved"); setCloseState("idle"); setBackupState("pending");
+      storeRecovery(value as DrugDraft, body.dataRevision);
+    } catch (error) {
+      setStatus("error");
+      setCloseState("conflict", error instanceof Error ? error.message : "병합 저장 및 검증에 실패했습니다. Local 초안은 유지됩니다.");
+    } finally { setMergeSaving(false); }
+  }
   async function manualSave() {
     if (manualSaving.current) return;
     manualSaving.current = true;
@@ -313,6 +379,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, identit
   }
   const closeInProgress = closeState === "saving" || closeState === "verifying" || closeState === "closing";
   return <div className={`drug-profile ${modal ? "in-modal" : "standalone"} ${closeInProgress ? "close-in-progress" : ""}`} aria-busy={closeInProgress}>
+    {mergeSession && mergeVisible ? <DataCardMergeEditor session={mergeSession} resolutions={mergeResolutions} saving={mergeSaving} indexLabel={formatDrugIndex(catalogIndex, referenceIndex, archive)} onResolutionsChange={setMergeResolutions} onCancel={() => setMergeVisible(false)} onSave={(value) => void saveMerged(value)}/> : null}
     {showSaved ? <div className="data-card-saved-toast" role="status" aria-live="polite"><Check size={14}/> Saved!</div> : null}
     {closeError ? <p className="form-error" role="alert">{closeError}</p> : null}
     <section className="profile-identity indicator-field">

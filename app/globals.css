@@ -1643,6 +1643,23 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 :root[data-theme="day"] .profile-field { border-color: var(--border); }
 
 /* Data Card three-way merge editor */
+.data-card-progress-backdrop { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: 20px; background: rgba(8,12,10,.5); backdrop-filter: blur(3px); }
+.data-card-progress-modal { width: min(340px, calc(100vw - 40px)); padding: 25px 24px 21px; border: 1px solid #53655a; border-radius: 15px; background: #f4f0e4; color: #26382d; text-align: center; box-shadow: 0 22px 70px rgba(0,0,0,.42); outline: none; }
+.data-card-progress-icon { width: 44px; height: 44px; margin: 0 auto 13px; display: grid; place-items: center; border: 1px solid #a9b9aa; border-radius: 50%; background: #e4eadc; color: #47705a; }
+.data-card-progress-modal.failed .data-card-progress-icon { background: #f2e5d7; border-color: #cfaa88; color: #9c6246; }
+.data-card-progress-modal.conflict .data-card-progress-icon { background: #eee7d7; border-color: #c8b88f; color: #806d3e; }
+.data-card-progress-modal h2 { margin: 0; font-size: 17px; line-height: 1.35; color: inherit; }
+.data-card-progress-modal p { margin: 8px 0 0; color: #627068; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.data-card-progress-actions { display: flex; justify-content: center; gap: 8px; margin-top: 19px; }
+.data-card-progress-actions button { min-height: 35px; padding: 0 13px; border: 1px solid #aab3aa; border-radius: 8px; background: #faf8f0; color: #435048; font-weight: 750; }
+.data-card-progress-actions .primary { border-color: #63806c; background: #557461; color: #fff; }
+.progress-spinner { animation: close-progress-spin 1.15s linear infinite; }
+@keyframes close-progress-spin { to { transform: rotate(360deg); } }
+:root[data-theme="night"] .data-card-progress-modal { border-color: #46534b; background: #202721; color: #eef1e9; }
+:root[data-theme="night"] .data-card-progress-icon { border-color: #50685a; background: #293a30; color: #8ec0a0; }
+:root[data-theme="night"] .data-card-progress-modal p { color: #aeb9b0; }
+:root[data-theme="night"] .data-card-progress-actions button { border-color: #4b574f; background: #2a322c; color: #e4e8e2; }
+:root[data-theme="night"] .data-card-progress-actions .primary { border-color: #6b9278; background: #4f765e; color: #fff; }
 .merge-editor-backdrop { position: fixed; inset: 0; z-index: 1000; padding: 22px; background: rgba(5,8,11,.82); backdrop-filter: blur(8px); display: grid; place-items: center; }
 .merge-editor { width: min(1180px, 100%); height: min(920px, calc(100vh - 44px)); overflow: hidden; display: grid; grid-template-rows: auto auto 1fr auto; border: 1px solid #39414b; border-radius: 16px; background: #171b1f; color: #eef1f5; box-shadow: 0 30px 100px rgba(0,0,0,.62); }
 .merge-editor-header { position: relative; padding: 22px 26px 16px; border-bottom: 1px solid #30363d; }

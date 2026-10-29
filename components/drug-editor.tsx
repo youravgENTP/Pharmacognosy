@@ -34,10 +34,10 @@ const importanceOptions: ImportanceLevel[] = ["중요", "중간", "비중요"];
 
 type DrugEditorProps = { id: string; dataRevision: number; initial: DrugDraft; family: string | null; archive?: DrugArchive; catalogIndex?: number | null; referenceIndex?: number | null; identityTerms?: IdentityTerm[]; relatedDrugs?: RelatedDrug[]; similarDrugs?: RelatedDrug[]; availableDrugs?: AvailableDrug[]; modal?: boolean; admin?: boolean };
 export function DrugEditor(props: DrugEditorProps) { return <ConceptBoundary ownerType="drug" ownerId={props.id}><DrugEditorContent {...props}/></ConceptBoundary>; }
-function DrugEditorContent({ id, dataRevision, initial, family, archive, catalogIndex = null, referenceIndex = null, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false, admin = false }: DrugEditorProps) {
+function DrugEditorContent({ id, dataRevision, initial, family, archive, catalogIndex = null, referenceIndex = null, identityTerms: initialIdentityTerms = [], relatedDrugs: initialRelatedDrugs = [], similarDrugs: initialSimilarDrugs = [], availableDrugs: initialAvailableDrugs = [], modal = false }: DrugEditorProps) {
   const router = useRouter();
   const concepts = useConceptEngine();
-  const { state: closeState, error: closeError, setBlocked, setState: setCloseState, registerCloseController, requestClose } = useDataCardSaveGuard();
+  const { state: closeState, error: closeError, closePending, isClosePending, setBlocked, setState: setCloseState, registerCloseController, requestClose, cancelPendingClose, resumePendingClose } = useDataCardSaveGuard();
   const [draft, setDraft] = useState(initial);
   const [status, setStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
   const [mnemonicStatus, setMnemonicStatus] = useState<"dirty" | "saving" | "saved" | "error">("saved");
@@ -107,14 +107,14 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
       if (!response.ok || !isDrugDraft(body.remote)) throw new Error();
       const serverBase = isDrugDraft(body.base) ? body.base : fallbackBase;
       setMergeSession({ baseRevision: requestedBaseRevision, remoteRevision: body.currentRevision, base: structuredClone(serverBase), local: structuredClone(local), remote: structuredClone(body.remote), baseAvailable: Boolean(body.baseAvailable) });
-      setMergeVisible(true);
+      setMergeVisible(!isClosePending());
     } catch {
       setStatus("error");
       setCloseState("conflict", "Remote 데이터를 불러오지 못했습니다. Local 초안은 브라우저에 보존되어 있습니다. 다시 저장을 눌러 재시도하세요.");
     }
   }
 
-  function persist(value = draftRef.current, expectedRevision = revision.current) {
+  function persist(value = draftRef.current, expectedRevision = revision.current, verify = false) {
     const snapshot = structuredClone(value);
     const run = async () => {
       if (conflictActive.current) { storeRecovery(draftRef.current); setMergeSession((current) => current ? { ...current, local: structuredClone(draftRef.current) } : current); return false; }
@@ -128,6 +128,11 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
           throw new Error();
         }
         const body = await response.json();
+        if (verify) {
+          const verification = await fetch(`/api/drugs/${id}/revisions?baseRevision=${body.dataRevision}`, { cache: "no-store" });
+          const verified = await verification.json().catch(() => ({}));
+          if (!verification.ok || verified.currentRevision !== body.dataRevision || !isDrugDraft(verified.remote) || !sameDataCard(snapshot, verified.remote)) throw new Error("서버 저장 내용 검증에 실패했습니다.");
+        }
         if (typeof body.dataRevision === "number") { serverRevision.current = body.dataRevision; baseDraft.current = structuredClone(snapshot); contentHash.current = typeof body.contentHash === "string" ? body.contentHash : undefined; setBackupState("pending"); }
         savedDraftRevision.current = Math.max(savedDraftRevision.current, expectedRevision);
         if (revision.current === expectedRevision) { setStatus("saved"); setCloseState("idle"); storeRecovery(snapshot, serverRevision.current); }
@@ -202,16 +207,20 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
     return () => { window.removeEventListener("pagehide", pageHide); window.removeEventListener("pageshow", pageShow); window.clearInterval(heartbeat); };
   }, [id]);
   useEffect(() => {
-    registerCloseController(guardKey, { reopenAfterFailedBatch: () => { sessionClosed.current = false; resumeHeartbeat.current(); }, closeAndVerify: async () => {
-      if (conflictActive.current) { setMergeVisible(true); return { ok: false, conflict: true, error: "Revision 충돌을 해결하고 병합 결과의 서버 저장 검증을 완료해야 닫을 수 있습니다." }; }
+    registerCloseController(guardKey, { reopenAfterFailedBatch: () => { sessionClosed.current = false; resumeHeartbeat.current(); }, openConflictResolver: () => setMergeVisible(true), closeAndVerify: async () => {
+      if (conflictActive.current) return { ok: false, conflict: true, error: "서버에 다른 변경사항이 저장되어 있습니다. 충돌을 해결한 뒤 다시 닫을 수 있습니다." };
       for (let pass = 0; pass < 6; pass++) {
         const expectedDraftRevision = revision.current;
         setCloseState("saving");
         window.clearTimeout(timer.current);
         const cardSaved = savedDraftRevision.current >= expectedDraftRevision && contentHash.current ? await saveQueue.current : await persist(draftRef.current, expectedDraftRevision);
+        if (!cardSaved) return { ok: false, conflict: conflictActive.current, error: conflictActive.current ? "서버에 다른 변경사항이 저장되어 있습니다." : "Data Card 본문과 Study Section을 저장하지 못했습니다. 입력 내용은 브라우저 초안에 유지됩니다." };
         const mnemonicSaved = await (mnemonicManualSave.current?.() ?? Promise.resolve(true));
-        if (!cardSaved || !mnemonicSaved) return { ok: false, error: "저장 요청 중 하나가 실패했습니다. 입력 내용은 유지되며 다시 닫기를 시도할 수 있습니다." };
-        if (!await waitUntil(() => relationshipPendingRef.current === 0 && !identityPendingRef.current, 20_000)) return { ok: false, error: "별도 편집 작업이 아직 끝나지 않았습니다." };
+        if (!mnemonicSaved) return { ok: false, error: "암기법을 저장하지 못했습니다. 암기법 입력 내용은 그대로 유지됩니다." };
+        if (!await waitUntil(() => relationshipPendingRef.current === 0 && !identityPendingRef.current, 20_000)) {
+          if (relationshipPendingRef.current > 0) return { ok: false, error: "연관생약 또는 유사생약 저장이 아직 완료되지 않았습니다." };
+          return { ok: false, error: "Identification Field 저장이 아직 완료되지 않았습니다." };
+        }
         if (auxiliaryError.current) return { ok: false, error: auxiliaryError.current };
         if (revision.current !== expectedDraftRevision) continue;
         const sessionId = sessionIdRef.current; const hash = contentHash.current;
@@ -247,7 +256,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
     return () => window.removeEventListener("keydown", listener, { capture: true });
   // manualSave reads mutable refs so the shortcut always saves the newest editor state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [admin, id]);
+  }, [id]);
   useEffect(() => {
     setBlocked(leaveBlocked);
     return () => setBlocked(false);
@@ -321,7 +330,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
     if (section) updateSection(section.id, appendItem(section, { ...newItem(), text: taxon.name, linkedConstituentId: taxon.id }));
     setPickerSectionId(undefined);
   }
-  function saveNow() { window.clearTimeout(timer.current); if (conflictActive.current) { if (mergeSession) { setMergeSession({ ...mergeSession, local: structuredClone(draftRef.current) }); setMergeVisible(true); } else void beginConflict(draftRef.current); return; } void persist(draftRef.current, revision.current); }
+  function saveNow() { window.clearTimeout(timer.current); if (conflictActive.current) { if (mergeSession) { setMergeSession({ ...mergeSession, local: structuredClone(draftRef.current) }); setMergeVisible(true); } else void beginConflict(draftRef.current); return; } void persist(draftRef.current, revision.current, true); }
   async function saveMerged(value: DataCardContent) {
     if (!mergeSession || mergeSaving) return;
     setMergeSaving(true);
@@ -346,6 +355,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
       conflictActive.current = false;
       setMergeSession(undefined); setMergeVisible(false); setMergeResolutions({}); setStatus("saved"); setCloseState("idle"); setBackupState("pending");
       storeRecovery(value as DrugDraft, body.dataRevision);
+      if (closePending) void resumePendingClose();
     } catch (error) {
       setStatus("error");
       setCloseState("conflict", error instanceof Error ? error.message : "병합 저장 및 검증에 실패했습니다. Local 초안은 유지됩니다.");
@@ -358,17 +368,11 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
     window.clearTimeout(timer.current);
     try {
       const expectedRevision = revision.current;
-      const [cardSaved, mnemonicSaved] = await Promise.all([
-        persist(draftRef.current, expectedRevision),
-        mnemonicManualSave.current?.() ?? Promise.resolve(true),
-      ]);
-      if (cardSaved && mnemonicSaved && admin) {
-        const response = await fetch(`/api/drugs/${id}/manual-save-backup`, { method: "POST" });
-        if (!response.ok) throw new Error();
-        await downloadBackup(response);
-      }
+      const cardSaved = await persist(draftRef.current, expectedRevision, true);
+      if (!cardSaved) return;
+      await (mnemonicManualSave.current?.() ?? Promise.resolve(true));
     } catch {
-      window.alert("카드는 저장됐지만 JSON 파일을 다운로드하지 못했습니다. Cmd+S로 다시 시도해 주세요.");
+      setCloseState("failed", "수동 저장을 완료하지 못했습니다. 입력 내용은 유지됩니다.");
     } finally {
       manualSaving.current = false;
       setManualSavePending(false);
@@ -379,7 +383,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
   }
   const closeInProgress = closeState === "saving" || closeState === "verifying" || closeState === "closing";
   return <div className={`drug-profile ${modal ? "in-modal" : "standalone"} ${closeInProgress ? "close-in-progress" : ""}`} aria-busy={closeInProgress}>
-    {mergeSession && mergeVisible ? <DataCardMergeEditor session={mergeSession} resolutions={mergeResolutions} saving={mergeSaving} indexLabel={formatDrugIndex(catalogIndex, referenceIndex, archive)} onResolutionsChange={setMergeResolutions} onCancel={() => setMergeVisible(false)} onSave={(value) => void saveMerged(value)}/> : null}
+    {mergeSession && mergeVisible ? <DataCardMergeEditor session={mergeSession} resolutions={mergeResolutions} saving={mergeSaving} indexLabel={formatDrugIndex(catalogIndex, referenceIndex, archive)} onResolutionsChange={setMergeResolutions} onCancel={() => { setMergeVisible(false); if (closePending) cancelPendingClose(); }} onSave={(value) => void saveMerged(value)}/> : null}
     {showSaved ? <div className="data-card-saved-toast" role="status" aria-live="polite"><Check size={14}/> Saved!</div> : null}
     {closeError ? <p className="form-error" role="alert">{closeError}</p> : null}
     <section className="profile-identity indicator-field">
@@ -460,18 +464,6 @@ function FamilyEditor({ drugId, initialLabel, familyId, suggestions, onChange }:
 function AnchorableInput({ value, onChange, target, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & { value: string; onChange: (value: string) => void; target: ConceptTarget }) { const concepts = useConceptEngine(); return <input {...props} {...conceptTargetAttributes(target)} value={value} onContextMenu={(event) => concepts?.openMenu(event, target)} onChange={(event) => { if (concepts?.reconcileText(target, value, event.target.value) === false) return; onChange(event.target.value); }}/>; }
 function newItem(): StudyItem { return { id: crypto.randomUUID(), text: "" }; }
 function importanceClass(value: ImportanceLevel) { return { 중요: "important", 중간: "medium", 비중요: "low" }[value]; }
-async function downloadBackup(response: Response) {
-  const encodedFilename = response.headers.get("X-Download-Filename");
-  const filename = encodedFilename ? decodeURIComponent(encodedFilename) : `data-card-${new Date().toISOString()}.json`;
-  const url = URL.createObjectURL(await response.blob());
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 function hasContent(items: StudyItem[]): boolean { return items.some((item) => item.text.trim() || hasContent(item.children ?? [])); }
 async function waitUntil(predicate: () => boolean, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;

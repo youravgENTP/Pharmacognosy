@@ -7,6 +7,7 @@ import { crudeDrugs, dataCardRevisions, fieldDefinitions } from "@/lib/db/schema
 import { dataCardContentHash, lockDataCardMutation } from "@/lib/data-card-integrity";
 import { drugPatchSchema, uuidSchema } from "@/lib/validators";
 import { getDrugProfile } from "@/lib/data/drug";
+import { normalizeStudySections } from "@/lib/data-card-content";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) { const authError = await authorizeApi("user"); if (authError) return authError;
   const { id } = await params;
@@ -26,7 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const current = await getCurrentUser(request.headers);
     const { baseRevision, ...patch } = parsed.data;
     const [mnemonicField] = parsed.data.sections ? await db.select({ id: fieldDefinitions.id }).from(fieldDefinitions).where(eq(fieldDefinitions.name, "암기법")).limit(1) : [];
-    const sections = parsed.data.sections?.map((section) => section.title === "암기법" || section.fieldDefinitionId === mnemonicField?.id ? { ...section, items: [], blocks: [] } : section);
+    const sections = parsed.data.sections ? normalizeStudySections(parsed.data.sections, mnemonicField?.id) : undefined;
     const updated = await db.transaction(async (tx) => {
       await lockDataCardMutation(tx);
       const where = and(eq(crudeDrugs.id, id), eq(crudeDrugs.dataRevision, baseRevision));

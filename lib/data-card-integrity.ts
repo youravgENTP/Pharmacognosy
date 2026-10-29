@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { StudySection } from "@/lib/db/schema";
+import { stableDataCardJson, type ComparableDataCard } from "@/lib/data-card-content";
 
 export const DATA_CARD_SYNC_LOCK_NAMESPACE = 48_271;
 export const DATA_CARD_SYNC_LOCK_KEY = 1;
@@ -28,21 +29,5 @@ export type VerifiableDataCard = {
 };
 
 export function dataCardContentHash(value: VerifiableDataCard) {
-  return createHash("sha256").update(stableJson({
-    koreanName: value.koreanName,
-    latinName: value.latinName,
-    origin: value.origin,
-    origins: value.origins,
-    scientificName: value.scientificName,
-    medicinalPart: value.medicinalPart,
-    familyId: value.familyId,
-    importance: value.importance,
-    sections: value.sections,
-  })).digest("hex");
-}
-
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (value && typeof value === "object") return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(",")}}`;
-  return JSON.stringify(value);
+  return createHash("sha256").update(stableDataCardJson(value as unknown as ComparableDataCard)).digest("hex");
 }

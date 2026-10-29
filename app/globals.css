@@ -1692,6 +1692,7 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
 .merge-preview { padding: 14px 26px 18px; border-top: 1px solid #30363d; background: #1b2025; }
 .merge-preview h3 { margin: 0 0 3px; font-size: 15px; }
 .merge-preview p { margin: 0; color: #aeb7c2; font-size: 12px; }
+.merge-preview .merge-error { margin: 0 0 12px; padding: 9px 11px; border: 1px solid #875052; border-radius: 7px; background: #351f22; color: #f0b4b7; font-size: 12px; line-height: 1.5; }
 .merge-preview details { margin-top: 10px; }
 .merge-preview details pre { max-height: 170px; overflow: auto; margin-top: 8px; padding: 10px; background: #111519; }
 .merge-footer-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 12px; }

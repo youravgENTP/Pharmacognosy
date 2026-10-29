@@ -1,4 +1,5 @@
 import type { ImportanceLevel, OriginPlant, StudySection } from "@/lib/db/schema";
+import { compareDataCardContent } from "@/lib/data-card-content";
 
 export type DataCardContent = {
   koreanName: string;
@@ -105,7 +106,7 @@ export function threeWayMerge<T>(base: T, local: T, remote: T, resolutions: Merg
   return { value, conflicts, automaticMerges, unresolved: conflicts.filter((conflict) => !resolutions[conflict.path] || (resolutions[conflict.path] === "both" && !conflict.canKeepBoth)).length };
 }
 
-export function sameDataCard(left: DataCardContent, right: DataCardContent) { return same(left, right); }
+export function sameDataCard(left: DataCardContent, right: DataCardContent) { return compareDataCardContent(left, right).equal; }
 
 function same(left: Maybe, right: Maybe) {
   if (left === absent || right === absent) return left === right;

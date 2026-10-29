@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { crudeDrugs, dataCardRevisions } from "@/lib/db/schema";
 import { uuidSchema } from "@/lib/validators";
+import { dataCardContentHash } from "@/lib/data-card-integrity";
 
 const contentKeys = ["koreanName", "latinName", "origin", "origins", "scientificName", "medicinalPart", "familyId", "importance", "sections"] as const;
 
@@ -27,6 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     baseAvailable: Boolean(base),
     currentRevision: current.dataRevision,
     remote: pickContent(current),
+    contentHash: dataCardContentHash(current),
   });
 }
 

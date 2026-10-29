@@ -12,10 +12,11 @@ export type DataCardMergeSession = {
   baseAvailable: boolean;
 };
 
-export function DataCardMergeEditor({ session, resolutions, saving, indexLabel, onResolutionsChange, onCancel, onSave }: {
+export function DataCardMergeEditor({ session, resolutions, saving, error, indexLabel, onResolutionsChange, onCancel, onSave }: {
   session: DataCardMergeSession;
   resolutions: MergeResolutions;
   saving: boolean;
+  error?: string;
   indexLabel?: string;
   onResolutionsChange: (value: MergeResolutions) => void;
   onCancel: () => void;
@@ -48,6 +49,7 @@ export function DataCardMergeEditor({ session, resolutions, saving, indexLabel, 
         </article>)}
       </div>
       <footer className="merge-preview">
+        {error ? <p className="merge-error" role="alert">{error}</p> : null}
         <div><h3>최종 병합 결과 Preview</h3><p>{result.value.sections.length}개 Section · {countNodes(result.value.sections)}개 항목 · 저장 후 서버 콘텐츠를 다시 읽어 검증합니다.</p></div>
         <details><summary>병합 JSON 확인</summary><pre>{JSON.stringify(result.value, null, 2)}</pre></details>
         <div className="merge-footer-actions"><button onClick={onCancel}>편집기로 돌아가기</button><button className="primary" disabled={saving || result.unresolved > 0} onClick={() => onSave(result.value)}>{saving ? "저장 및 검증 중…" : "병합 결과 저장 및 검증"}</button></div>

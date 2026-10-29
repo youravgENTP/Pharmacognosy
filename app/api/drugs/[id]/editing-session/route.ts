@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { crudeDrugIdentityTerms, crudeDrugRelationships, crudeDrugs, dataCardEditSessions, dataCardRevisions, fieldDefinitions } from "@/lib/db/schema";
 import { dataCardContentHash, lockDataCardMutation } from "@/lib/data-card-integrity";
 import { dataCardContentSchema, uuidSchema } from "@/lib/validators";
+import { normalizeDataCardContent } from "@/lib/data-card-content";
 
 export const runtime = "nodejs";
 
@@ -42,7 +43,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       tx.select({ id: crudeDrugRelationships.id }).from(crudeDrugRelationships).where(or(eq(crudeDrugRelationships.sourceId, id), eq(crudeDrugRelationships.targetId, id))),
       tx.select({ id: crudeDrugIdentityTerms.termId }).from(crudeDrugIdentityTerms).where(eq(crudeDrugIdentityTerms.crudeDrugId, id)),
     ]);
-    const normalizedContent = { ...content.data, sections: content.data.sections.map((section) => section.title === "암기법" || section.fieldDefinitionId === mnemonicField?.id ? { ...section, items: [], blocks: [] } : section) };
+    const normalizedContent = normalizeDataCardContent(content.data, mnemonicField?.id);
     const expectedHash = dataCardContentHash(normalizedContent);
     const storedHash = drug ? dataCardContentHash(drug) : null;
     const relationshipsMatch = sameIds(storedRelationships.map((row) => row.id), relationshipIds);

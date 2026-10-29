@@ -13,7 +13,8 @@ import { taxonomyIndent } from "@/lib/constituent-taxonomy";
 import { appendStudyItem } from "@/lib/study-blocks";
 import { useDataCardSaveGuard } from "@/components/data-card-save-guard";
 import { DataCardMergeEditor, type DataCardMergeSession } from "@/components/data-card-merge-editor";
-import { sameDataCard, type DataCardContent, type MergeResolutions } from "@/lib/data-card-merge";
+import { sameDataCard, threeWayMerge, type DataCardContent, type MergeResolutions } from "@/lib/data-card-merge";
+import { assessDataCardVerification } from "@/lib/data-card-content";
 
 type DrugDraft = DataCardContent & {
   koreanName: string; latinName: string | null; origin: string | null; origins: OriginPlant[]; scientificName: string | null;
@@ -60,6 +61,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
   const [mergeVisible, setMergeVisible] = useState(false);
   const [mergeResolutions, setMergeResolutions] = useState<MergeResolutions>({});
   const [mergeSaving, setMergeSaving] = useState(false);
+  const [mergeError, setMergeError] = useState<string>();
   const first = useRef(true);
   const draftRef = useRef(draft);
   const revision = useRef(0);
@@ -67,6 +69,8 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
   const baseDraft = useRef<DrugDraft>(structuredClone(initial));
   const conflictActive = useRef(false);
   const applyingMerge = useRef(false);
+  const acceptedMergeSave = useRef<{ revision: number; contentHash: string; value: DataCardContent } | undefined>(undefined);
+  const automaticMergeAttempt = useRef<string | undefined>(undefined);
   const guardKey = `${id}:${useId()}`;
   const savedDraftRevision = useRef(0);
   const contentHash = useRef<string | undefined>(undefined);
@@ -106,6 +110,8 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
       const body = await response.json();
       if (!response.ok || !isDrugDraft(body.remote)) throw new Error();
       const serverBase = isDrugDraft(body.base) ? body.base : fallbackBase;
+      acceptedMergeSave.current = undefined;
+      setMergeError(undefined);
       setMergeSession({ baseRevision: requestedBaseRevision, remoteRevision: body.currentRevision, base: structuredClone(serverBase), local: structuredClone(local), remote: structuredClone(body.remote), baseAvailable: Boolean(body.baseAvailable) });
       setMergeVisible(!isClosePending());
     } catch {
@@ -273,6 +279,17 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
     const hide = window.setTimeout(() => setShowSaved(false), 1600);
     return () => window.clearTimeout(hide);
   }, [leaveBlocked]);
+  useEffect(() => {
+    if (!mergeSession) return;
+    const result = threeWayMerge(mergeSession.base, mergeSession.local, mergeSession.remote, mergeResolutions);
+    if (result.conflicts.length || result.unresolved) return;
+    const key = `${mergeSession.baseRevision}:${mergeSession.remoteRevision}`;
+    if (automaticMergeAttempt.current === key) return;
+    automaticMergeAttempt.current = key;
+    void saveMerged(result.value);
+  // A conflict-free merge is attempted once per Base/Remote pair. Failures stay visible for an explicit verification retry.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mergeSession]);
 
   const setField = <K extends keyof DrugDraft>(key: K, value: DrugDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
   function fieldName(section: StudySection) { return fieldDefinitions.find((field) => field.id === section.fieldDefinitionId)?.name ?? section.title; }
@@ -334,32 +351,77 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
   async function saveMerged(value: DataCardContent) {
     if (!mergeSession || mergeSaving) return;
     setMergeSaving(true);
+    setMergeError(undefined);
     storeRecovery(value as DrugDraft, mergeSession.remoteRevision);
     try {
-      const response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Request-Id": crypto.randomUUID(), ...(sessionIdRef.current ? { "X-Editing-Session-Id": sessionIdRef.current } : {}) }, body: JSON.stringify({ ...value, baseRevision: mergeSession.remoteRevision }) });
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 409 && body.code === "REVISION_CONFLICT") {
-        await beginConflict(value as DrugDraft, mergeSession.remoteRevision, mergeSession.remote);
+      let accepted = acceptedMergeSave.current;
+      if (accepted && !sameDataCard(accepted.value, value)) {
+        acceptedMergeSave.current = undefined;
+        await beginConflict(value as DrugDraft, accepted.revision, accepted.value);
+        setMergeError("이미 저장된 병합 결과 이후 선택이 변경되어 최신 서버 내용과 다시 비교했습니다.");
         return;
       }
-      if (!response.ok || typeof body.dataRevision !== "number" || typeof body.contentHash !== "string") throw new Error("병합 저장에 실패했습니다.");
-      const verification = await fetch(`/api/drugs/${id}/revisions?baseRevision=${body.dataRevision}`, { cache: "no-store" });
-      const verified = await verification.json();
-      if (!verification.ok || verified.currentRevision !== body.dataRevision || !isDrugDraft(verified.remote) || !sameDataCard(value, verified.remote)) throw new Error("서버 저장 내용 검증에 실패했습니다.");
+
+      if (!accepted) {
+        let response: Response;
+        try { response = await fetch(`/api/drugs/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Request-Id": crypto.randomUUID(), ...(sessionIdRef.current ? { "X-Editing-Session-Id": sessionIdRef.current } : {}) }, body: JSON.stringify({ ...value, baseRevision: mergeSession.remoteRevision }) }); }
+        catch { return failMergeSave("PATCH 요청을 전송하지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해 주세요."); }
+        const body = await response.json().catch(() => ({}));
+        if (response.status === 409 && body.code === "REVISION_CONFLICT") {
+          await beginConflict(value as DrugDraft, mergeSession.remoteRevision, mergeSession.remote);
+          setMergeError("병합 저장 중 서버 Revision이 다시 변경되었습니다. 새 서버 내용과 다시 비교해 주세요.");
+          return;
+        }
+        if (!response.ok) return failMergeSave(`PATCH 요청이 실패했습니다${typeof body.error === "string" ? `: ${body.error}` : ` (${response.status})`}`);
+        if (typeof body.dataRevision !== "number" || typeof body.contentHash !== "string") return failMergeSave("PATCH는 응답했지만 저장 Revision 또는 콘텐츠 해시가 누락되었습니다.");
+        accepted = { revision: body.dataRevision, contentHash: body.contentHash, value: structuredClone(value) };
+        acceptedMergeSave.current = accepted;
+        serverRevision.current = accepted.revision;
+        contentHash.current = accepted.contentHash;
+        storeRecovery(value as DrugDraft, accepted.revision);
+      }
+
+      let verification: Response;
+      try { verification = await fetch(`/api/drugs/${id}/revisions?baseRevision=${accepted.revision}`, { cache: "no-store" }); }
+      catch { return failMergeSave("PATCH 저장은 완료됐지만 서버 검증 API에 연결하지 못했습니다. 다시 누르면 PATCH 없이 검증만 재시도합니다."); }
+      const verified = await verification.json().catch(() => ({}));
+      if (!verification.ok) return failMergeSave(`PATCH 저장은 완료됐지만 서버 검증 API가 실패했습니다${typeof verified.error === "string" ? `: ${verified.error}` : ` (${verification.status})`}. 다시 누르면 검증만 재시도합니다.`);
+      if (typeof verified.currentRevision !== "number" || !isDrugDraft(verified.remote)) return failMergeSave("서버 검증 응답에 Revision 또는 실제 저장 콘텐츠가 없습니다. PATCH는 반복하지 않습니다.");
+      const assessment = assessDataCardVerification(value, accepted.revision, verified.currentRevision, verified.remote);
+      if (assessment.status === "revision-reconflict") {
+        console.warn("data_card_merge_verification", { drugId: id, acceptedRevision: accepted.revision, currentRevision: verified.currentRevision, result: "revision_reconflict", differencePaths: assessment.differences, timestamp: new Date().toISOString() });
+        acceptedMergeSave.current = undefined;
+        await beginConflict(value as DrugDraft, accepted.revision, accepted.value);
+        setMergeError("PATCH 저장 후 서버 Revision이 다시 변경되었습니다. 새 변경사항을 보존한 상태로 다시 비교합니다.");
+        return;
+      }
+      if (assessment.status === "stale-response") return failMergeSave("서버 검증 API가 저장된 Revision보다 오래된 결과를 반환했습니다. PATCH는 반복하지 않습니다.");
+      if (assessment.status === "content-mismatch") {
+        console.error("data_card_merge_verification", { drugId: id, acceptedRevision: accepted.revision, currentRevision: verified.currentRevision, result: "content_mismatch", differencePaths: assessment.differences, timestamp: new Date().toISOString() });
+        return failMergeSave(`병합 결과와 서버 저장 내용이 일치하지 않습니다. 차이: ${assessment.differences.slice(0, 5).join(", ") || "알 수 없는 경로"}. PATCH는 반복하지 않습니다.`);
+      }
+
+      const stored = structuredClone(verified.remote) as DrugDraft;
       applyingMerge.current = true;
-      setDraft(structuredClone(value) as DrugDraft);
-      baseDraft.current = structuredClone(value) as DrugDraft;
-      serverRevision.current = body.dataRevision;
-      contentHash.current = body.contentHash;
+      setDraft(stored);
+      baseDraft.current = structuredClone(stored);
+      serverRevision.current = verified.currentRevision;
+      contentHash.current = typeof verified.contentHash === "string" ? verified.contentHash : accepted.contentHash;
       savedDraftRevision.current = revision.current;
+      acceptedMergeSave.current = undefined;
       conflictActive.current = false;
-      setMergeSession(undefined); setMergeVisible(false); setMergeResolutions({}); setStatus("saved"); setCloseState("idle"); setBackupState("pending");
-      storeRecovery(value as DrugDraft, body.dataRevision);
-      if (closePending) void resumePendingClose();
-    } catch (error) {
-      setStatus("error");
-      setCloseState("conflict", error instanceof Error ? error.message : "병합 저장 및 검증에 실패했습니다. Local 초안은 유지됩니다.");
+      setMergeSession(undefined); setMergeVisible(false); setMergeResolutions({}); setMergeError(undefined); setStatus("saved"); setCloseState("idle"); setBackupState("pending");
+      storeRecovery(stored, verified.currentRevision);
+      if (isClosePending()) void resumePendingClose();
+    } catch {
+      failMergeSave("병합 저장 처리 중 예상하지 못한 오류가 발생했습니다. Local 초안은 유지되며 PATCH 성공 여부를 확인하기 전에는 다시 저장하지 않습니다.");
     } finally { setMergeSaving(false); }
+
+    function failMergeSave(message: string) {
+      setMergeError(message);
+      setStatus("error");
+      setCloseState("conflict", message);
+    }
   }
   async function manualSave() {
     if (manualSaving.current) return;
@@ -383,7 +445,7 @@ function DrugEditorContent({ id, dataRevision, initial, family, archive, catalog
   }
   const closeInProgress = closeState === "saving" || closeState === "verifying" || closeState === "closing";
   return <div className={`drug-profile ${modal ? "in-modal" : "standalone"} ${closeInProgress ? "close-in-progress" : ""}`} aria-busy={closeInProgress}>
-    {mergeSession && mergeVisible ? <DataCardMergeEditor session={mergeSession} resolutions={mergeResolutions} saving={mergeSaving} indexLabel={formatDrugIndex(catalogIndex, referenceIndex, archive)} onResolutionsChange={setMergeResolutions} onCancel={() => { setMergeVisible(false); if (closePending) cancelPendingClose(); }} onSave={(value) => void saveMerged(value)}/> : null}
+    {mergeSession && mergeVisible ? <DataCardMergeEditor session={mergeSession} resolutions={mergeResolutions} saving={mergeSaving} error={mergeError} indexLabel={formatDrugIndex(catalogIndex, referenceIndex, archive)} onResolutionsChange={setMergeResolutions} onCancel={() => { setMergeVisible(false); if (closePending) cancelPendingClose(); }} onSave={(value) => void saveMerged(value)}/> : null}
     {showSaved ? <div className="data-card-saved-toast" role="status" aria-live="polite"><Check size={14}/> Saved!</div> : null}
     {closeError ? <p className="form-error" role="alert">{closeError}</p> : null}
     <section className="profile-identity indicator-field">

@@ -7,7 +7,7 @@ export const drugPatchSchema = z.object({
   koreanName: z.string().min(1).max(100).optional(),
   latinName: z.string().max(200).nullable().optional(),
   origin: z.string().nullable().optional(),
-  origins: z.array(z.object({ nameKo: z.string().nullable(), scientificName: z.string().nullable() })).optional(),
+  origins: z.array(z.object({ nameKo: z.string().nullable(), scientificName: z.string().nullable() }).passthrough()).optional(),
   scientificName: z.string().max(250).nullable().optional(),
   medicinalPart: z.string().max(200).nullable().optional(),
   familyId: z.string().uuid().nullable().optional(),
@@ -15,7 +15,8 @@ export const drugPatchSchema = z.object({
   sections: z.array(z.object({
     id: z.string(), title: z.string(), fieldDefinitionId: z.string().uuid().optional(), items: z.array(z.any()),
     blocks: z.array(z.discriminatedUnion("type", [
-      z.object({ id: z.string(), type: z.literal("items"), items: z.array(z.any()) }),
+      z.object({ id: z.string(), type: z.literal("text"), content: z.object({ text: z.string(), html: z.string().max(100000).optional() }).passthrough() }).passthrough(),
+      z.object({ id: z.string(), type: z.literal("items"), items: z.array(z.any()) }).passthrough(),
     z.object({
       id: z.string(),
       type: z.literal("image"),
@@ -27,9 +28,9 @@ export const drugPatchSchema = z.object({
       anchorItemId: z.string().optional(),
       anchorSide: z.enum(["before", "after"]).optional(),
       align: z.enum(["left", "center", "right"]).optional(),
-    }),
+    }).passthrough(),
     ])).optional(),
-  })).optional(),
+  }).passthrough()).optional(),
 });
 
 export const dataCardContentSchema = drugPatchSchema.omit({ baseRevision: true }).required();

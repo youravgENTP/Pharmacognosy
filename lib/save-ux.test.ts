@@ -42,7 +42,7 @@ test("conflict resolution replaces progress UI and resumes the original close on
   const editor = await readFile(new URL("../components/drug-editor.tsx", import.meta.url), "utf8");
   assert.match(editor, /openConflictResolver: \(\) => setMergeVisible\(true\)/);
   assert.match(editor, /setMergeVisible\(!isClosePending\(\)\)/);
-  assert.match(editor, /if \(closePending\) void resumePendingClose\(\)/);
+  assert.match(editor, /if \(isClosePending\(\)\) void resumePendingClose\(\)/);
   assert.match(editor, /if \(closePending\) cancelPendingClose\(\)/);
 });
 

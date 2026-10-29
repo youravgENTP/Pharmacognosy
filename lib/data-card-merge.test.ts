@@ -21,6 +21,12 @@ test("server JSON object key ordering does not cause a false verification failur
   assert.equal(sameDataCard(local, remote), true);
 });
 
+test("JSON-omitted optional properties do not cause a false verification failure", () => {
+  const local = card(); local.sections[0]!.items[0]!.html = undefined;
+  const remote = JSON.parse(JSON.stringify(local)) as DataCardContent;
+  assert.equal(sameDataCard(local, remote), true);
+});
+
 test("different values for the same primitive require an explicit choice", () => {
   const base = card(); const local = { ...base, importance: "중요" as const }; const remote = { ...base, importance: "비중요" as const };
   const pending = threeWayMerge(base, local, remote);
@@ -90,6 +96,7 @@ test("keep both is offered only for safely append-only unkeyed content", () => {
 test("conflict recovery sources preserve base content, stop retries, and verify merged server content", async () => {
   const editor = await readFile(new URL("../components/drug-editor.tsx", import.meta.url), "utf8");
   const revisions = await readFile(new URL("../app/api/drugs/[id]/revisions/route.ts", import.meta.url), "utf8");
-  assert.match(editor, /baseDraft\?: DrugDraft/); assert.match(editor, /if \(conflictActive\.current\)/); assert.match(editor, /sameDataCard\(value, verified\.remote\)/);
+  assert.match(editor, /baseDraft\?: DrugDraft/); assert.match(editor, /if \(conflictActive\.current\)/); assert.match(editor, /assessDataCardVerification\(value, accepted\.revision, verified\.currentRevision, verified\.remote\)/);
+  assert.match(editor, /acceptedMergeSave\.current/); assert.match(editor, /PATCH는 반복하지 않습니다/); assert.match(editor, /automaticMergeAttempt\.current/);
   assert.match(editor, /setMergeVisible\(false\)/); assert.match(revisions, /dataCardRevisions\.revision/); assert.match(revisions, /baseAvailable/);
 });

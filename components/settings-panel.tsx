@@ -1,20 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check, Moon, Sun } from "lucide-react";
-import { applyTheme, isThemeMode, type ThemeMode } from "@/lib/theme";
+import { applyTheme, isThemeMode, THEME_STORAGE_KEY, type ThemeMode } from "@/lib/theme";
 
 const defaults = ["#9fc5ff", "#d9e7fb", "#edf0f4"];
 const labels = ["중요", "중간", "비중요"];
 const keys = ["important", "medium", "low"];
 export function SettingsPanel() {
   const [colors, setColors] = useState(defaults);
-  const [theme, setTheme] = useState<ThemeMode>("night");
+  const [theme, setTheme] = useState<ThemeMode>("day");
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     const activeTheme = document.documentElement.dataset.theme ?? null;
     if (isThemeMode(activeTheme)) setTheme(activeTheme);
-    const stored = localStorage.getItem("importance-colors");
-    if (stored) { const parsed = JSON.parse(stored) as string[]; setColors(parsed); parsed.forEach((color, index) => document.documentElement.style.setProperty(`--importance-${keys[index]}`, color)); }
+    try { const stored = localStorage.getItem("importance-colors"); if (stored) { const parsed = JSON.parse(stored) as string[]; setColors(parsed); parsed.forEach((color, index) => document.documentElement.style.setProperty(`--importance-${keys[index]}`, color)); } } catch { /* Local preferences are optional; the Day theme remains usable without storage. */ }
+    const syncSelection = (event: StorageEvent) => { if (event.key === THEME_STORAGE_KEY) setTheme(isThemeMode(event.newValue) ? event.newValue : "day"); };
+    window.addEventListener("storage", syncSelection);
+    return () => window.removeEventListener("storage", syncSelection);
   }, []);
   function selectTheme(next: ThemeMode) { setTheme(next); applyTheme(next); }
   function save() { localStorage.setItem("importance-colors", JSON.stringify(colors)); colors.forEach((color, index) => document.documentElement.style.setProperty(`--importance-${keys[index]}`, color)); setSaved(true); window.setTimeout(() => setSaved(false), 1500); }

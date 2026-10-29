@@ -1393,8 +1393,7 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
   box-shadow: 0 0 0 1000px #ffffff inset;
 }
 
-/* Two-mode theme tokens. Night is the compatibility default; Day is Soft Sage. */
-:root,
+/* Two-mode theme tokens. Day is the default; Night is an explicit preference. */
 :root[data-theme="night"] {
   color-scheme: dark;
   --app-bg: #0f1215;
@@ -1449,6 +1448,7 @@ body.resizing-spreadsheet { user-select: none; cursor: nwse-resize; }
   --sidebar: var(--sidebar-bg);
 }
 
+:root,
 :root[data-theme="day"] {
   color-scheme: light;
   --app-bg: #f6f8f4;
